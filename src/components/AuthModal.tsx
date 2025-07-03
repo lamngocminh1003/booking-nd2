@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { setAuthStorage } from "@/utils/authStorage";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getAuthStorage } from "@/utils/authStorage";
+
 import {
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -26,6 +29,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
+
 import { Separator } from "@/components/ui/separator";
 import { Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +51,8 @@ const AuthModal = ({
   onModeChange,
   onLogin,
 }: AuthModalProps) => {
+  const navigate = useNavigate();
+
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
   const [formData, setFormData] = useState({
@@ -92,23 +99,22 @@ const AuthModal = ({
       onLogin(user, token);
       const response = await loginWithFirebaseToken(token);
       if (response) {
-        let { accessToken, refreshToken, expiration } = response;
+        let { accessToken, refreshToken, expiration, status } = response?.data;
         dispatch(
           setAuth({
             accessToken: accessToken,
             refreshToken: refreshToken,
             expiration: expiration,
+            status: status,
           })
         ); // Lưu vào localStorage (web)
-        if (Capacitor.isNativePlatform()) {
-          await setSecureItem("accessToken", accessToken);
-          await setSecureItem("refreshToken", refreshToken);
-          await setSecureItem("expiration", expiration);
-        } else {
-          localStorage.setItem("accessToken", accessToken);
-          localStorage.setItem("refreshToken", refreshToken);
-          localStorage.setItem("expiration", expiration);
-        }
+        // Lưu token
+        await setAuthStorage({
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          expiration: expiration,
+          status: status,
+        });
       }
       toast({
         title: "Đăng nhập thành công!",
@@ -128,6 +134,21 @@ const AuthModal = ({
     try {
       const result = await signInWithPopup(auth, googleProvider);
       await getIdToken(result.user);
+      const { status } = await getAuthStorage();
+      console.log("User status after Google login:", status);
+
+      if (status === "pending") {
+        navigate("/profile"); // Chuyển đến trang profile
+        toast({
+          title:
+            "Hiện tại chưa có thông tin tài khoản. Vui lòng đăng ký thông tin.",
+          description:
+            "Hiện tại chưa có thông tin tài khoản. Vui lòng đăng ký thông tin.",
+          variant: "destructive",
+        });
+      } else if (status === "Active") {
+        navigate("/");
+      }
     } catch (error: any) {
       console.error("Google login error:", error);
       toast({

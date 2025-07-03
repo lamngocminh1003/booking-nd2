@@ -1,59 +1,21 @@
-import axios from "axios";
-import { backendURL, createConfig } from "@/lib/utils";
-const loginWithFirebaseToken = async (idToken: string) => {
-  try {
-    const response = await axios
-      .post(
-        `${backendURL}/api/auth/firebase-login`,
-        {
-          idToken,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      )
-      .then(function (response) {
-        return response?.data;
-      })
-      .catch(function (error) {
-        return error?.response;
-      });
+import { postJSON, postJSONAuth, fetchData } from "@/lib/utils";
+const loginWithFirebaseToken = (idToken: string) =>
+  postJSON("/api/auth/firebase-login", { idToken });
 
-    // Trả về dữ liệu sau khi login thành công
-    return response.data;
-  } catch (error: any) {
-    console.error("Login Firebase failed:", error);
-    throw error.response?.data || error;
-  }
-};
-const refreshAccessToken = async (refreshToken: string) => {
-  try {
-    const response = await axios
-      .post(
-        `${backendURL}/api/auth/refresh-token`,
-        {
-          refreshToken,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      )
-      .then(function (response) {
-        return response?.data;
-      })
-      .catch(function (error) {
-        return error?.response;
-      });
+const refreshAccessToken = (refreshToken: string) =>
+  postJSON("/api/auth/refresh-token", { refreshToken });
 
-    // Trả về dữ liệu sau khi login thành công
-    return response.data;
-  } catch (error: any) {
-    console.error("Refresh failed:", error);
-    throw error.response?.data || error;
-  }
+const logoutService = (deviceId: string) =>
+  postJSONAuth("/api/auth/logout", { deviceId });
+const createOrUpdateUserInfo = (data) =>
+  postJSONAuth("/api/user-info/create-or-update", data);
+
+const parseCCCDQR = (cccdQrData: string) =>
+  fetchData(`/api/parse-cccd-qr?cccdQrData=${encodeURIComponent(cccdQrData)}`);
+export {
+  loginWithFirebaseToken,
+  refreshAccessToken,
+  logoutService,
+  createOrUpdateUserInfo,
+  parseCCCDQR,
 };
-export { loginWithFirebaseToken, refreshAccessToken };

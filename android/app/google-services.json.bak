@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "273988104826",
+    "project_id": "patient-booking-nd2",
+    "storage_bucket": "patient-booking-nd2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:273988104826:android:9b0b522e823794196dc1c3",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "273988104826-gm47k1t3vet4vpo2m7e0u0epff8d91gf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.app",
+            "certificate_hash": "5cc2d29823db0a6d62a582f016a1a79e0687263c"
+          }
+        },
+        {
+          "client_id": "273988104826-2p8pbur3kk7i9v4hokibqu08adkconph.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzXX4eHxXn2I8WONAA6fGfEpkmiYU4zmU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "273988104826-2p8pbur3kk7i9v4hokibqu08adkconph.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

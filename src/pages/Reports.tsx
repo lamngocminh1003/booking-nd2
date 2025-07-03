@@ -91,7 +91,7 @@ const Reports = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100 animate-fade-in">
       <div className="pt-20 pb-10 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">

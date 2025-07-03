@@ -1,27 +1,34 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { User, signOut } from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { Menu, X, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
-import AuthModal from "@/components/AuthModal";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { setAuthUser } from "@/store/slices/authSlice";
 import { clearAuthUser } from "@/store/slices/authSlice";
+import { logoutService } from "@/services/UsersServices";
 import logo from "../assets/imgs/logo.png"; // Adjust the path as necessary
+import { getOrCreateDeviceId } from "@/hooks/getOrCreateDeviceId";
+import { removeAuthStorage } from "@/utils/authStorage";
 const Navigation = () => {
   const dispatch = useDispatch();
-  const user = useSelector((state: RootState) => state.auth.user); // Lấy từ Redux
+  const user = useSelector((state: RootState) => state?.auth?.user); // Lấy từ Redux
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+
   const navigate = useNavigate();
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      dispatch(clearAuthUser()); // Cập nhật Redux
+      try {
+        const deviceId = await getOrCreateDeviceId();
+        await logoutService(deviceId);
+      } finally {
+        dispatch(clearAuthUser()); // Cập nhật Redux
+        await removeAuthStorage();
+      }
       toast({
         title: "Đăng xuất thành công",
         description: "Bạn đã đăng xuất khỏi tài khoản.",
@@ -37,21 +44,15 @@ const Navigation = () => {
   };
 
   const handleAuthClick = (mode: "login" | "register") => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
+    if (mode === "login") {
+      navigate("/login");
+    } else if (mode === "register") {
+      navigate("/register");
+    }
   };
-  const handleLogin = (user: User, token: string) => {
-    dispatch(setAuthUser({ user, token }));
-  };
+
   return (
     <>
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        mode={authMode}
-        onModeChange={setAuthMode}
-        onLogin={handleLogin}
-      />
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-emerald-100">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">

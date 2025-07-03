@@ -4,6 +4,9 @@ import appointmentSlice from "./slices/appointmentSlice";
 import notificationSlice from "./slices/notificationSlice";
 import childrenSlice from "./slices/childrenSlice";
 import authReducer from "./slices/authSlice";
+import adminReducer from "./slices/adminSlice";
+import locationReducer from "./slices/locationSlice";
+
 export const store = configureStore({
   reducer: {
     user: userSlice,
@@ -11,6 +14,8 @@ export const store = configureStore({
     notifications: notificationSlice,
     children: childrenSlice,
     auth: authReducer,
+    admin: adminReducer,
+    location: locationReducer,
   },
 });
 

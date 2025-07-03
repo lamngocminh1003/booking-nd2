@@ -11,16 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Calendar,
-  Phone,
-  Mail,
-  Filter,
-} from "lucide-react";
+import { Search, Edit, Trash2, Phone, Mail, Filter } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EditDoctorModal from "@/components/admin/doctors/EditDoctorModal";
+import AddDoctorModal from "@/components/admin/doctors/AddDoctorModal";
+import DoctorScheduleModal from "@/components/admin/doctors/DoctorScheduleModal";
 
 interface Doctor {
   id: string;
@@ -28,7 +23,7 @@ interface Doctor {
   specialty: string;
   phone: string;
   email: string;
-  status: "active" | "inactive" | "on_leave";
+  status: "Active" | "inactive" | "on_leave";
   experience: number;
   patients: number;
   schedule: string[];
@@ -36,14 +31,14 @@ interface Doctor {
 
 const DoctorManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [doctors] = useState<Doctor[]>([
+  const [doctors, setDoctors] = useState<Doctor[]>([
     {
       id: "1",
       name: "BS. Trần Văn Nam",
       specialty: "Nhi khoa tổng quát",
       phone: "0123456789",
       email: "tranvannam@hospital.com",
-      status: "active",
+      status: "Active",
       experience: 15,
       patients: 1250,
       schedule: ["Thứ 2", "Thứ 4", "Thứ 6"],
@@ -54,7 +49,7 @@ const DoctorManagement = () => {
       specialty: "Tim mạch nhi",
       phone: "0987654321",
       email: "lethihoa@hospital.com",
-      status: "active",
+      status: "Active",
       experience: 12,
       patients: 890,
       schedule: ["Thứ 3", "Thứ 5", "Thứ 7"],
@@ -71,6 +66,20 @@ const DoctorManagement = () => {
       schedule: ["Thứ 2", "Thứ 3", "Thứ 5"],
     },
   ]);
+
+  const handleDoctorUpdate = (updatedDoctor: Doctor) => {
+    setDoctors((prev) =>
+      prev.map((doctor) =>
+        doctor.id === updatedDoctor.id ? updatedDoctor : doctor
+      )
+    );
+    console.log("Cập nhật thông tin bác sĩ:", updatedDoctor);
+  };
+
+  const handleDoctorAdd = (newDoctor: Doctor) => {
+    setDoctors((prev) => [...prev, newDoctor]);
+    console.log("Thêm bác sĩ mới:", newDoctor);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -98,23 +107,20 @@ const DoctorManagement = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
-      <div className="pt-20 pb-10 px-4">
-        <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen animate-fade-in">
+      <div className=" pb-10 ">
+        <div className="">
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                <h1 className="text-2xl font-bold text-gray-900 mb-2">
                   Quản lý Bác sĩ
                 </h1>
                 <p className="text-gray-600">
                   Quản lý thông tin bác sĩ và lịch làm việc
                 </p>
               </div>
-              <Button className="bg-emerald-600 hover:bg-emerald-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Thêm bác sĩ mới
-              </Button>
+              <AddDoctorModal onAdd={handleDoctorAdd} />
             </div>
           </div>
 
@@ -181,12 +187,11 @@ const DoctorManagement = () => {
                       <TableCell>{getStatusBadge(doctor.status)}</TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
-                          <Button variant="outline" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Calendar className="w-4 h-4" />
-                          </Button>
+                          <EditDoctorModal
+                            doctor={doctor}
+                            onSave={handleDoctorUpdate}
+                          />
+                          <DoctorScheduleModal doctor={doctor} />
                           <Button
                             variant="outline"
                             size="sm"

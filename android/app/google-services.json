@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "903391374003",
+    "project_id": "nd2-test",
+    "storage_bucket": "nd2-test.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:903391374003:android:a1361da708b2968c435ec6",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "903391374003-mqok81e0ls0gvh4i1ceqr0vibua5oing.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDnqn469GuVGhiPqEkvMW_2iSjNrbaTTFk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "903391374003-mqok81e0ls0gvh4i1ceqr0vibua5oing.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

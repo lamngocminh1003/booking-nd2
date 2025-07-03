@@ -1,8 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { User, onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-
 import {
   Card,
   CardDescription,
@@ -11,49 +8,11 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Shield, Heart, Star } from "lucide-react";
-import AuthModal from "@/components/AuthModal";
-import { useDispatch, useSelector } from "react-redux";
+import {  useSelector } from "react-redux";
 import { RootState } from "@/store"; // path đến store của bạn
-import {
-  setAuthUser,
-  clearAuthUser,
-  setAuthLoading,
-} from "@/store/slices/authSlice";
 const Index = () => {
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const dispatch = useDispatch();
-
-  const user = useSelector((state: RootState) => state.auth.user);
-  const token = useSelector((state: RootState) => state.auth.token);
   const loading = useSelector((state: RootState) => state.auth.loading);
 
-  const handleAuthClick = (mode: "login" | "register") => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
-  };
-  const handleLogin = (user: User, token: string) => {
-    dispatch(setAuthUser({ user, token }));
-  };
-  useEffect(() => {
-    dispatch(setAuthLoading(true));
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const idToken = await user.getIdToken();
-          dispatch(setAuthUser({ user, token: idToken }));
-        } catch (error) {
-          console.error("Error getting ID token:", error);
-          dispatch(clearAuthUser());
-        }
-      } else {
-        dispatch(clearAuthUser());
-      }
-      dispatch(setAuthLoading(false));
-    });
-
-    return () => unsubscribe();
-  }, [dispatch]);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -225,13 +184,7 @@ const Index = () => {
         </div>
       </section>
 
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        mode={authMode}
-        onModeChange={setAuthMode}
-        onLogin={handleLogin}
-      />
+    
     </div>
   );
 };

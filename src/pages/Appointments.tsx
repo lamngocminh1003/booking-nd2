@@ -274,7 +274,7 @@ const Appointments = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
       <div className="pt-20 pb-10 px-4">
-        <div className="max-w-6xl mx-auto">
+        <div className=" mx-auto">
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
