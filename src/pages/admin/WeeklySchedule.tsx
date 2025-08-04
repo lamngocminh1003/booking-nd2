@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Calendar,
   Filter,
@@ -24,8 +25,14 @@ import {
   Info,
   Settings,
   Palette,
+  Plus,
+  X,
+  Clock,
+  Users,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import {
   Tooltip,
   TooltipContent,
@@ -40,13 +47,39 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+// Types
+interface RoomSlot {
+  id: string;
+  name: string;
+  classification: string;
+  customStartTime?: string;
+  customEndTime?: string;
+  appointmentCount?: number;
+  specialties: string[];
+  selectedSpecialty?: string; // Single selected specialty to display
+  selectedDoctor?: string; // Thêm trường chọn bác sĩ
+  _doctorSearchTerm?: string; // Dùng để lưu giá trị tìm kiếm bác sĩ
+  priorityOrder?: number; // Số ưu tiên
+}
+
+interface ShiftSlot {
+  rooms: RoomSlot[];
+}
 
 const WeeklySchedule = () => {
   const [selectedWeek, setSelectedWeek] = useState("2025-W25");
+  const [selectedZone, setSelectedZone] = useState("all");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [viewMode, setViewMode] = useState<"week" | "day">("week");
   const [selectedDay, setSelectedDay] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [roomSearchTerm, setRoomSearchTerm] = useState("");
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [scheduleChanges, setScheduleChanges] = useState<Record<string, any>>(
     {}
@@ -55,6 +88,30 @@ const WeeklySchedule = () => {
   const [redoStack, setRedoStack] = useState<any[]>([]);
   const [showRoomClassificationDialog, setShowRoomClassificationDialog] =
     useState(false);
+  const [showShiftConfigDialog, setShowShiftConfigDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Shift default times
+  const [shiftDefaults, setShiftDefaults] = useState({
+    morning: { start: "07:30", end: "11:00", defaultAppointments: 10 },
+    afternoon: { start: "13:30", end: "16:00", defaultAppointments: 10 },
+    evening: { start: "18:00", end: "21:00", defaultAppointments: 10 },
+  });
+
+  // Available specialties
+  const availableSpecialties = [
+    "Khám chuyên khoa",
+    "Khám nội tổng quát",
+    "Khám tai mũi họng",
+    "Khám sản phụ khoa",
+    "Siêu âm",
+    "Xét nghiệm",
+    "Nội soi",
+    "Tiêm chủng",
+    "Tư vấn dinh dưỡng",
+    "Đo điện tim (ECG)",
+    "Khám nhi",
+  ];
 
   // Room classification system
   const [roomClassifications, setRoomClassifications] = useState({
@@ -92,25 +149,190 @@ const WeeklySchedule = () => {
 
   // Available rooms for selection with classification
   const availableRooms = [
-    { id: "none", name: "Không có", classification: "normal" },
-    { id: "303", name: "Phòng 303", classification: "normal" },
-    { id: "307", name: "Phòng 307", classification: "normal" },
-    { id: "313", name: "Phòng 313", classification: "priority" },
-    { id: "315", name: "Phòng 315", classification: "normal" },
-    { id: "316", name: "Phòng 316", classification: "normal" },
-    { id: "404", name: "Phòng 404 (Đặc biệt)", classification: "special" },
-    { id: "405", name: "Phòng 405 (Đặc biệt)", classification: "special" },
-    { id: "420", name: "Phòng 420", classification: "urgent" },
-    { id: "421", name: "Phòng 421 (11h-13h)", classification: "special" },
-    { id: "422", name: "Phòng 422 (11h-13h)", classification: "special" },
-    { id: "437", name: "Phòng 437", classification: "normal" },
-    { id: "438", name: "Phòng 438", classification: "priority" },
-    { id: "439", name: "Phòng 439", classification: "priority" },
-    { id: "440", name: "Phòng 440", classification: "priority" },
-    { id: "441", name: "Phòng 441", classification: "priority" },
-    { id: "443", name: "Phòng 443", classification: "priority" },
-    { id: "444", name: "Phòng 444", classification: "urgent" },
-    { id: "446", name: "Phòng 446", classification: "normal" },
+    {
+      id: "303",
+      name: "Phòng 303",
+      code: "P303",
+      classification: "normal",
+      specialties: ["Khám nội tổng quát"],
+    },
+    {
+      id: "307",
+      name: "Phòng 307",
+      code: "P307",
+      classification: "normal",
+      specialties: ["Khám nội tổng quát", "Đo điện tim (ECG)"],
+    },
+    {
+      id: "313",
+      name: "Phòng 313",
+      code: "P313",
+      classification: "priority",
+      specialties: ["Khám tai mũi họng"],
+    },
+    {
+      id: "315",
+      name: "Phòng 315",
+      code: "P315",
+      classification: "normal",
+      specialties: ["Khám nhi"],
+    },
+    {
+      id: "316",
+      name: "Phòng 316",
+      code: "P316",
+      classification: "normal",
+      specialties: ["Khám nội tổng quát"],
+    },
+    {
+      id: "404",
+      name: "Phòng 404 (Đặc biệt)",
+      code: "P404",
+      classification: "special",
+      specialties: ["Khám sản phụ khoa", "Siêu âm"],
+    },
+    {
+      id: "405",
+      name: "Phòng 405 (Đặc biệt)",
+      code: "P405",
+      classification: "special",
+      specialties: ["Nội soi", "Xét nghiệm"],
+    },
+    {
+      id: "420",
+      name: "Phòng 420",
+      code: "P420",
+      classification: "urgent",
+      specialties: ["Khám nội tổng quát"],
+    },
+    {
+      id: "421",
+      name: "Phòng 421 (11h-13h)",
+      code: "P421",
+      classification: "special",
+      specialties: ["Tiêm chủng"],
+    },
+    {
+      id: "422",
+      name: "Phòng 422 (11h-13h)",
+      code: "P422",
+      classification: "special",
+      specialties: ["Tư vấn dinh dưỡng"],
+    },
+    {
+      id: "437",
+      name: "Phòng 437",
+      code: "P437",
+      classification: "normal",
+      specialties: ["Khám nội tổng quát"],
+    },
+    {
+      id: "438",
+      name: "Phòng 438",
+      code: "P438",
+      classification: "priority",
+      specialties: ["Khám tai mũi họng"],
+    },
+    {
+      id: "439",
+      name: "Phòng 439",
+      code: "P439",
+      classification: "priority",
+      specialties: ["Khám nhi"],
+    },
+    {
+      id: "440",
+      name: "Phòng 440",
+      code: "P440",
+      classification: "priority",
+      specialties: ["Khám sản phụ khoa"],
+    },
+    {
+      id: "441",
+      name: "Phòng 441",
+      code: "P441",
+      classification: "priority",
+      specialties: ["Siêu âm"],
+    },
+    {
+      id: "443",
+      name: "Phòng 443",
+      code: "P443",
+      classification: "priority",
+      specialties: ["Nội soi"],
+    },
+    {
+      id: "444",
+      name: "Phòng 444",
+      code: "P444",
+      classification: "urgent",
+      specialties: ["Xét nghiệm"],
+    },
+    {
+      id: "446",
+      name: "Phòng 446",
+      code: "P446",
+      classification: "normal",
+      specialties: ["Đo điện tim (ECG)"],
+    },
+  ];
+
+  // Thêm dữ liệu bác sĩ mock
+  const availableDoctors = [
+    {
+      id: "BS001",
+      code: "BS001",
+      name: "BS. Nguyễn Thị Mai",
+      specialty: "Nhi khoa tổng quát",
+    },
+    {
+      id: "BS002",
+      code: "BS002",
+      name: "BS. Trần Văn Nam",
+      specialty: "Tim mạch nhi",
+    },
+    {
+      id: "BS003",
+      code: "BS003",
+      name: "BS. Lê Thị Hoa",
+      specialty: "Nhi tiêu hóa",
+    },
+    {
+      id: "BS004",
+      code: "BS004",
+      name: "BS. Phạm Minh Tuấn",
+      specialty: "Nhi hô hấp",
+    },
+    {
+      id: "BS005",
+      code: "BS005",
+      name: "BS. Vũ Thị Lan",
+      specialty: "Nhi thần kinh",
+    },
+    {
+      id: "BS006",
+      code: "BS006",
+      name: "BS. Hoàng Văn Đức",
+      specialty: "Nhi ngoại",
+    },
+  ];
+
+  // Filtered rooms for search
+  const filteredRooms = roomSearchTerm
+    ? availableRooms.filter(
+        (room) =>
+          room.name.toLowerCase().includes(roomSearchTerm.toLowerCase()) ||
+          room.code.toLowerCase().includes(roomSearchTerm.toLowerCase())
+      )
+    : availableRooms;
+
+  // Examination zones
+  const examinationZones = [
+    { id: "all", name: "Tất cả khu khám" },
+    { id: "zone-a", name: "Khu A - Tầng 3" },
+    { id: "zone-b", name: "Khu B - Tầng 4" },
+    { id: "zone-c", name: "Khu C - Cấp cứu" },
+    { id: "zone-d", name: "Khu D - Đặc biệt" },
   ];
 
   // Mock data dựa theo hình ảnh tham khảo
@@ -147,105 +369,224 @@ const WeeklySchedule = () => {
     { id: "tmh", name: "TMH" },
   ];
 
+  // Get week date range
+  const getWeekDateRange = (weekString: string) => {
+    const weekNum = parseInt(weekString.split("-W")[1]);
+    // Calculate dates for week (simplified for demo)
+    const startDate = `${16 + (weekNum - 25) * 7}/07`;
+    const endDate = `${20 + (weekNum - 25) * 7}/07`;
+    return { startDate, endDate, weekNum };
+  };
+
+  const weekRange = getWeekDateRange(selectedWeek);
+
+  // Generate time slots based on current week
   const timeSlots = [
-    { id: "mon-morning", day: "Thứ Hai", period: "sáng", date: "16/06/2025" },
+    {
+      id: "mon-morning",
+      day: "Thứ Hai",
+      period: "sáng",
+      date: `${16 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-16",
+    },
     {
       id: "mon-afternoon",
       day: "Thứ Hai",
       period: "chiều",
-      date: "16/06/2025",
+      date: `${16 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-16",
     },
-    { id: "tue-morning", day: "Thứ Ba", period: "sáng", date: "17/06/2025" },
-    { id: "tue-afternoon", day: "Thứ Ba", period: "chiều", date: "17/06/2025" },
-    { id: "wed-morning", day: "Thứ Tư", period: "sáng", date: "18/06/2025" },
-    { id: "wed-afternoon", day: "Thứ Tư", period: "chiều", date: "18/06/2025" },
-    { id: "thu-morning", day: "Thứ Năm", period: "sáng", date: "19/06/2025" },
+    {
+      id: "tue-morning",
+      day: "Thứ Ba",
+      period: "sáng",
+      date: `${17 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-17",
+    },
+    {
+      id: "tue-afternoon",
+      day: "Thứ Ba",
+      period: "chiều",
+      date: `${17 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-17",
+    },
+    {
+      id: "wed-morning",
+      day: "Thứ Tư",
+      period: "sáng",
+      date: `${18 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-18",
+    },
+    {
+      id: "wed-afternoon",
+      day: "Thứ Tư",
+      period: "chiều",
+      date: `${18 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-18",
+    },
+    {
+      id: "thu-morning",
+      day: "Thứ Năm",
+      period: "sáng",
+      date: `${19 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-19",
+    },
     {
       id: "thu-afternoon",
       day: "Thứ Năm",
       period: "chiều",
-      date: "19/06/2025",
+      date: `${19 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-19",
     },
-    { id: "fri-morning", day: "Thứ Sáu", period: "sáng", date: "20/06/2025" },
+    {
+      id: "fri-morning",
+      day: "Thứ Sáu",
+      period: "sáng",
+      date: `${20 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-20",
+    },
     {
       id: "fri-afternoon",
       day: "Thứ Sáu",
       period: "chiều",
-      date: "20/06/2025",
+      date: `${20 + (weekRange.weekNum - 25) * 7}/07`,
+      fullDate: "2025-07-20",
     },
   ];
 
-  // Mock schedule data với màu sắc phân biệt
-  const [scheduleData, setScheduleData] = useState({
+  // Mock schedule data with multiple rooms per shift
+  const [scheduleData, setScheduleData] = useState<
+    Record<string, Record<string, ShiftSlot>>
+  >({
     OTBN: {
-      "mon-morning": { room: "307", type: "normal" },
-      "tue-morning": { room: "307", type: "normal" },
-      "wed-morning": { room: "439", type: "priority" },
-      "thu-morning": { room: "307", type: "normal" },
-      "fri-morning": { room: "307", type: "normal" },
-      "fri-afternoon": { room: "405", type: "special" },
+      "mon-morning": {
+        rooms: [
+          {
+            id: "307",
+            name: "Phòng 307",
+            classification: "normal",
+            appointmentCount: 12,
+            specialties: ["Khám nội tổng quát"],
+            selectedSpecialty: "Khám nội tổng quát",
+            selectedDoctor: "BS001",
+          },
+          {
+            id: "439",
+            name: "Phòng 439",
+            classification: "priority",
+            customStartTime: "08:00",
+            appointmentCount: 8,
+            specialties: ["Khám nhi"],
+            selectedSpecialty: "Khám nhi",
+            selectedDoctor: "BS002",
+          },
+        ],
+      },
+      "tue-morning": {
+        rooms: [
+          {
+            id: "307",
+            name: "Phòng 307",
+            classification: "normal",
+            appointmentCount: 10,
+            specialties: ["Khám nội tổng quát"],
+            selectedSpecialty: "Khám nội tổng quát",
+            selectedDoctor: "BS003",
+          },
+        ],
+      },
+      "wed-morning": {
+        rooms: [
+          {
+            id: "439",
+            name: "Phòng 439",
+            classification: "priority",
+            appointmentCount: 15,
+            specialties: ["Khám nhi"],
+            selectedSpecialty: "Khám nhi",
+            selectedDoctor: "BS004",
+          },
+        ],
+      },
+      "fri-afternoon": {
+        rooms: [
+          {
+            id: "405",
+            name: "Phòng 405 (Đặc biệt)",
+            classification: "special",
+            customEndTime: "16:30",
+            appointmentCount: 6,
+            specialties: ["Nội soi", "Xét nghiệm"],
+            selectedSpecialty: "Nội soi",
+            selectedDoctor: "BS005",
+          },
+        ],
+      },
     },
     "cap-cuu": {
-      "mon-morning": { room: "420", type: "urgent" },
-      "tue-morning": { room: "420", type: "urgent" },
-      "wed-morning": { room: "420", type: "urgent" },
-      "thu-morning": { room: "420", type: "urgent" },
-      "fri-morning": { room: "420", type: "urgent" },
-      "mon-afternoon": { room: "422", type: "special" },
-      "tue-afternoon": { room: "444", type: "urgent" },
-      "wed-afternoon": { room: "440", type: "priority" },
-      "fri-afternoon": { room: "440", type: "priority" },
+      "mon-morning": {
+        rooms: [
+          {
+            id: "420",
+            name: "Phòng 420",
+            classification: "urgent",
+            appointmentCount: 20,
+            specialties: ["Khám nội tổng quát"],
+            selectedSpecialty: "Khám chuyên khoa",
+            selectedDoctor: "BS006",
+          },
+          {
+            id: "444",
+            name: "Phòng 444",
+            classification: "urgent",
+            appointmentCount: 18,
+            specialties: ["Xét nghiệm"],
+            selectedSpecialty: "Xét nghiệm",
+            selectedDoctor: "BS001",
+          },
+        ],
+      },
+      "tue-afternoon": {
+        rooms: [
+          {
+            id: "422",
+            name: "Phòng 422 (11h-13h)",
+            classification: "special",
+            customStartTime: "11:00",
+            customEndTime: "13:00",
+            appointmentCount: 5,
+            specialties: ["Tư vấn dinh dưỡng"],
+            selectedSpecialty: "Tư vấn dinh dưỡng",
+            selectedDoctor: "BS002",
+          },
+        ],
+      },
     },
     "dinh-duong": {
-      "mon-morning": { room: "446", type: "normal" },
-      "tue-morning": { room: "446", type: "normal" },
-      "wed-morning": { room: "446", type: "normal" },
-      "thu-morning": { room: "446", type: "normal" },
-      "fri-morning": { room: "446", type: "normal" },
-      "fri-afternoon": { room: "422", type: "special" },
-    },
-    "noi-tong-hop": {
-      "tue-afternoon": { room: "444", type: "urgent" },
-      "wed-afternoon": { room: "316", type: "normal" },
-    },
-    "noi-1": {
-      "wed-afternoon": { room: "443", type: "priority" },
-    },
-    "noi-3": {
-      "fri-afternoon": { room: "440", type: "priority" },
-      "fri-morning": { room: "437", type: "normal" },
-    },
-    skte: {
-      "mon-morning": { room: "437", type: "normal" },
-    },
-    "hs-nhiem": {
-      "mon-morning": { room: "315", type: "normal" },
-      "tue-morning": { room: "315", type: "normal" },
-      "wed-morning": { room: "303", type: "normal" },
-      "thu-morning": { room: "315", type: "normal" },
-      "fri-morning": { room: "315", type: "normal" },
-    },
-    "hs-chong-doc": {
-      "mon-morning": { room: "443", type: "priority" },
-      "tue-morning": { room: "439", type: "priority" },
-      "wed-morning": { room: "438", type: "priority" },
-      "thu-morning": { room: "405", type: "special" },
-      "fri-morning": { room: "439", type: "priority" },
-      "fri-afternoon": { room: "438", type: "priority" },
-    },
-    pttmln: {
-      "mon-morning": { room: "313", type: "priority" },
-      "tue-morning": { room: "313", type: "priority" },
-      "wed-morning": { room: "313", type: "priority" },
-      "thu-morning": { room: "313", type: "priority" },
-      "fri-morning": { room: "313", type: "priority" },
-    },
-    "ho-hap": {
-      "tue-afternoon": { room: "440", type: "priority" },
-      "wed-afternoon": { room: "441", type: "priority" },
-      "thu-afternoon": { room: "441", type: "priority" },
-      "tue-morning": { room: "421", type: "special" },
-      "wed-morning": { room: "437", type: "normal" },
+      "mon-morning": {
+        rooms: [
+          {
+            id: "446",
+            name: "Phòng 446",
+            classification: "normal",
+            appointmentCount: 10,
+            specialties: ["Đo điện tim (ECG)"],
+            selectedSpecialty: "Đo điện tim (ECG)",
+            selectedDoctor: "BS003",
+          },
+          {
+            id: "422",
+            name: "Phòng 422 (11h-13h)",
+            classification: "special",
+            customStartTime: "11:00",
+            customEndTime: "13:00",
+            appointmentCount: 8,
+            specialties: ["Tư vấn dinh dưỡng"],
+            selectedSpecialty: "Tư vấn dinh dưỡng",
+            selectedDoctor: "BS004",
+          },
+        ],
+      },
     },
   });
 
@@ -265,54 +606,122 @@ const WeeklySchedule = () => {
     return null;
   };
 
-  const handleCellEdit = (
-    deptId: string,
-    slotId: string,
-    newRoom: string,
-    newType?: string
-  ) => {
-    const cellKey = `${deptId}-${slotId}`;
+  const addRoomToShift = (deptId: string, slotId: string, roomId: string) => {
+    const roomInfo = availableRooms.find((r) => r.id === roomId);
+    if (!roomInfo) return;
 
-    // Auto-determine type based on room if not provided
-    const roomInfo = availableRooms.find((r) => r.id === newRoom);
-    const finalType = newType || roomInfo?.classification || "normal";
+    const cellKey = `${deptId}-${slotId}`;
+    const period = slotId.includes("morning")
+      ? "morning"
+      : slotId.includes("afternoon")
+      ? "afternoon"
+      : "evening";
+    const newRoom: RoomSlot = {
+      id: roomInfo.id,
+      name: roomInfo.name,
+      classification: roomInfo.classification,
+      customStartTime: shiftDefaults[period].start,
+      customEndTime: shiftDefaults[period].end,
+      appointmentCount: shiftDefaults[period].defaultAppointments,
+      specialties: [...roomInfo.specialties],
+      selectedSpecialty: roomInfo.specialties[0] || "Khám chuyên khoa",
+      selectedDoctor: "", // Mặc định chưa chọn bác sĩ
+      priorityOrder: 10, // Mặc định là 10
+    };
 
     // Save current state for undo
     setUndoStack((prev) => [...prev, { ...scheduleData }]);
     setRedoStack([]);
 
-    // Update schedule - handle "none" as removal
-    if (newRoom === "none") {
-      setScheduleData((prev) => ({
-        ...prev,
-        [deptId]: {
-          ...prev[deptId],
-          [slotId]: undefined,
+    setScheduleData((prev) => ({
+      ...prev,
+      [deptId]: {
+        ...prev[deptId],
+        [slotId]: {
+          rooms: [...(prev[deptId]?.[slotId]?.rooms || []), newRoom],
         },
-      }));
-      // Track changes
-      setScheduleChanges((prev) => ({
-        ...prev,
-        [cellKey]: { room: "", type: "normal" },
-      }));
-    } else {
-      // Update schedule
-      setScheduleData((prev) => ({
-        ...prev,
-        [deptId]: {
-          ...prev[deptId],
-          [slotId]: { room: newRoom, type: finalType },
-        },
-      }));
-      // Track changes
-      setScheduleChanges((prev) => ({
-        ...prev,
-        [cellKey]: { room: newRoom, type: finalType },
-      }));
-    }
+      },
+    }));
 
-    setEditingCell(null);
-    toast.success("Đã cập nhật lịch khám");
+    // Track changes
+    setScheduleChanges((prev) => ({
+      ...prev,
+      [cellKey]: { action: "add_room", roomId },
+    }));
+
+    toast.success(`Đã thêm ${roomInfo.name} vào lịch khám`);
+  };
+
+  const removeRoomFromShift = (
+    deptId: string,
+    slotId: string,
+    roomIndex: number
+  ) => {
+    const cellKey = `${deptId}-${slotId}`;
+
+    // Save current state for undo
+    setUndoStack((prev) => [...prev, { ...scheduleData }]);
+    setRedoStack([]);
+
+    setScheduleData((prev) => {
+      const currentRooms = prev[deptId]?.[slotId]?.rooms || [];
+      const updatedRooms = currentRooms.filter(
+        (_, index) => index !== roomIndex
+      );
+
+      return {
+        ...prev,
+        [deptId]: {
+          ...prev[deptId],
+          [slotId]:
+            updatedRooms.length > 0 ? { rooms: updatedRooms } : undefined,
+        },
+      };
+    });
+
+    // Track changes
+    setScheduleChanges((prev) => ({
+      ...prev,
+      [cellKey]: { action: "remove_room", roomIndex },
+    }));
+
+    toast.success("Đã xóa phòng khỏi lịch khám");
+  };
+
+  const updateRoomConfig = (
+    deptId: string,
+    slotId: string,
+    roomIndex: number,
+    updates: Partial<RoomSlot>
+  ) => {
+    const cellKey = `${deptId}-${slotId}`;
+
+    // Save current state for undo
+    setUndoStack((prev) => [...prev, { ...scheduleData }]);
+    setRedoStack([]);
+
+    setScheduleData((prev) => {
+      const currentRooms = [...(prev[deptId]?.[slotId]?.rooms || [])];
+      if (currentRooms[roomIndex]) {
+        currentRooms[roomIndex] = { ...currentRooms[roomIndex], ...updates };
+      }
+
+      return {
+        ...prev,
+        [deptId]: {
+          ...prev[deptId],
+          [slotId]: { rooms: currentRooms },
+        },
+      };
+    });
+
+    // Track changes
+    setScheduleChanges((prev) => ({
+      ...prev,
+      [cellKey]: { action: "update_room", roomIndex, updates },
+    }));
+
+    toast.success("Đã cập nhật cấu hình phòng");
   };
 
   const handleUndo = () => {
@@ -366,27 +775,185 @@ const WeeklySchedule = () => {
     setSelectedWeek(`2025-W${newWeek.toString().padStart(2, "0")}`);
   };
 
+  // Excel upload/download functions
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        // Process the imported data and update scheduleData
+        // This is a simplified example - you'd need to map your Excel structure
+        console.log("Imported data:", jsonData);
+        toast.success(
+          `Đã tải lên file Excel thành công! ${jsonData.length} dòng dữ liệu.`
+        );
+      } catch (error) {
+        console.error("Error reading file:", error);
+        toast.error(
+          "Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file."
+        );
+      }
+    };
+    reader.readAsArrayBuffer(file);
+
+    // Reset file input
+    if (event.target) {
+      event.target.value = "";
+    }
+  };
+
+  const handleDownloadExcel = () => {
+    try {
+      // Prepare data for Excel export
+      const exportData: any[] = [];
+
+      // Header row
+      exportData.push([
+        "Khoa phòng",
+        "Ngày",
+        "Ca",
+        "Phòng",
+        "Phân loại",
+        "Giờ bắt đầu",
+        "Giờ kết thúc",
+        "Số lượng khám",
+        "Chức năng chuyên môn",
+      ]);
+
+      // Data rows
+      Object.entries(scheduleData).forEach(([deptId, deptSchedule]) => {
+        const department = departments.find((d) => d.id === deptId);
+
+        Object.entries(deptSchedule).forEach(([slotId, slot]) => {
+          const timeSlot = timeSlots.find((t) => t.id === slotId);
+
+          slot.rooms.forEach((room) => {
+            const period = slotId.includes("morning")
+              ? "morning"
+              : slotId.includes("afternoon")
+              ? "afternoon"
+              : "evening";
+            const defaultShift = shiftDefaults[period];
+
+            exportData.push([
+              department?.name || deptId,
+              `${timeSlot?.day} ${timeSlot?.date}`,
+              timeSlot?.period || "N/A",
+              room.name,
+              roomClassifications[
+                room.classification as keyof typeof roomClassifications
+              ]?.name || room.classification,
+              room.customStartTime || defaultShift.start,
+              room.customEndTime || defaultShift.end,
+              room.appointmentCount || defaultShift.defaultAppointments,
+              room.selectedSpecialty || "Khám chuyên khoa",
+            ]);
+          });
+        });
+      });
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(exportData);
+
+      // Auto-size columns
+      const maxWidth = exportData.reduce((acc, row) => {
+        row.forEach((cell: any, index: number) => {
+          const cellLength = String(cell).length;
+          acc[index] = Math.max(acc[index] || 10, cellLength);
+        });
+        return acc;
+      }, [] as number[]);
+
+      worksheet["!cols"] = maxWidth.map((width) => ({
+        width: Math.min(width + 2, 50),
+      }));
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Lịch khám tuần");
+
+      // Generate filename with current week
+      const filename = `Lich_kham_tuan_${
+        weekRange.weekNum
+      }_${weekRange.startDate.replace("/", "")}-${weekRange.endDate.replace(
+        "/",
+        ""
+      )}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(workbook, filename);
+      toast.success("Đã tải xuống file Excel thành công!");
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      toast.error("Lỗi khi xuất file Excel.");
+    }
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <TooltipProvider>
-      <div className="space-y-6 max-w-full">
+      <div className="space-y-6 p-4 min-w-0 overflow-x-auto">
         {/* Header */}
-        <div className="flex flex-col space-y-6 animate-fade-in">
-          <div className="">
-            <h1 className="text-2xl font-bold">Lịch phân ban khoa khám bệnh</h1>
-            <p className="text-blue-500 mt-2">
-              Quản lý lịch khám bệnh theo tuần - Tuần{" "}
-              {selectedWeek.split("-W")[1]} năm 2025
-            </p>
-            <p className="text-sm text-blue-700 font-medium mt-1">
-              Từ ngày 16/6 đến ngày 20/6
-            </p>
+        <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-4">
+            <div className="flex flex-col space-y-6 animate-fade-in">
+              <div className="">
+                <h1 className="text-2xl font-bold">
+                  Lịch phân ban khoa khám bệnh
+                </h1>
+                <p className="text-blue-500 mt-2">
+                  Quản lý lịch khám bệnh theo tuần - Tuần{" "}
+                  {selectedWeek.split("-W")[1]} năm 2025
+                </p>
+                <p className="text-sm text-blue-700 font-medium mt-1">
+                  Từ ngày 16/6 đến ngày 20/6
+                </p>
+              </div>
+            </div>
+            {/* Controls */}
           </div>
 
           {/* Controls */}
           <Card className="shadow-md">
-            <CardContent className="pt-6">
-              <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <CardContent className="pt-4 md:pt-6">
+              <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
+                  {/* Zone Selection */}
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="zone-select"
+                      className="text-sm font-medium whitespace-nowrap"
+                    >
+                      Khu khám:
+                    </Label>
+                    <Select
+                      value={selectedZone}
+                      onValueChange={setSelectedZone}
+                    >
+                      <SelectTrigger id="zone-select" className="w-40 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {examinationZones.map((zone) => (
+                          <SelectItem key={zone.id} value={zone.id}>
+                            {zone.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Week Navigation */}
                   <div className="flex items-center space-x-2">
                     <Button
@@ -453,6 +1020,28 @@ const WeeklySchedule = () => {
                     </SelectContent>
                   </Select>
 
+                  {/* Excel Import/Export */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={triggerFileUpload}
+                      className="h-9 gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Tải lên Excel
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadExcel}
+                      className="h-9 gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Tải xuống Excel
+                    </Button>
+                  </div>
+
                   {/* View Mode Toggle */}
                   <div className="flex border rounded-lg">
                     <Button
@@ -472,10 +1061,136 @@ const WeeklySchedule = () => {
                       Ngày
                     </Button>
                   </div>
+
+                  {/* Day Filter (when in day view) */}
+                  {viewMode === "day" && (
+                    <Select value={selectedDay} onValueChange={setSelectedDay}>
+                      <SelectTrigger className="w-48 h-9">
+                        <SelectValue placeholder="Chọn ngày cụ thể" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tất cả ngày</SelectItem>
+                        {timeSlots
+                          .filter(
+                            (slot, index, array) =>
+                              array.findIndex(
+                                (s) => s.fullDate === slot.fullDate
+                              ) === index
+                          )
+                          .map((slot) => (
+                            <SelectItem
+                              key={slot.fullDate}
+                              value={slot.fullDate}
+                            >
+                              {slot.day} - {slot.date}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 flex-wrap">
+                  <Dialog
+                    open={showShiftConfigDialog}
+                    onOpenChange={setShowShiftConfigDialog}
+                  >
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Cấu hình ca khám
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[500px]">
+                      <DialogHeader>
+                        <DialogTitle>Cấu hình thời gian ca khám</DialogTitle>
+                        <DialogDescription>
+                          Thiết lập thời gian mặc định và số ca khám cho từng ca
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-6">
+                        {Object.entries(shiftDefaults).map(
+                          ([shiftKey, shift]) => (
+                            <div key={shiftKey} className="space-y-3">
+                              <Label className="text-base font-medium">
+                                Ca{" "}
+                                {shiftKey === "morning"
+                                  ? "sáng"
+                                  : shiftKey === "afternoon"
+                                  ? "chiều"
+                                  : "tối"}
+                              </Label>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                  <Label className="text-sm">Giờ bắt đầu</Label>
+                                  <Input
+                                    type="time"
+                                    value={shift.start}
+                                    onChange={(e) =>
+                                      setShiftDefaults((prev) => ({
+                                        ...prev,
+                                        [shiftKey]: {
+                                          ...prev[
+                                            shiftKey as keyof typeof prev
+                                          ],
+                                          start: e.target.value,
+                                        },
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-sm">
+                                    Giờ kết thúc
+                                  </Label>
+                                  <Input
+                                    type="time"
+                                    value={shift.end}
+                                    onChange={(e) =>
+                                      setShiftDefaults((prev) => ({
+                                        ...prev,
+                                        [shiftKey]: {
+                                          ...prev[
+                                            shiftKey as keyof typeof prev
+                                          ],
+                                          end: e.target.value,
+                                        },
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-sm">
+                                    Số ca mặc định
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    max="50"
+                                    value={shift.defaultAppointments}
+                                    onChange={(e) =>
+                                      setShiftDefaults((prev) => ({
+                                        ...prev,
+                                        [shiftKey]: {
+                                          ...prev[
+                                            shiftKey as keyof typeof prev
+                                          ],
+                                          defaultAppointments:
+                                            parseInt(e.target.value) || 10,
+                                        },
+                                      }))
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
                   <Dialog
                     open={showRoomClassificationDialog}
                     onOpenChange={setShowRoomClassificationDialog}
@@ -585,10 +1300,6 @@ const WeeklySchedule = () => {
                     <Filter className="w-4 h-4 mr-2" />
                     Bộ lọc
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9">
-                    <Download className="w-4 h-4 mr-2" />
-                    Xuất Excel
-                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -604,163 +1315,620 @@ const WeeklySchedule = () => {
                 selectedWeek.split("-W")[1]
               }{" "}
               năm 2025
+              {viewMode === "day" && selectedDay !== "all" && (
+                <span className="text-sm font-normal ml-2">
+                  -{" "}
+                  {timeSlots.find((slot) => slot.fullDate === selectedDay)?.day}{" "}
+                  (
+                  {
+                    timeSlots.find((slot) => slot.fullDate === selectedDay)
+                      ?.date
+                  }
+                  )
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-auto max-w-full">
-              <div className="min-w-[800px]">
-                <table className="w-full border-collapse">
-                  {/* Header */}
-                  <thead>
-                    <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                      <th className="border border-gray-300 p-3 text-left font-semibold text-gray-700 bg-blue-100 sticky left-0 z-20 min-w-[140px] shadow-lg">
-                        KHOA PHÒNG
-                      </th>
-                      {timeSlots.map((slot) => (
-                        <th
-                          key={slot.id}
-                          className="border border-gray-300 p-3 text-center font-medium text-gray-700 min-w-[100px] bg-gradient-to-b from-blue-50 to-blue-100"
-                        >
-                          <div className="text-sm font-semibold text-blue-800">
-                            {slot.day}
-                          </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            {slot.date}
-                          </div>
-                          <div className="text-xs text-blue-600 font-medium uppercase tracking-wide mt-1">
-                            {slot.period}
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  {/* Body */}
-                  <tbody>
-                    {searchFilteredDepartments.map((dept, index) => (
-                      <tr
-                        key={dept.id}
-                        className={
-                          index % 2 === 0
-                            ? "bg-white hover:bg-gray-50"
-                            : "bg-gray-50 hover:bg-gray-100"
-                        }
+          <CardContent className="p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table
+                className="w-full border-collapse"
+                style={{ minWidth: "max-content" }}
+              >
+                {/* Header */}
+                <thead>
+                  <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <th className="border border-gray-300 p-1 text-left font-semibold text-gray-700 bg-blue-100 sticky left-0 z-20 w-24 shadow-lg">
+                      <div className="text-[10px]">KHOA PHÒNG</div>
+                    </th>
+                    {(viewMode === "week"
+                      ? timeSlots
+                      : timeSlots.filter(
+                          (slot) =>
+                            selectedDay === "all" ||
+                            slot.fullDate === selectedDay
+                        )
+                    ).map((slot) => (
+                      <th
+                        key={slot.id}
+                        className="border border-gray-300 p-1 text-center font-medium text-gray-700 w-20 bg-gradient-to-b from-blue-50 to-blue-100"
                       >
-                        <td className="border border-gray-300 p-3 font-semibold text-gray-700 bg-gray-50 sticky left-0 z-10 shadow-md">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                            {dept.name}
-                          </div>
-                        </td>
-                        {timeSlots.map((slot) => {
-                          const roomData = scheduleData[dept.id]?.[slot.id];
-                          const cellKey = `${dept.id}-${slot.id}`;
-                          const isEditing = editingCell === cellKey;
-                          const hasChanges = scheduleChanges[cellKey];
-                          const specialNote = roomData
-                            ? getSpecialNotes(roomData.room)
-                            : null;
+                        <div className="text-[9px] font-semibold text-blue-800">
+                          {slot.day.replace("Thứ ", "T")}, {slot.date}
+                        </div>
+                        <div className="text-[8px] text-blue-600 font-medium uppercase tracking-wide mt-0.5">
+                          {slot.period === "sáng"
+                            ? "Sáng: 07:30 – 11:00"
+                            : "Chiều: 13:30 – 16:00"}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
 
-                          return (
-                            <td
-                              key={slot.id}
-                              className="border border-gray-300 p-2 text-center relative"
-                            >
-                              {isEditing ? (
-                                <Select
-                                  value={roomData?.room || "none"}
-                                  onValueChange={(value) => {
-                                    handleCellEdit(dept.id, slot.id, value);
+                {/* Body */}
+                <tbody>
+                  {searchFilteredDepartments.map((dept, index) => (
+                    <tr
+                      key={dept.id}
+                      className={
+                        index % 2 === 0
+                          ? "bg-white hover:bg-gray-50"
+                          : "bg-gray-50 hover:bg-gray-100"
+                      }
+                    >
+                      <td className="border border-gray-300 p-1 font-semibold text-gray-700 bg-gray-50 sticky left-0 z-10 shadow-md">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-[10px]">{dept.name}</span>
+                        </div>
+                      </td>
+                      {(viewMode === "week"
+                        ? timeSlots
+                        : timeSlots.filter(
+                            (slot) =>
+                              selectedDay === "all" ||
+                              slot.fullDate === selectedDay
+                          )
+                      ).map((slot) => {
+                        const shiftData = scheduleData[dept.id]?.[slot.id];
+                        const cellKey = `${dept.id}-${slot.id}`;
+                        const isEditing = editingCell === cellKey;
+                        const hasChanges = scheduleChanges[cellKey];
+                        const rooms = shiftData?.rooms || [];
+
+                        return (
+                          <td
+                            key={slot.id}
+                            className="border border-gray-300 p-1 text-center relative min-w-[120px]"
+                          >
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <div className="relative">
+                                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                  <Input
+                                    placeholder="Tìm phòng..."
+                                    value={roomSearchTerm}
+                                    onChange={(e) =>
+                                      setRoomSearchTerm(e.target.value)
+                                    }
+                                    className="pl-7 h-7 text-xs"
+                                  />
+                                </div>
+                                <div className="max-h-32 overflow-y-auto space-y-1">
+                                  {filteredRooms.map((room) => (
+                                    <Button
+                                      key={room.id}
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full h-7 text-xs justify-start"
+                                      onClick={() => {
+                                        addRoomToShift(
+                                          dept.id,
+                                          slot.id,
+                                          room.id
+                                        );
+                                        setEditingCell(null);
+                                        setRoomSearchTerm("");
+                                      }}
+                                    >
+                                      <div
+                                        className={`w-2 h-2 rounded mr-2 ${
+                                          roomClassifications[
+                                            room.classification as keyof typeof roomClassifications
+                                          ]?.color.split(" ")[0] ||
+                                          "bg-gray-200"
+                                        }`}
+                                      ></div>
+                                      {room.code} - {room.name}
+                                    </Button>
+                                  ))}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full h-6 text-xs"
+                                  onClick={() => {
+                                    setEditingCell(null);
+                                    setRoomSearchTerm("");
                                   }}
                                 >
-                                  <SelectTrigger className="w-full h-8 text-sm">
-                                    <SelectValue placeholder="Chọn phòng" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {availableRooms.map((room) => (
-                                      <SelectItem key={room.id} value={room.id}>
-                                        <div className="flex items-center gap-2">
-                                          <div
-                                            className={`w-3 h-3 rounded ${
-                                              roomClassifications[
-                                                room.classification as keyof typeof roomClassifications
-                                              ]?.color.split(" ")[0] ||
-                                              "bg-gray-200"
-                                            }`}
-                                          ></div>
-                                          {room.name}
+                                  Hủy
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                {rooms.map((room, roomIndex) => (
+                                  <Popover key={roomIndex}>
+                                    <PopoverTrigger asChild>
+                                      <div
+                                        className={`flex flex-col gap-1 px-2 py-1 rounded-md text-xs font-medium border cursor-pointer transition-all duration-200 ${getRoomStyle(
+                                          room.classification
+                                        )} ${
+                                          hasChanges
+                                            ? "ring-1 ring-blue-400"
+                                            : ""
+                                        } w-full`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-semibold">
+                                            {room.name.replace("Phòng ", "")}
+                                          </span>
+                                          <X
+                                            className="w-3 h-3 hover:text-red-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removeRoomFromShift(
+                                                dept.id,
+                                                slot.id,
+                                                roomIndex
+                                              );
+                                            }}
+                                          />
                                         </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="min-h-[32px] flex items-center justify-center">
-                                  {roomData && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div
-                                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-md text-sm font-medium border cursor-pointer transition-all duration-200 ${getRoomStyle(
-                                            roomData.type
-                                          )} ${
-                                            hasChanges
-                                              ? "ring-2 ring-blue-500"
-                                              : ""
-                                          }`}
-                                          onClick={() =>
-                                            setEditingCell(cellKey)
-                                          }
-                                        >
-                                          {roomData.room}
-                                          {specialNote && (
-                                            <Info className="w-3 h-3" />
-                                          )}
-                                          {hasChanges && (
-                                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                          )}
+                                        <div className="text-[10px] text-gray-600 font-medium">
+                                          {room.selectedSpecialty ||
+                                            "Khám chuyên khoa"}
                                         </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <div className="text-sm">
-                                          <div className="font-medium">
-                                            Phòng {roomData.room}
+                                        {room.selectedDoctor && (
+                                          <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
+                                            <span>👨‍⚕️</span>
+                                            <span>
+                                              {availableDoctors.find(
+                                                (d) =>
+                                                  d.id === room.selectedDoctor
+                                              )?.name || room.selectedDoctor}
+                                            </span>
                                           </div>
-                                          <div className="text-blue-600">
+                                        )}
+                                        <div className="flex items-center justify-between text-[10px]">
+                                          <div className="flex items-center gap-1">
+                                            {((room.customStartTime &&
+                                              room.customStartTime !==
+                                                shiftDefaults[
+                                                  slot.period as keyof typeof shiftDefaults
+                                                ]?.start) ||
+                                              (room.customEndTime &&
+                                                room.customEndTime !==
+                                                  shiftDefaults[
+                                                    slot.period as keyof typeof shiftDefaults
+                                                  ]?.end)) && (
+                                              <div className="flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                <span>
+                                                  {room.customStartTime !==
+                                                    shiftDefaults[
+                                                      slot.period as keyof typeof shiftDefaults
+                                                    ]?.start &&
+                                                  room.customEndTime !==
+                                                    shiftDefaults[
+                                                      slot.period as keyof typeof shiftDefaults
+                                                    ]?.end
+                                                    ? `${room.customStartTime}-${room.customEndTime}`
+                                                    : room.customStartTime !==
+                                                      shiftDefaults[
+                                                        slot.period as keyof typeof shiftDefaults
+                                                      ]?.start
+                                                    ? `${room.customStartTime}`
+                                                    : `${room.customEndTime}`}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <Users className="w-3 h-3" />
+                                            <span>{room.appointmentCount}</span>
+                                            {room.priorityOrder > 0 && (
+                                              <span className="flex items-center ml-1 text-yellow-500">
+                                                <svg
+                                                  width="12"
+                                                  height="12"
+                                                  viewBox="0 0 20 20"
+                                                  fill="currentColor"
+                                                  className="inline-block mr-0.5"
+                                                >
+                                                  <path d="M10 15.27L16.18 19l-1.64-7.03L20 7.24l-7.19-.61L10 0 7.19 6.63 0 7.24l5.46 4.73L3.82 19z" />
+                                                </svg>
+                                                <span className="text-[10px] font-bold">
+                                                  {room.priorityOrder ?? 10}
+                                                </span>
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      className="w-80 p-4"
+                                      side="right"
+                                    >
+                                      <div className="space-y-4">
+                                        <div className="space-y-2">
+                                          <h4 className="font-medium text-sm">
+                                            {room.name}
+                                          </h4>
+                                          <div className="text-xs text-gray-600">
                                             Loại:{" "}
                                             {roomClassifications[
-                                              roomData.type as keyof typeof roomClassifications
-                                            ]?.name || roomData.type}
-                                          </div>
-                                          {specialNote && (
-                                            <div className="text-yellow-600">
-                                              {specialNote}
-                                            </div>
-                                          )}
-                                          <div className="text-gray-500 mt-1">
-                                            Click để chỉnh sửa
+                                              room.classification as keyof typeof roomClassifications
+                                            ]?.name || room.classification}
                                           </div>
                                         </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {!roomData && (
-                                    <div
-                                      className="w-full h-8 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 cursor-pointer flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors"
-                                      onClick={() => setEditingCell(cellKey)}
-                                    >
-                                      <span className="text-xs">Thêm</span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+
+                                        {/* Room Classification Selector */}
+                                        <div>
+                                          <Label className="text-xs">
+                                            Phân loại phòng
+                                          </Label>
+                                          <Select
+                                            value={room.classification}
+                                            onValueChange={(value) =>
+                                              updateRoomConfig(
+                                                dept.id,
+                                                slot.id,
+                                                roomIndex,
+                                                { classification: value }
+                                              )
+                                            }
+                                          >
+                                            <SelectTrigger className="h-7 text-xs">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {Object.entries(
+                                                roomClassifications
+                                              )
+                                                .filter(
+                                                  ([_, classification]) =>
+                                                    classification.enabled
+                                                )
+                                                .map(
+                                                  ([key, classification]) => (
+                                                    <SelectItem
+                                                      key={key}
+                                                      value={key}
+                                                      className="text-xs"
+                                                    >
+                                                      <div className="flex items-center gap-2">
+                                                        <div
+                                                          className={`w-3 h-3 rounded border ${
+                                                            classification.color.split(
+                                                              " "
+                                                            )[0]
+                                                          } ${
+                                                            classification.color.split(
+                                                              " "
+                                                            )[2]
+                                                          }`}
+                                                        ></div>
+                                                        {classification.name}
+                                                      </div>
+                                                    </SelectItem>
+                                                  )
+                                                )}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <Label className="text-xs">
+                                              Giờ bắt đầu
+                                            </Label>
+                                            <Input
+                                              type="time"
+                                              value={
+                                                room.customStartTime ||
+                                                shiftDefaults[
+                                                  slot.period as keyof typeof shiftDefaults
+                                                ]?.start ||
+                                                "07:30"
+                                              }
+                                              onChange={(e) =>
+                                                updateRoomConfig(
+                                                  dept.id,
+                                                  slot.id,
+                                                  roomIndex,
+                                                  {
+                                                    customStartTime:
+                                                      e.target.value,
+                                                  }
+                                                )
+                                              }
+                                              className="h-7 text-xs"
+                                            />
+                                          </div>
+                                          <div>
+                                            <Label className="text-xs">
+                                              Giờ kết thúc
+                                            </Label>
+                                            <Input
+                                              type="time"
+                                              value={
+                                                room.customEndTime ||
+                                                shiftDefaults[
+                                                  slot.period as keyof typeof shiftDefaults
+                                                ]?.end ||
+                                                "11:00"
+                                              }
+                                              onChange={(e) =>
+                                                updateRoomConfig(
+                                                  dept.id,
+                                                  slot.id,
+                                                  roomIndex,
+                                                  {
+                                                    customEndTime:
+                                                      e.target.value,
+                                                  }
+                                                )
+                                              }
+                                              className="h-7 text-xs"
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div>
+                                          <Label className="text-xs">
+                                            Số ca khám/giờ
+                                          </Label>
+                                          <Input
+                                            type="number"
+                                            min="1"
+                                            max="50"
+                                            value={room.appointmentCount || 10}
+                                            onChange={(e) =>
+                                              updateRoomConfig(
+                                                dept.id,
+                                                slot.id,
+                                                roomIndex,
+                                                {
+                                                  appointmentCount:
+                                                    parseInt(e.target.value) ||
+                                                    10,
+                                                }
+                                              )
+                                            }
+                                            className="h-7 text-xs"
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <Label className="text-xs">
+                                            Số ưu tiên
+                                          </Label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            max="99"
+                                            value={room.priorityOrder ?? 10}
+                                            onChange={(e) =>
+                                              updateRoomConfig(
+                                                dept.id,
+                                                slot.id,
+                                                roomIndex,
+                                                {
+                                                  priorityOrder:
+                                                    parseInt(e.target.value) ||
+                                                    0,
+                                                }
+                                              )
+                                            }
+                                            className="h-7 text-xs"
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <Label className="text-xs">
+                                            Chức năng/Kỹ thuật chuyên môn
+                                          </Label>
+                                          <Select
+                                            value={
+                                              room.selectedSpecialty ||
+                                              "Khám chuyên khoa"
+                                            }
+                                            onValueChange={(value) =>
+                                              updateRoomConfig(
+                                                dept.id,
+                                                slot.id,
+                                                roomIndex,
+                                                { selectedSpecialty: value }
+                                              )
+                                            }
+                                          >
+                                            <SelectTrigger className="h-7 text-xs mt-2">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {availableSpecialties.map(
+                                                (specialty) => (
+                                                  <SelectItem
+                                                    key={specialty}
+                                                    value={specialty}
+                                                    className="text-xs"
+                                                  >
+                                                    {specialty}
+                                                  </SelectItem>
+                                                )
+                                              )}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        {/* Bác sĩ phụ trách */}
+                                        <Label className="text-xs">
+                                          Bác sĩ phụ trách
+                                        </Label>
+                                        {!room.selectedDoctor ? (
+                                          <div>
+                                            <div className="relative mb-2">
+                                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                              <Input
+                                                placeholder="Tìm kiếm bác sĩ theo tên hoặc mã..."
+                                                value={
+                                                  room._doctorSearchTerm || ""
+                                                }
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  updateRoomConfig(
+                                                    dept.id,
+                                                    slot.id,
+                                                    roomIndex,
+                                                    { _doctorSearchTerm: value }
+                                                  );
+                                                }}
+                                                className="pl-7 h-7 text-xs"
+                                              />
+                                            </div>
+                                            <div className="max-h-32 overflow-y-auto space-y-1 mb-2">
+                                              {availableDoctors
+                                                .filter((doctor) => {
+                                                  const term = (
+                                                    room._doctorSearchTerm || ""
+                                                  ).toLowerCase();
+                                                  return (
+                                                    doctor.name
+                                                      .toLowerCase()
+                                                      .includes(term) ||
+                                                    doctor.code
+                                                      .toLowerCase()
+                                                      .includes(term)
+                                                  );
+                                                })
+                                                .map((doctor) => (
+                                                  <Button
+                                                    key={doctor.id}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full h-7 text-xs justify-start"
+                                                    onClick={() => {
+                                                      updateRoomConfig(
+                                                        dept.id,
+                                                        slot.id,
+                                                        roomIndex,
+                                                        {
+                                                          selectedDoctor:
+                                                            doctor.id,
+                                                          _doctorSearchTerm: "",
+                                                        }
+                                                      );
+                                                    }}
+                                                  >
+                                                    <span className="mr-2">
+                                                      👨‍⚕️
+                                                    </span>
+                                                    {doctor.code} -{" "}
+                                                    {doctor.name} (
+                                                    {doctor.specialty})
+                                                  </Button>
+                                                ))}
+                                            </div>
+                                            {availableDoctors.filter(
+                                              (doctor) => {
+                                                const term = (
+                                                  room._doctorSearchTerm || ""
+                                                ).toLowerCase();
+                                                return (
+                                                  doctor.name
+                                                    .toLowerCase()
+                                                    .includes(term) ||
+                                                  doctor.code
+                                                    .toLowerCase()
+                                                    .includes(term)
+                                                );
+                                              }
+                                            ).length === 0 && (
+                                              <div className="text-xs text-gray-400 text-center">
+                                                Không tìm thấy bác sĩ
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                                              <span>👨‍⚕️</span>
+                                              <span>
+                                                {availableDoctors.find(
+                                                  (d) =>
+                                                    d.id === room.selectedDoctor
+                                                )?.name || room.selectedDoctor}
+                                              </span>
+                                            </span>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 px-2 text-xs"
+                                              onClick={() =>
+                                                updateRoomConfig(
+                                                  dept.id,
+                                                  slot.id,
+                                                  roomIndex,
+                                                  { selectedDoctor: "" }
+                                                )
+                                              }
+                                            >
+                                              Xóa
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                ))}
+
+                                {rooms.length === 0 && (
+                                  <div
+                                    className="w-full h-8 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 cursor-pointer flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors"
+                                    onClick={() => setEditingCell(cellKey)}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" />
+                                    <span className="text-xs">Thêm phòng</span>
+                                  </div>
+                                )}
+
+                                {rooms.length > 0 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
+                                    onClick={() => setEditingCell(cellKey)}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" />
+                                    Thêm phòng
+                                  </Button>
+                                )}
+
+                                {hasChanges && (
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full absolute top-1 right-1"></div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
@@ -801,20 +1969,26 @@ const WeeklySchedule = () => {
                 </h4>
                 <div className="space-y-2 text-sm text-gray-700">
                   <div>
-                    • <strong>Phòng 404, 405:</strong> Sao đỏ thường - Khám
-                    phòng đặc biệt
+                    • <strong>Click vào phòng:</strong> Cấu hình chi tiết (giờ
+                    khám, số ca, chuyên khoa, phân loại)
                   </div>
                   <div>
-                    • <strong>Phòng 421, 422:</strong> Khám 11h-13h (trưa)
+                    • <strong>Tìm kiếm phòng:</strong> Theo tên hoặc mã phòng
                   </div>
                   <div>
-                    • <strong>Click vào ô:</strong> Chỉnh sửa nhanh phòng khám
+                    • <strong>Nhiều phòng/ca:</strong> Có thể thêm nhiều phòng
+                    cho cùng một ca khám
                   </div>
                   <div>
-                    • <strong>Dấu chấm xanh:</strong> Có thay đổi chưa lưu
+                    • <strong>Số bên cạnh icon:</strong> Số ca khám của phòng
                   </div>
                   <div>
-                    • <strong>Màu sắc tự động:</strong> Được gán theo loại phòng
+                    • <strong>Thời gian tự động:</strong> Ca sáng (7:30-11:00),
+                    ca chiều (13:30-16:00)
+                  </div>
+                  <div>
+                    • <strong>Phân loại phòng:</strong> Có thể thay đổi từ
+                    thường sang ưu tiên và ngược lại
                   </div>
                 </div>
               </div>
@@ -838,11 +2012,15 @@ const WeeklySchedule = () => {
                 {Object.values(scheduleData).reduce(
                   (total, dept) =>
                     total +
-                    Object.values(dept).filter((slot) => slot != null).length,
+                    Object.values(dept).reduce(
+                      (deptTotal, shift) =>
+                        deptTotal + (shift?.rooms?.length || 0),
+                      0
+                    ),
                   0
                 )}
               </div>
-              <p className="text-sm text-gray-600">Tổng ca khám trong tuần</p>
+              <p className="text-sm text-gray-600">Tổng phòng khám hoạt động</p>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
@@ -851,13 +2029,22 @@ const WeeklySchedule = () => {
                 {Object.values(scheduleData).reduce(
                   (total, dept) =>
                     total +
-                    Object.values(dept).filter(
-                      (slot) => slot != null && slot.type === "priority"
-                    ).length,
+                    Object.values(dept).reduce(
+                      (deptTotal, shift) =>
+                        deptTotal +
+                        (shift?.rooms?.reduce(
+                          (roomTotal, room) =>
+                            roomTotal + (room.appointmentCount || 0),
+                          0
+                        ) || 0),
+                      0
+                    ),
                   0
                 )}
               </div>
-              <p className="text-sm text-gray-600">Ca khám ưu tiên</p>
+              <p className="text-sm text-gray-600">
+                Tổng số ca khám trong tuần
+              </p>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
@@ -869,6 +2056,15 @@ const WeeklySchedule = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Hidden file input for Excel upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
       </div>
     </TooltipProvider>
   );

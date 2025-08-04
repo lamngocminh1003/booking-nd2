@@ -1,14 +1,21 @@
-// store/authSlice.ts
-
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { User } from "firebase/auth";
+
+// 👉 Chỉ giữ lại các thông tin đơn giản từ Firebase User
+export interface SerializedUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  phoneNumber: string | null;
+}
 
 interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   expiration: string | null;
   status: string | null;
-  user: User | null; // ✅ ĐÚNG
+  user: SerializedUser | null; // ✅ Đã sửa
   token: string | null;
   loading: boolean;
 }
@@ -23,13 +30,25 @@ const initialState: AuthState = {
   loading: true,
 };
 
+// ✅ Hàm serialize để đảm bảo user luôn đơn giản
+export const serializeUser = (user: User): SerializedUser => ({
+  uid: user.uid,
+  email: user.email,
+  displayName: user.displayName,
+  photoURL: user.photoURL,
+  phoneNumber: user.phoneNumber,
+});
+
 export const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
     setAuthUser(
       state,
-      action: PayloadAction<{ user: User | null; token: string | null }>
+      action: PayloadAction<{
+        user: SerializedUser | null;
+        token: string | null;
+      }>
     ) {
       state.user = action.payload.user;
       state.token = action.payload.token;
@@ -38,7 +57,7 @@ export const authSlice = createSlice({
       state.user = null;
       state.token = "";
     },
-    setAuthLoading(state, action) {
+    setAuthLoading(state, action: PayloadAction<boolean>) {
       state.loading = action.payload;
     },
     setAuth: (
@@ -60,10 +79,14 @@ export const authSlice = createSlice({
       state.refreshToken = null;
       state.expiration = null;
       state.status = null;
+      state.user = null;
+      state.token = null;
+      state.loading = false;
     },
   },
 });
 
 export const { setAuth, logout, setAuthUser, clearAuthUser, setAuthLoading } =
   authSlice.actions;
+
 export default authSlice.reducer;

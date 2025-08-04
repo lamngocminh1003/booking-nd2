@@ -80,31 +80,56 @@ const UserInfoForm = ({
       ...defaultValues,
     },
   });
+  const { isNative } = useCapacitor();
 
   const watchedProvinceCode = watch("provinceCode");
   const watchedDistrictCode = watch("districtCode");
 
+  // Load danh sách tỉnh/thành phố
   useEffect(() => {
     dispatch(getProvinces());
   }, [dispatch]);
 
+  // Nếu có sẵn provinceCode (chế độ edit) → gọi load districts
   useEffect(() => {
-    if (watchedProvinceCode) {
-      dispatch(resetLocation("wards")); // chỉ xóa wards
+    if (isEditMode && defaultValues?.provinceCode) {
+      dispatch(getDistricts(defaultValues.provinceCode));
+      setValue("provinceCode", defaultValues.provinceCode);
+    }
+  }, [isEditMode, defaultValues?.provinceCode, dispatch, setValue]);
+
+  // Khi đã có danh sách districts, kiểm tra để set districtCode và load wards
+  useEffect(() => {
+    if (isEditMode && defaultValues?.districtCode && districts.length > 0) {
+      setValue("districtCode", defaultValues.districtCode);
+      dispatch(getWards(defaultValues.districtCode));
+    }
+  }, [isEditMode, defaultValues?.districtCode, districts, dispatch, setValue]);
+
+  // Khi đã có danh sách wards, kiểm tra để set wardCode
+  useEffect(() => {
+    if (isEditMode && defaultValues?.wardCode && wards.length > 0) {
+      setValue("wardCode", defaultValues.wardCode);
+    }
+  }, [isEditMode, defaultValues?.wardCode, wards, setValue]);
+
+  // Khi chọn lại tỉnh mới: reset huyện, xã và load lại huyện
+  useEffect(() => {
+    if (watch("provinceCode")) {
+      dispatch(resetLocation("wards")); // chỉ reset xã
       setValue("districtCode", "");
       setValue("wardCode", "");
-      dispatch(getDistricts(watchedProvinceCode));
+      dispatch(getDistricts(watch("provinceCode")));
     }
-  }, [watchedProvinceCode, dispatch, setValue]);
-  const { isNative } = useCapacitor();
+  }, [watch("provinceCode"), dispatch, setValue]);
 
+  // Khi chọn lại huyện mới: reset xã và load lại xã
   useEffect(() => {
-    if (watchedDistrictCode) {
+    if (watch("districtCode")) {
       setValue("wardCode", "");
-      dispatch(getWards(watchedDistrictCode));
+      dispatch(getWards(watch("districtCode")));
     }
-  }, [watchedDistrictCode, dispatch, setValue]);
-
+  }, [watch("districtCode"), dispatch, setValue]);
   const handleFormSubmit = (data: UserInfoFormValues) => {
     onSubmit({
       ...data,
@@ -134,6 +159,7 @@ const UserInfoForm = ({
       alert("Không thể xử lý mã QR CCCD. Hãy thử lại.");
     }
   };
+
   return (
     <Card>
       <CardHeader>
@@ -249,7 +275,7 @@ const UserInfoForm = ({
             <div className="space-y-2">
               <Label>Giới tính *</Label>
               <RadioGroup
-                defaultValue="0"
+                value={watch("gender")?.toString() || "0"} // Đồng bộ với React Hook Form
                 onValueChange={(value) => setValue("gender", parseInt(value))}
                 className="flex space-x-6"
               >
@@ -273,6 +299,7 @@ const UserInfoForm = ({
             <div className="space-y-2">
               <Label>Tỉnh/Thành phố *</Label>
               <Select
+                value={watch("provinceCode")}
                 onValueChange={(value) => setValue("provinceCode", value)}
                 disabled={locationLoading.provinces}
               >
@@ -297,6 +324,7 @@ const UserInfoForm = ({
             <div className="space-y-2">
               <Label>Quận/Huyện *</Label>
               <Select
+                value={watch("districtCode")}
                 onValueChange={(value) => setValue("districtCode", value)}
                 disabled={!watchedProvinceCode || locationLoading.districts}
               >
@@ -321,6 +349,7 @@ const UserInfoForm = ({
             <div className="space-y-2">
               <Label>Phường/Xã *</Label>
               <Select
+                value={watch("wardCode")}
                 onValueChange={(value) => setValue("wardCode", value)}
                 disabled={!watchedDistrictCode || locationLoading.wards}
               >

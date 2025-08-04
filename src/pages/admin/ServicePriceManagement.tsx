@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
-  fetchDepartments,
-  addDepartment,
-  updateDepartmentThunk,
-  deleteDepartmentThunk,
-} from "@/store/slices/departmentSlice";
+  fetchServicePrices,
+  addServicePrice,
+  updateServicePriceThunk,
+  deleteServicePriceThunk,
+} from "@/store/slices/servicePriceSlice";
 import { RootState } from "@/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,20 +27,21 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const PAGE_SIZE = 10;
 
-export default function DepartmentManagement() {
+export default function ServicePriceManagement() {
   const dispatch = useDispatch();
   const { list, loading, error } = useSelector(
-    (state: RootState) => state.department
+    (state: RootState) => state.servicePrice
   );
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingDepartment, setEditingDepartment] = useState<any>(null);
+  const [editingService, setEditingService] = useState<any>(null);
 
   // Debounce search
   useEffect(() => {
@@ -52,14 +53,14 @@ export default function DepartmentManagement() {
   }, [search]);
 
   useEffect(() => {
-    dispatch(fetchDepartments() as any);
+    dispatch(fetchServicePrices() as any);
   }, [dispatch]);
 
   // Filter and pagination
   const filteredList = useMemo(
     () =>
-      list.filter((dept) =>
-        dept?.name?.toLowerCase().includes(debouncedSearch?.toLowerCase())
+      list.filter((service) =>
+        service.name.toLowerCase().includes(debouncedSearch.toLowerCase())
       ),
     [list, debouncedSearch]
   );
@@ -75,47 +76,48 @@ export default function DepartmentManagement() {
     const formData = new FormData(e.target as HTMLFormElement);
     const data = {
       name: formData.get("name") as string,
+      regularPrice: Number(formData.get("regularPrice")),
+      insurancePrice: Number(formData.get("insurancePrice")),
+      vipPrice: Number(formData.get("vipPrice")),
     };
 
     try {
-      if (editingDepartment) {
+      if (editingService) {
         await dispatch(
-          updateDepartmentThunk({
-            id: editingDepartment.id,
+          updateServicePriceThunk({
+            id: editingService.id,
             data,
           }) as any
         );
-        toast.success("Cập nhật khoa thành công!");
+        toast.success("Cập nhật dịch vụ thành công!");
       } else {
-        await dispatch(addDepartment(data) as any);
-        toast.success("Thêm khoa mới thành công!");
+        await dispatch(addServicePrice(data) as any);
+        toast.success("Thêm dịch vụ mới thành công!");
       }
       setIsDialogOpen(false);
-      setEditingDepartment(null);
-      dispatch(fetchDepartments() as any);
+      setEditingService(null);
+      dispatch(fetchServicePrices() as any);
     } catch (error) {
       toast.error("Có lỗi xảy ra!");
     }
   };
 
   const handleDelete = (id: number) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa khoa này?")) {
-      dispatch(deleteDepartmentThunk(id) as any);
-      dispatch(fetchDepartments() as any);
-
-      toast.success("Xóa khoa thành công!");
+    if (window.confirm("Bạn có chắc chắn muốn xóa dịch vụ này?")) {
+      dispatch(deleteServicePriceThunk(id) as any);
+      toast.success("Xóa dịch vụ thành công!");
     }
   };
 
-  const handleToggleEnable = async (dept: any) => {
+  const handleToggleEnable = async (service: any) => {
     try {
       await dispatch(
-        updateDepartmentThunk({
-          id: dept.id,
-          data: { ...dept, enable: !dept.enable },
+        updateServicePriceThunk({
+          id: service.id,
+          data: { ...service, enable: !service.enable },
         }) as any
       );
-      await dispatch(fetchDepartments() as any); // Fetch after update
+      await dispatch(fetchServicePrices() as any); // Fetch after update
       toast.success("Cập nhật trạng thái thành công!");
     } catch (error) {
       toast.error("Có lỗi xảy ra!");
@@ -126,29 +128,80 @@ export default function DepartmentManagement() {
     <div className="p-4 animate-fade-in">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Quản lý khoa/phòng khám</CardTitle>
+          <CardTitle>Quản lý giá dịch vụ</CardTitle>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild></DialogTrigger>
+            <DialogTrigger asChild>
+              <Button
+                onClick={() => {
+                  setEditingService(null);
+                }}
+              >
+                Thêm mới
+              </Button>
+            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
-                  {editingDepartment ? "Cập nhật" : "Thêm"} khoa
+                  {editingService ? "Cập nhật" : "Thêm"} dịch vụ
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <Input
-                  name="name"
-                  defaultValue={editingDepartment?.name}
-                  placeholder="Tên khoa"
-                  required
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="name">Tên dịch vụ</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    defaultValue={editingService?.name}
+                    placeholder="Tên dịch vụ"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="regularPrice">Giá thường</Label>
+                  <Input
+                    id="regularPrice"
+                    name="regularPrice"
+                    type="number"
+                    defaultValue={editingService?.regularPrice}
+                    placeholder="Giá thường"
+                    required
+                    min={0}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="insurancePrice">Giá BHYT</Label>
+                  <Input
+                    id="insurancePrice"
+                    name="insurancePrice"
+                    type="number"
+                    defaultValue={editingService?.insurancePrice}
+                    placeholder="Giá BHYT"
+                    min={0}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vipPrice">Giá VIP</Label>
+                  <Input
+                    id="vipPrice"
+                    name="vipPrice"
+                    type="number"
+                    defaultValue={editingService?.vipPrice}
+                    placeholder="Giá VIP"
+                    min={0}
+                  />
+                </div>
+
                 <Button type="submit">
-                  {editingDepartment ? "Cập nhật" : "Thêm mới"}
+                  {editingService ? "Cập nhật" : "Thêm mới"}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
         </CardHeader>
+
         <CardContent>
           {/* Overview Statistics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
@@ -157,9 +210,23 @@ export default function DepartmentManagement() {
                 <div className="flex items-center gap-4">
                   <div>
                     <p className="text-sm font-medium text-gray-500">
-                      Tổng khoa/phòng
+                      Tổng dịch vụ
                     </p>
                     <p className="text-2xl font-bold">{list.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">
+                      Đang hoạt động
+                    </p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      {list.filter((s) => s.enable).length}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -171,7 +238,7 @@ export default function DepartmentManagement() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm kiếm khoa/phòng..."
+              placeholder="Tìm kiếm dịch vụ..."
               className="max-w-xs"
             />
           </div>
@@ -182,7 +249,10 @@ export default function DepartmentManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[100px]">ID</TableHead>
-                  <TableHead>Tên khoa</TableHead>
+                  <TableHead>Tên dịch vụ</TableHead>
+                  <TableHead className="w-[150px]">Giá thường</TableHead>
+                  <TableHead className="w-[150px]">Giá BHYT</TableHead>
+                  <TableHead className="w-[150px]">Giá VIP</TableHead>
                   <TableHead className="w-[120px]">Trạng thái</TableHead>
                   <TableHead className="w-[200px] text-right">
                     Thao tác
@@ -190,14 +260,23 @@ export default function DepartmentManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedList.map((dept) => (
-                  <TableRow key={dept.id}>
-                    <TableCell className="w-[100px]">{dept.id}</TableCell>
-                    <TableCell>{dept.name}</TableCell>
+                {pagedList.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="w-[100px]">{service.id}</TableCell>
+                    <TableCell>{service.name}</TableCell>
+                    <TableCell className="w-[150px]">
+                      {service.regularPrice?.toLocaleString()} đ
+                    </TableCell>
+                    <TableCell className="w-[150px]">
+                      {service.insurancePrice?.toLocaleString()} đ
+                    </TableCell>
+                    <TableCell className="w-[150px]">
+                      {service.vipPrice?.toLocaleString()} đ
+                    </TableCell>
                     <TableCell className="w-[120px]">
                       <Switch
-                        checked={dept.enable}
-                        onCheckedChange={() => handleToggleEnable(dept)}
+                        checked={service.enable}
+                        onCheckedChange={() => handleToggleEnable(service)}
                       />
                     </TableCell>
                     <TableCell className="w-[200px] text-right">
@@ -205,7 +284,7 @@ export default function DepartmentManagement() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            setEditingDepartment(dept);
+                            setEditingService(service);
                             setIsDialogOpen(true);
                           }}
                         >
@@ -214,7 +293,7 @@ export default function DepartmentManagement() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleDelete(dept.id)}
+                          onClick={() => handleDelete(service.id)}
                         >
                           Xóa
                         </Button>
@@ -229,6 +308,7 @@ export default function DepartmentManagement() {
           {/* Pagination */}
           <div className="flex items-center justify-end gap-2 mt-4">
             <Button
+              size="sm"
               variant="outline"
               disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}

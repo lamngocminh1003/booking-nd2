@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchRooms, addRoom, updateRoomThunk } from "@/store/slices/roomSlice";
+import { fetchZones } from "@/store/slices/zoneSlice";
+import { RootState } from "@/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -18,6 +21,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -25,381 +30,261 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit, Trash2, MapPin } from "lucide-react";
-import { toast } from "sonner";
 
-const RoomManagement = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
+const PAGE_SIZE = 10;
 
-  // Mock room data
-  const rooms = [
-    {
-      id: 1,
-      number: "101",
-      name: "Phòng khám Nhi 1",
-      department: "Khoa Nhi",
-      area: "Khu A",
-      capacity: 30,
-      workingHours: "8:00 - 17:00",
-      status: "Hoạt động",
-      equipment: ["Máy đo nhiệt độ", "Cân điện tử", "Máy đo huyết áp"],
-      assignedDoctors: ["BS. Nguyễn Văn A", "BS. Trần Thị B"],
-    },
-    {
-      id: 2,
-      number: "102",
-      name: "Phòng khám TMH 1",
-      department: "Tai Mũi Họng",
-      area: "Khu A",
-      capacity: 25,
-      workingHours: "8:00 - 16:30",
-      status: "Hoạt động",
-      equipment: ["Máy nội soi TMH", "Máy đo thính lực"],
-      assignedDoctors: ["BS. Lê Văn C"],
-    },
-    {
-      id: 3,
-      number: "201",
-      name: "Phòng khám Nội 1",
-      department: "Khoa Nội",
-      area: "Khu B",
-      capacity: 35,
-      workingHours: "7:30 - 17:30",
-      status: "Hoạt động",
-      equipment: ["Máy ECG", "Máy siêu âm", "Máy đo đường huyết"],
-      assignedDoctors: ["BS. Phạm Thị D", "BS. Hoàng Văn E"],
-    },
-    {
-      id: 4,
-      number: "105",
-      name: "Phòng khám Da liễu",
-      department: "Da Liễu",
-      area: "Khu A",
-      capacity: 20,
-      workingHours: "9:00 - 16:00",
-      status: "Bảo trì",
-      equipment: ["Đèn UV", "Kính lúp chuyên dụng"],
-      assignedDoctors: [],
-    },
-  ];
+export default function RoomManagement() {
+  const dispatch = useDispatch();
+  const { list, loading, error } = useSelector(
+    (state: RootState) => state.room
+  );
+  const { list: zoneList } = useSelector((state: RootState) => state.zone);
 
-  const departments = [
-    "Khoa Nhi",
-    "Tai Mũi Họng",
-    "Khoa Nội",
-    "Da Liễu",
-    "Khoa Ngoại",
-  ];
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<any>(null);
 
-  const filteredRooms = rooms.filter((room) => {
-    const matchesSearch =
-      room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      room.number.includes(searchTerm);
-    const matchesDepartment =
-      departmentFilter === "all" || room.department === departmentFilter;
-    return matchesSearch && matchesDepartment;
-  });
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const RoomForm = ({
-    isEdit = false,
-    room = null,
-  }: {
-    isEdit?: boolean;
-    room?: any;
-  }) => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="number">Số phòng</Label>
-          <Input
-            id="number"
-            defaultValue={room?.number}
-            placeholder="Nhập số phòng"
-          />
-        </div>
-        <div>
-          <Label htmlFor="name">Tên phòng</Label>
-          <Input
-            id="name"
-            defaultValue={room?.name}
-            placeholder="Nhập tên phòng"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="department">Khoa phụ trách</Label>
-          <Select defaultValue={room?.department}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn khoa" />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="area">Khu vực</Label>
-          <Select defaultValue={room?.area}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn khu vực" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Khu A">Khu A</SelectItem>
-              <SelectItem value="Khu B">Khu B</SelectItem>
-              <SelectItem value="Khu C">Khu C</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="capacity">Sức chứa tối đa</Label>
-          <Input
-            id="capacity"
-            type="number"
-            defaultValue={room?.capacity}
-            placeholder="Số bệnh nhân/ngày"
-          />
-        </div>
-        <div>
-          <Label htmlFor="workingHours">Khung giờ làm việc</Label>
-          <Input
-            id="workingHours"
-            defaultValue={room?.workingHours}
-            placeholder="VD: 8:00 - 17:00"
-          />
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="status">Trạng thái</Label>
-        <Select defaultValue={room?.status || "Hoạt động"}>
-          <SelectTrigger>
-            <SelectValue placeholder="Chọn trạng thái" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Hoạt động">Hoạt động</SelectItem>
-            <SelectItem value="Bảo trì">Bảo trì</SelectItem>
-            <SelectItem value="Tạm dừng">Tạm dừng</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button variant="outline">Hủy</Button>
-        <Button
-          onClick={() =>
-            toast.success(
-              isEdit ? "Đã cập nhật phòng khám" : "Đã tạo phòng khám mới"
-            )
-          }
-        >
-          {isEdit ? "Cập nhật" : "Tạo mới"}
-        </Button>
-      </div>
-    </div>
+  useEffect(() => {
+    dispatch(fetchRooms() as any);
+    dispatch(fetchZones() as any);
+  }, [dispatch]);
+
+  // Filter and pagination
+  const filteredList = useMemo(
+    () =>
+      list.filter((room) =>
+        room?.name?.toLowerCase().includes(debouncedSearch?.toLowerCase())
+      ),
+    [list, debouncedSearch]
   );
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Hoạt động":
-        return "bg-emerald-100 text-emerald-800";
-      case "Bảo trì":
-        return "bg-yellow-100 text-yellow-800";
-      case "Tạm dừng":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+  const totalPages = Math.ceil(filteredList.length / PAGE_SIZE);
+  const pagedList = filteredList.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      name: formData.get("name") as string,
+      code: formData.get("code") as string,
+      zoneId: Number(formData.get("zoneId")),
+    };
+
+    try {
+      if (editingRoom) {
+        await dispatch(
+          updateRoomThunk({
+            id: editingRoom.id,
+            data,
+          }) as any
+        );
+        toast.success("Cập nhật phòng thành công!");
+      } else {
+        await dispatch(addRoom(data) as any);
+        toast.success("Thêm phòng mới thành công!");
+      }
+      setIsDialogOpen(false);
+      setEditingRoom(null);
+      dispatch(fetchRooms() as any);
+    } catch (error) {
+      toast.error("Có lỗi xảy ra!");
+    }
+  };
+
+  // Thêm hàm xử lý toggle enable
+  const handleToggleEnable = async (room: any) => {
+    try {
+      await dispatch(
+        updateRoomThunk({
+          id: room.id,
+          data: { ...room, enable: !room.enable },
+        }) as any
+      );
+      await dispatch(fetchRooms() as any); // Fetch lại sau khi update
+      toast.success("Cập nhật trạng thái thành công!");
+    } catch (error) {
+      toast.error("Có lỗi xảy ra!");
     }
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Quản lý phòng khám
-          </h1>
-          <p className="text-gray-600">Quản lý phòng khám và thiết bị y tế</p>
-        </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Thêm phòng khám
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Tạo phòng khám mới</DialogTitle>
-            </DialogHeader>
-            <RoomForm />
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <MapPin className="w-8 h-8 text-emerald-600" />
-              <div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {rooms.length}
-                </div>
-                <p className="text-sm text-gray-600">Tổng phòng khám</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-emerald-600">
-              {rooms.filter((r) => r.status === "Hoạt động").length}
-            </div>
-            <p className="text-sm text-gray-600">Đang hoạt động</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">
-              {rooms.filter((r) => r.status === "Bảo trì").length}
-            </div>
-            <p className="text-sm text-gray-600">Đang bảo trì</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
-              {Math.round(
-                rooms.reduce((sum, r) => sum + r.capacity, 0) / rooms.length
-              )}
-            </div>
-            <p className="text-sm text-gray-600">Sức chứa TB/phòng</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
+    <div className="p-4 animate-fade-in">
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex space-x-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Quản lý phòng khám</CardTitle>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                onClick={() => {
+                  setEditingRoom(null);
+                }}
+              >
+                Thêm mới
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingRoom ? "Cập nhật" : "Thêm"} phòng khám
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <Input
-                  placeholder="Tìm kiếm theo số phòng hoặc tên phòng..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  name="name"
+                  defaultValue={editingRoom?.name}
+                  placeholder="Tên phòng"
+                  required
                 />
-              </div>
-            </div>
-            <Select
-              value={departmentFilter}
-              onValueChange={setDepartmentFilter}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Lọc theo khoa" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả khoa</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Room Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Danh sách phòng khám ({filteredRooms.length})</CardTitle>
+                <Select
+                  name="zoneId"
+                  defaultValue={editingRoom?.zoneId?.toString()}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn khu vực" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zoneList
+                      ?.filter((zone) => zone.enable)
+                      .map((zone) => (
+                        <SelectItem key={zone.id} value={zone.id.toString()}>
+                          {zone.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button type="submit">
+                  {editingRoom ? "Cập nhật" : "Thêm mới"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
+
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Số phòng</TableHead>
-                <TableHead>Tên phòng</TableHead>
-                <TableHead>Khoa phụ trách</TableHead>
-                <TableHead>Khu vực</TableHead>
-                <TableHead>Sức chứa</TableHead>
-                <TableHead>Giờ làm việc</TableHead>
-                <TableHead>Bác sĩ</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRooms.map((room) => (
-                <TableRow key={room.id}>
-                  <TableCell className="font-medium">{room.number}</TableCell>
-                  <TableCell>{room.name}</TableCell>
-                  <TableCell>{room.department}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{room.area}</Badge>
-                  </TableCell>
-                  <TableCell>{room.capacity} BN/ngày</TableCell>
-                  <TableCell className="text-sm">{room.workingHours}</TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {room.assignedDoctors.length > 0
-                        ? `${room.assignedDoctors.length} bác sĩ`
-                        : "Chưa phân công"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(room.status)}>
-                      {room.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>Chỉnh sửa phòng khám</DialogTitle>
-                          </DialogHeader>
-                          <RoomForm isEdit={true} room={room} />
-                        </DialogContent>
-                      </Dialog>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          toast.success(`Đã xóa phòng ${room.number}`)
-                        }
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {/* Overview Statistics */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">
+                      Tổng số phòng
+                    </p>
+                    <p className="text-2xl font-bold">{list.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">
+                      Đang hoạt động
+                    </p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      {list.filter((r) => r.enable).length}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search */}
+          <div className="flex justify-between mb-4">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm kiếm phòng..."
+              className="max-w-xs"
+            />
+          </div>
+
+          {/* Table */}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">ID</TableHead>
+                  <TableHead>Tên phòng</TableHead>
+                  <TableHead>Tên khu</TableHead>
+                  <TableHead className="w-[120px]">Trạng thái</TableHead>
+                  <TableHead className="w-[200px] text-right">
+                    Thao tác
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {pagedList.map((room) => (
+                  <TableRow key={room.id}>
+                    <TableCell className="w-[100px]">{room.id}</TableCell>
+                    <TableCell>{room.name}</TableCell>
+                    <TableCell>{room.zoneName}</TableCell>
+                    <TableCell className="w-[120px]">
+                      <Switch
+                        checked={room.enable}
+                        onCheckedChange={() => handleToggleEnable(room)}
+                      />
+                    </TableCell>
+                    <TableCell className="w-[200px] text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setEditingRoom(room);
+                            setIsDialogOpen(true);
+                          }}
+                        >
+                          Sửa
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-end gap-2 mt-4">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Trang trước
+            </Button>
+            <span className="text-sm">
+              Trang {page}/{totalPages || 1}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === totalPages || totalPages === 0}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Trang sau
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
-};
-
-export default RoomManagement;
+}

@@ -16,6 +16,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EditDoctorModal from "@/components/admin/doctors/EditDoctorModal";
 import AddDoctorModal from "@/components/admin/doctors/AddDoctorModal";
 import DoctorScheduleModal from "@/components/admin/doctors/DoctorScheduleModal";
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchDoctors } from "@/store/slices/doctorSlice";
+import { useAppDispatch, useAppSelector } from "@/hooks/redux";
+import { RootState } from "@/store";
 
 interface Doctor {
   id: string;
@@ -27,57 +32,46 @@ interface Doctor {
   experience: number;
   patients: number;
   schedule: string[];
+  doctor_IdEmployee_Postgresql: string;
 }
 
 const DoctorManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [doctors, setDoctors] = useState<Doctor[]>([
-    {
-      id: "1",
-      name: "BS. Trần Văn Nam",
-      specialty: "Nhi khoa tổng quát",
-      phone: "0123456789",
-      email: "tranvannam@hospital.com",
-      status: "Active",
-      experience: 15,
-      patients: 1250,
-      schedule: ["Thứ 2", "Thứ 4", "Thứ 6"],
-    },
-    {
-      id: "2",
-      name: "BS. Lê Thị Hoa",
-      specialty: "Tim mạch nhi",
-      phone: "0987654321",
-      email: "lethihoa@hospital.com",
-      status: "Active",
-      experience: 12,
-      patients: 890,
-      schedule: ["Thứ 3", "Thứ 5", "Thứ 7"],
-    },
-    {
-      id: "3",
-      name: "BS. Nguyễn Minh Tuấn",
-      specialty: "Hô hấp nhi",
-      phone: "0456789123",
-      email: "nguyenminhtuan@hospital.com",
-      status: "on_leave",
-      experience: 8,
-      patients: 567,
-      schedule: ["Thứ 2", "Thứ 3", "Thứ 5"],
-    },
-  ]);
+  const { doctors, loading, error } = useAppSelector((state) => state.doctor);
+
+  const filteredDoctors = doctors?.filter(
+    (doctor) =>
+      doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doctor.doctor_IdEmployee_Postgresql || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+  );
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const doctorsPerPage = 10;
+  const totalPages = Math.ceil(filteredDoctors.length / doctorsPerPage);
+
+  const paginatedDoctors = filteredDoctors.slice(
+    (currentPage - 1) * doctorsPerPage,
+    currentPage * doctorsPerPage
+  );
+
+  const dispatch = useAppDispatch();
+  useEffect(() => {
+    dispatch(fetchDoctors());
+  }, [dispatch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleDoctorUpdate = (updatedDoctor: Doctor) => {
-    setDoctors((prev) =>
-      prev.map((doctor) =>
-        doctor.id === updatedDoctor.id ? updatedDoctor : doctor
-      )
-    );
+    // This function will need to be updated to interact with Redux state
     console.log("Cập nhật thông tin bác sĩ:", updatedDoctor);
   };
 
   const handleDoctorAdd = (newDoctor: Doctor) => {
-    setDoctors((prev) => [...prev, newDoctor]);
+    // This function will need to be updated to interact with Redux state
     console.log("Thêm bác sĩ mới:", newDoctor);
   };
 
@@ -100,12 +94,6 @@ const DoctorManagement = () => {
     }
   };
 
-  const filteredDoctors = doctors.filter(
-    (doctor) =>
-      doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="min-h-screen animate-fade-in">
       <div className=" pb-10 ">
@@ -120,7 +108,6 @@ const DoctorManagement = () => {
                   Quản lý thông tin bác sĩ và lịch làm việc
                 </p>
               </div>
-              <AddDoctorModal onAdd={handleDoctorAdd} />
             </div>
           </div>
 
@@ -150,55 +137,20 @@ const DoctorManagement = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Họ tên</TableHead>
-                    <TableHead>Chuyên khoa</TableHead>
-                    <TableHead>Liên hệ</TableHead>
-                    <TableHead>Kinh nghiệm</TableHead>
-                    <TableHead>Số bệnh nhân</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead>Thao tác</TableHead>
+                    <TableHead>Mã bác sĩ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDoctors.map((doctor) => (
+                  {paginatedDoctors.map((doctor) => (
                     <TableRow key={doctor.id}>
                       <TableCell>
                         <div>
                           <div className="font-medium">{doctor.name}</div>
-                          <div className="text-sm text-gray-500">
-                            ID: {doctor.id}
-                          </div>
                         </div>
                       </TableCell>
-                      <TableCell>{doctor.specialty}</TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center text-sm">
-                            <Phone className="w-3 h-3 mr-1" />
-                            {doctor.phone}
-                          </div>
-                          <div className="flex items-center text-sm">
-                            <Mail className="w-3 h-3 mr-1" />
-                            {doctor.email}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{doctor.experience} năm</TableCell>
-                      <TableCell>{doctor.patients.toLocaleString()}</TableCell>
-                      <TableCell>{getStatusBadge(doctor.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <EditDoctorModal
-                            doctor={doctor}
-                            onSave={handleDoctorUpdate}
-                          />
-                          <DoctorScheduleModal doctor={doctor} />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 border-red-200 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                        <div className="text-sm text-gray-500">
+                          {doctor.doctor_IdEmployee_Postgresql}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -206,6 +158,28 @@ const DoctorManagement = () => {
                 </TableBody>
               </Table>
             </CardContent>
+            {/* Pagination UI dưới bảng */}
+            <div className="flex justify-center mt-4 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+              >
+                Trang trước
+              </Button>
+              <span className="px-2 text-sm">
+                Trang {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+              >
+                Trang sau
+              </Button>
+            </div>
           </Card>
 
           {/* Doctor Statistics */}
@@ -218,21 +192,7 @@ const DoctorManagement = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Tổng bác sĩ:</span>
-                    <span className="font-medium">{doctors.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">
-                      Đang hoạt động:
-                    </span>
-                    <span className="font-medium text-green-600">
-                      {doctors.filter((d) => d.status === "active").length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Nghỉ phép:</span>
-                    <span className="font-medium text-orange-600">
-                      {doctors.filter((d) => d.status === "on_leave").length}
-                    </span>
+                    <span className="font-medium">{doctors?.length}</span>
                   </div>
                 </div>
               </CardContent>

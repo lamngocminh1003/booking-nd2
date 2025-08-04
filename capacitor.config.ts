@@ -3,6 +3,9 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "com.example.app",
   appName: "Booking ND 2",
+  server: {
+    cleartext: true, // Cho phép gọi HTTP (rất quan trọng trên Android)
+  },
   webDir: "dist",
   plugins: {
     GoogleAuth: {

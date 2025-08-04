@@ -3,12 +3,12 @@ import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { Capacitor } from "@capacitor/core";
 import {
   setAuthUser,
   clearAuthUser,
   setAuthLoading,
   setAuth,
+  serializeUser, // ✅ Thêm dòng này
 } from "@/store/slices/authSlice";
 import { getAuthStorage } from "@/utils/authStorage";
 
@@ -16,9 +16,9 @@ export const useAuthInitializer = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    const initAuth = async () => {
-      dispatch(setAuthLoading(true));
+    dispatch(setAuthLoading(true));
 
+    const initAuth = async () => {
       const { accessToken, refreshToken, expiration, status } =
         await getAuthStorage();
 
@@ -26,25 +26,30 @@ export const useAuthInitializer = () => {
         dispatch(setAuth({ accessToken, refreshToken, expiration, status }));
       }
 
-      // 2. Firebase Auth state observer
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          try {
-            const idToken = await user.getIdToken();
-            dispatch(setAuthUser({ user, token: idToken }));
-          } catch (error) {
-            console.error("Error getting Firebase ID token:", error);
-            dispatch(clearAuthUser());
-          }
-        } else {
-          dispatch(clearAuthUser());
-        }
-        dispatch(setAuthLoading(false));
-      });
-
-      return () => unsubscribe();
+      dispatch(setAuthLoading(false));
     };
 
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const idToken = await user.getIdToken();
+          dispatch(
+            setAuthUser({
+              user: serializeUser(user), // ✅ Serialize ở đây
+              token: idToken,
+            })
+          );
+        } catch (error) {
+          console.error("Error getting Firebase ID token:", error);
+          dispatch(clearAuthUser());
+        }
+      } else {
+        dispatch(clearAuthUser());
+      }
+    });
+
     initAuth();
+
+    return () => unsubscribe();
   }, [dispatch]);
 };

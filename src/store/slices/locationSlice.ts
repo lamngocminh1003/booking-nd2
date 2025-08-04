@@ -1,15 +1,24 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { useTokenRefresher } from "@/hooks/useTokenRefresher";
+
 import {
   fetchAllProvinces,
   fetchAllDistricts,
   fetchAllWards,
 } from "@/services/LocationServices";
+import { userInfo } from "@/services/UsersServices";
 
 // Async thunks
 export const getProvinces = createAsyncThunk(
   "location/getProvinces",
   async () => {
     return await fetchAllProvinces();
+  }
+); // Async thunks
+export const getUserInfo = createAsyncThunk(
+  "location/getUserInfo",
+  async () => {
+    return await userInfo();
   }
 );
 
@@ -32,15 +41,18 @@ interface LocationState {
   provinces: any[];
   districts: any[];
   wards: any[];
+  userInfo: any | null;
   loading: {
     provinces: boolean;
     districts: boolean;
     wards: boolean;
+    userInfo: boolean;
   };
   error: {
     provinces: string | null;
     districts: string | null;
     wards: string | null;
+    userInfo: string | null;
   };
 }
 
@@ -49,15 +61,18 @@ const initialState: LocationState = {
   provinces: [],
   districts: [],
   wards: [],
+  userInfo: null,
   loading: {
     provinces: false,
     districts: false,
     wards: false,
+    userInfo: false,
   },
   error: {
     provinces: null,
     districts: null,
     wards: null,
+    userInfo: null,
   },
 };
 
@@ -104,6 +119,19 @@ const locationSlice = createSlice({
         state.error.provinces = "Failed to load provinces";
       })
 
+      // User Info
+      .addCase(getUserInfo.pending, (state) => {
+        state.loading.userInfo = true;
+        state.error.userInfo = null;
+      })
+      .addCase(getUserInfo.fulfilled, (state, action) => {
+        state.loading.userInfo = false;
+        state.userInfo = action?.payload?.data?.data;
+      })
+      .addCase(getUserInfo.rejected, (state) => {
+        state.loading.userInfo = false;
+        state.error.userInfo = "Failed to load user info";
+      })
       // Districts
       .addCase(getDistricts.pending, (state) => {
         state.loading.districts = true;

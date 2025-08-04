@@ -9,7 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { setAuthStorage } from "@/utils/authStorage";
-import { loginWithFirebaseToken } from "@/services/UsersServices";
+import {
+  loginWithFirebaseToken,
+  registerLocal,
+} from "@/services/UsersServices";
 import { auth } from "@/lib/firebase";
 import AuthLayout from "@/components/layouts/AuthLayout";
 
@@ -21,8 +24,8 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: "",
-    phone: "",
+    username: "",
+    phoneNumber: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -54,6 +57,7 @@ const Register = () => {
           refreshToken: refreshToken,
           expiration: expiration,
           status: status,
+          user: user?.displayName || "",
         });
       }
 
@@ -76,8 +80,8 @@ const Register = () => {
   const handleRegister = async () => {
     // Validation
     if (
-      !formData.fullName ||
-      !formData.phone ||
+      !formData.username ||
+      !formData.phoneNumber ||
       !formData.email ||
       !formData.password ||
       !formData.confirmPassword
@@ -110,12 +114,18 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const result = await createUserWithEmailAndPassword(
-        auth,
+      const result = await registerLocal(
+        formData.username,
+        formData.phoneNumber,
         formData.email,
         formData.password
       );
-      await getIdToken(result.user);
+      if (result.success) {
+        navigate("/login");
+      }
+      if (!result || !result.success) {
+        throw new Error("Đăng ký không thành công. Vui lòng thử lại.");
+      }
     } catch (error: any) {
       console.error("Register error:", error);
       toast({
@@ -137,26 +147,28 @@ const Register = () => {
         {/* Form đăng ký */}
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="fullName">Họ và tên *</Label>
+            <Label htmlFor="username">Họ và tên *</Label>
             <Input
-              id="fullName"
+              id="username"
               placeholder="Nhập họ và tên đầy đủ"
               className="border-emerald-200 focus:border-emerald-500"
-              value={formData.fullName}
-              onChange={(e) => handleInputChange("fullName", e.target.value)}
+              value={formData.username}
+              onChange={(e) => handleInputChange("username", e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Số điện thoại *</Label>
+            <Label htmlFor="phoneNumber">Số điện thoại *</Label>
             <div className="relative">
               <Phone className="absolute left-3 top-3 h-4 w-4 text-emerald-500" />
               <Input
-                id="phone"
+                id="phoneNumber"
                 placeholder="Nhập số điện thoại"
                 className="pl-10 border-emerald-200 focus:border-emerald-500"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
+                value={formData.phoneNumber}
+                onChange={(e) =>
+                  handleInputChange("phoneNumber", e.target.value)
+                }
               />
             </div>
           </div>

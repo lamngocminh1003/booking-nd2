@@ -16,13 +16,24 @@ import { clearAuthUser } from "@/store/slices/authSlice";
 import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { removeAuthStorage, getAuthStorage } from "@/utils/authStorage";
+import { useState, useEffect } from "react";
 
-import { removeAuthStorage } from "@/utils/authStorage";
 const AdminHeader = () => {
   const navigate = useNavigate();
-
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state?.auth?.user);
+
+  // Thêm userLocal lấy từ local storage
+  const [userLocal, setUserLocal] = useState<string | null>(null);
+  useEffect(() => {
+    const checkUser = async () => {
+      const { user } = await getAuthStorage();
+      setUserLocal(user);
+    };
+    checkUser();
+  }, []);
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -78,7 +89,7 @@ const AdminHeader = () => {
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-900">
-                    {user?.displayName}
+                    {userLocal || user?.displayName}
                   </p>
                   <p className="text-xs text-gray-500">Quản trị viên</p>
                 </div>

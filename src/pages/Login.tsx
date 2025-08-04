@@ -17,10 +17,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { loginWithFirebaseToken } from "@/services/UsersServices";
+import { loginWithFirebaseToken, loginLocal } from "@/services/UsersServices";
 import { auth, googleProvider } from "@/lib/firebase";
 import AuthLayout from "@/components/layouts/AuthLayout";
-import { setAuthUser } from "@/store/slices/authSlice";
+import { setAuthUser, serializeUser } from "@/store/slices/authSlice";
 import { setAuthStorage, getAuthStorage } from "@/utils/authStorage";
 
 const Login = () => {
@@ -42,13 +42,19 @@ const Login = () => {
   const getIdToken = async (user: User): Promise<boolean> => {
     try {
       const token = await user.getIdToken();
-      dispatch(setAuthUser({ user, token }));
+      dispatch(setAuthUser({ user: serializeUser(user), token }));
       const response = await loginWithFirebaseToken(token);
       const { accessToken, refreshToken, expiration, status } = response.data;
 
       dispatch(setAuth({ accessToken, refreshToken, expiration, status }));
 
-      await setAuthStorage({ accessToken, refreshToken, expiration, status });
+      await setAuthStorage({
+        accessToken,
+        refreshToken,
+        expiration,
+        status,
+        user: user?.displayName || "",
+      });
 
       if (status === "Pending") {
         navigate("/profile");
@@ -89,12 +95,39 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const result = await signInWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      await getIdToken(result.user);
+      const response = await loginLocal(formData.email, formData.password);
+      console.log(formData);
+
+      const { accessToken, refreshToken, expiration, status } =
+        response?.data?.data || {};
+
+      dispatch(setAuth({ accessToken, refreshToken, expiration, status }));
+
+      await setAuthStorage({
+        accessToken,
+        refreshToken,
+        expiration,
+        status,
+        user: formData.email || "",
+      });
+
+      if (status === "Pending") {
+        navigate("/profile");
+
+        toast({
+          title: "Chưa có thông tin tài khoản.",
+          description: "Vui lòng đăng ký thông tin.",
+          variant: "destructive",
+        });
+      } else if (status === "Active") {
+        navigate("/");
+        toast({
+          title: "Đăng nhập thành công!",
+          description: "Chào mừng bạn trở lại hệ thống.",
+        });
+      }
+
+      return true;
     } catch (error: any) {
       console.error("Email login error:", error);
       toast({
@@ -212,7 +245,7 @@ const Login = () => {
         <div className="space-y-3">
           <Button
             variant="outline"
-            className="w-full py-6 text-base border-emerald-200 hover:bg-emerald-50 rounded-xl"
+            className="w-full py-6 text-base border-emerald-200 hover:bg-emerald-50 rounded-xl hover:text-emerald-600"
             onClick={handleGoogleLogin}
             disabled={loading}
           >
@@ -239,9 +272,9 @@ const Login = () => {
 
           <Button
             variant="outline"
-            className="w-full py-6 text-base border-emerald-200 hover:bg-emerald-50 rounded-xl"
+            className="w-full py-6  text-base border-emerald-200 hover:bg-emerald-50 rounded-xl  hover:text-emerald-600"
           >
-            <div className="w-5 h-5 mr-2 bg-blue-600 rounded text-white flex items-center justify-center text-xs font-bold">
+            <div className="w-5 h-5 mr-2 bg-blue-600 rounded text-white flex items-center justify-center  text-xs font-bold">
               f
             </div>
             Đăng nhập với Facebook

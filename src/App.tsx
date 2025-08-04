@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider } from "react-redux";
 import { store } from "./store";
+import { registerDevice } from "@/hooks/getOrCreateDeviceId";
+import { useEffect } from "react";
 import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Insurance from "./pages/Insurance";
 import Children from "./pages/Children";
@@ -18,7 +19,6 @@ import Notifications from "./pages/Notifications";
 import History from "./pages/History";
 import DoctorManagement from "./pages/DoctorManagement";
 import AdminAppointments from "./pages/admin/AdminAppointments";
-import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import Footer from "./components/ui/Footer";
 import Navigation from "./components/Navigation";
@@ -35,11 +35,20 @@ import PatientManagement1 from "./pages/admin/PatientManagement";
 import DepartmentManagement from "./pages/admin/DepartmentManagement";
 import RoomManagement from "./pages/admin/RoomManagement";
 import ScheduleManagement from "./pages/admin/ScheduleManagement";
+import Examinations from "./pages/admin/ExaminationManagement";
 import Reports1 from "./pages/admin/Reports";
 import WeeklySchedule from "./pages/admin/WeeklySchedule";
 const queryClient = new QueryClient();
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
-
+import Services from "./pages/Services";
+import ServiceDetail from "./pages/ServiceDetail";
+import Doctors from "./pages/Doctors";
+import DoctorDetail from "./pages/DoctorDetail";
+import Contact from "./pages/Contact";
+import ZoneManagement from "./pages/admin/ZoneManagement";
+import PrivateRoute from "@/components/PrivateRoute";
+import SpecialtyManagement from "./pages/admin/SpecialtyManagement";
+import ServicePriceManagement from "./pages/admin/ServicePriceManagement";
 function AppWrapper() {
   return (
     <Provider store={store}>
@@ -62,7 +71,9 @@ function App() {
   const hideNav =
     ["/login", "/register"].includes(location.pathname) ||
     location.pathname.startsWith("/admin");
-
+  useEffect(() => {
+    registerDevice();
+  }, []);
   useAuthInitializer(); // Load token từ local hoặc secure storage
   useTokenRefresher();
   GoogleAuth.initialize(); // chạy 1 lần
@@ -72,22 +83,103 @@ function App() {
       {!hideNav && <Navigation />}
       <Routes>
         <Route path="/" element={<Index />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/insurance" element={<Insurance />} />
-        <Route path="/children" element={<Children />} />
-        <Route path="/children/:childId/edit" element={<ChildForm />} />
-        <Route path="/children/new" element={<ChildForm />} />
-        <Route path="/book-appointment" element={<BookAppointment />} />
-        <Route path="/appointments" element={<Appointments />} />
-        <Route path="/payment" element={<Payment />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/history" element={<History />} />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/insurance"
+          element={
+            <PrivateRoute>
+              <Insurance />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/children"
+          element={
+            <PrivateRoute>
+              <Children />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/children/:childId/edit"
+          element={
+            <PrivateRoute>
+              <ChildForm />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/children/new"
+          element={
+            <PrivateRoute>
+              <ChildForm />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/book-appointment"
+          element={
+            <PrivateRoute>
+              <BookAppointment />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/appointments"
+          element={
+            <PrivateRoute>
+              <Appointments />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/payment"
+          element={
+            <PrivateRoute>
+              <Payment />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <PrivateRoute>
+              <Notifications />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <PrivateRoute>
+              <History />
+            </PrivateRoute>
+          }
+        />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Register />} />{" "}
+        <Route path="/services" element={<Services />} />
+        <Route path="/services/:id" element={<ServiceDetail />} />
+        <Route path="/doctors" element={<Doctors />} />
+        <Route path="/doctors/:id" element={<DoctorDetail />} />
+        <Route path="/contact" element={<Contact />} />
         {/* Admin Routes */}
         <Route path="*" element={<NotFound />} />
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute>
+              <AdminLayout />
+            </PrivateRoute>
+          }
+        >
           <Route path="dashboard" element={<AdminDashboard1 />} />
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="records" element={<AppointmentManagement />} />
@@ -99,6 +191,10 @@ function App() {
           <Route path="appointments" element={<AdminAppointments />} />{" "}
           <Route path="doctors" element={<DoctorManagement />} />{" "}
           <Route path="weekly-schedule" element={<WeeklySchedule />} />
+          <Route path="examinations" element={<Examinations />} />
+          <Route path="zones" element={<ZoneManagement />} />
+          <Route path="specialties" element={<SpecialtyManagement />} />
+          <Route path="service-prices" element={<ServicePriceManagement />} />
         </Route>
       </Routes>
       {!hideNav && <Footer />}

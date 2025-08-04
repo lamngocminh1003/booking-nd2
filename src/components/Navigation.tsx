@@ -1,23 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "firebase/auth";
-import { Menu, X, LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Heart, Menu, X, ChevronDown, LogOut } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
-import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "@/store";
+import { useDispatch } from "react-redux";
 import { clearAuthUser } from "@/store/slices/authSlice";
 import { logoutService } from "@/services/UsersServices";
 import logo from "../assets/imgs/logo.png"; // Adjust the path as necessary
 import { getOrCreateDeviceId } from "@/hooks/getOrCreateDeviceId";
-import { removeAuthStorage } from "@/utils/authStorage";
+import { removeAuthStorage, getAuthStorage } from "@/utils/authStorage";
 const Navigation = () => {
   const dispatch = useDispatch();
-  const user = useSelector((state: RootState) => state?.auth?.user); // Lấy từ Redux
+  const [userLocal, setUserLocal] = useState<string | null>(null);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+  useEffect(() => {
+    const checkUser = async () => {
+      const { user } = await getAuthStorage();
+      setUserLocal(user);
+    };
+    checkUser();
+  }, [userLocal]);
   const navigate = useNavigate();
   const handleLogout = async () => {
     try {
@@ -72,35 +83,112 @@ const Navigation = () => {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
-              <a
-                onClick={() => navigate("/")}
+              <Link
+                to="/"
                 className="text-gray-600 hover:text-emerald-600 transition-colors"
               >
                 Trang chủ
-              </a>
-              <a
-                href="#"
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center space-x-1 text-gray-600 hover:text-emerald-600 transition-colors">
+                  <span>Dịch vụ</span>
+                  <ChevronDown className="w-4 h-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-white">
+                  <DropdownMenuItem asChild>
+                    <Link to="/services" className="w-full">
+                      Tất cả dịch vụ
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/services/specialist" className="w-full">
+                      Khám Chuyên Khoa
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/services/general" className="w-full">
+                      Khám Tổng Quát
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/services/laboratory" className="w-full">
+                      Xét Nghiệm Y Học
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/services/mental" className="w-full">
+                      Sức Khỏe Tinh Thần
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/services/dental" className="w-full">
+                      Khám Nha Khoa
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/services/surgery" className="w-full">
+                      Gói Phẫu Thuật
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Doctors Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center space-x-1 text-gray-600 hover:text-emerald-600 transition-colors">
+                  <span>Bác sĩ</span>
+                  <ChevronDown className="w-4 h-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-white">
+                  <DropdownMenuItem asChild>
+                    <Link to="/doctors" className="w-full">
+                      Tất cả bác sĩ
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/doctors?specialty=pediatrics" className="w-full">
+                      Nhi khoa
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/doctors?specialty=cardiology" className="w-full">
+                      Tim mạch
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/doctors?specialty=neurology" className="w-full">
+                      Thần kinh
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/doctors?specialty=dermatology"
+                      className="w-full"
+                    >
+                      Da liễu
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/doctors?specialty=orthopedics"
+                      className="w-full"
+                    >
+                      Chấn thương chỉnh hình
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Link
+                to="/contact"
                 className="text-gray-600 hover:text-emerald-600 transition-colors"
               >
-                Bác sĩ
-              </a>
-              <a
-                href="#"
-                className="text-gray-600 hover:text-emerald-600 transition-colors"
-              >
-                Chuyên khoa
-              </a>{" "}
-              <a
-                href="#"
-                className="text-gray-600 hover:text-emerald-600 transition-colors"
-              >
-                Bảng giá khám chữa bệnh
-              </a>
+                Liên hệ
+              </Link>
             </div>
 
             {/* Desktop Auth Buttons */}
             <div className="hidden md:flex items-center space-x-4">
-              {!user ? (
+              {!userLocal ? (
                 <>
                   {" "}
                   <Button
@@ -119,10 +207,45 @@ const Navigation = () => {
                 </>
               ) : (
                 <>
-                  {" "}
-                  <span className="text-gray-600 hover:text-emerald-600 transition-colors">
-                    Xin chào {user?.displayName}
-                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="flex items-center space-x-1 text-gray-600 hover:text-emerald-600 transition-colors">
+                      <span> Xin chào {userLocal}</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56 bg-white">
+                      {" "}
+                      <DropdownMenuItem asChild>
+                        <Link to="/notifications" className="w-full">
+                          Thông báo
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/appointments" className="w-full">
+                          Lịch hẹn khám
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/children" className="w-full">
+                          Hồ sơ bệnh nhi
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/insurance" className="w-full">
+                          Bảo hiểm y tế
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/history" className="w-full">
+                          Lịch sử khám bệnh
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/profile" className="w-full">
+                          Thông tin tài khoản
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     className="text-emerald-600 hover:bg-emerald-500"
                     variant="outline"
@@ -151,38 +274,32 @@ const Navigation = () => {
           {isMenuOpen && (
             <div className="md:hidden bg-white border-t border-emerald-100 py-4">
               <div className="flex flex-col space-y-4">
-                <a
-                  href="#"
+                <Link
+                  to="/"
                   className="text-gray-600 hover:text-emerald-600 px-4 py-2"
                 >
                   Trang chủ
-                </a>
-                <a
-                  href="#"
+                </Link>
+                <Link
+                  to="/services"
+                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
+                >
+                  Dịch vụ
+                </Link>
+                <Link
+                  to="/doctors"
                   className="text-gray-600 hover:text-emerald-600 px-4 py-2"
                 >
                   Bác sĩ
-                </a>
-                <a
-                  href="#"
-                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
-                >
-                  Chuyên khoa
-                </a>
-                <a
-                  href="#"
-                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
-                >
-                  Bảng giá khám chữa bệnh
-                </a>{" "}
-                <a
-                  href="#"
+                </Link>
+                <Link
+                  to="/contact"
                   className="text-gray-600 hover:text-emerald-600 px-4 py-2"
                 >
                   Liên hệ
-                </a>
+                </Link>
                 <div className="px-4 pt-4 border-t border-emerald-100 space-y-2">
-                  {!user ? (
+                  {!userLocal ? (
                     <>
                       <Button
                         variant="outline"
@@ -201,7 +318,7 @@ const Navigation = () => {
                   ) : (
                     <>
                       <div className="text-gray-600 hover:text-emerald-600  py-2">
-                        Xin chào {user?.displayName}
+                        Xin chào {userLocal}
                       </div>
                       <Button
                         variant="outline"

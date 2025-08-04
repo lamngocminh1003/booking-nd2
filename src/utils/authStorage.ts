@@ -1,13 +1,19 @@
 import { Capacitor } from "@capacitor/core";
 import { getSecureItem, setSecureItem, removeSecureItem } from "@/lib/storage"; // Đường dẫn tuỳ vào project bạn
 
-type AuthStorageKeys = "accessToken" | "refreshToken" | "expiration" | "status";
+type AuthStorageKeys =
+  | "accessToken"
+  | "refreshToken"
+  | "expiration"
+  | "status"
+  | "user";
 
 const AUTH_KEYS: AuthStorageKeys[] = [
   "accessToken",
   "refreshToken",
   "expiration",
   "status",
+  "user", //
 ];
 
 // Lấy giá trị từ bộ nhớ
@@ -20,6 +26,7 @@ export const getAuthStorage = async (): Promise<
     refreshToken: null,
     expiration: null,
     status: null,
+    user: null,
   };
 
   for (const key of AUTH_KEYS) {

@@ -1,6 +1,5 @@
-
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { userInfo } from "@/services/UsersServices";
 interface UserState {
   isAuthenticated: boolean;
   profile: {
@@ -24,10 +23,10 @@ const initialState: UserState = {
 };
 
 const userSlice = createSlice({
-  name: 'user',
+  name: "user",
   initialState,
   reducers: {
-    login: (state, action: PayloadAction<UserState['profile']>) => {
+    login: (state, action: PayloadAction<UserState["profile"]>) => {
       state.isAuthenticated = true;
       state.profile = action.payload;
     },
@@ -36,16 +35,20 @@ const userSlice = createSlice({
       state.profile = null;
       state.insurance = null;
     },
-    updateProfile: (state, action: PayloadAction<Partial<UserState['profile']>>) => {
+    updateProfile: (
+      state,
+      action: PayloadAction<Partial<UserState["profile"]>>
+    ) => {
       if (state.profile) {
         state.profile = { ...state.profile, ...action.payload };
       }
     },
-    updateInsurance: (state, action: PayloadAction<UserState['insurance']>) => {
+    updateInsurance: (state, action: PayloadAction<UserState["insurance"]>) => {
       state.insurance = action.payload;
     },
   },
 });
 
-export const { login, logout, updateProfile, updateInsurance } = userSlice.actions;
+export const { login, logout, updateProfile, updateInsurance } =
+  userSlice.actions;
 export default userSlice.reducer;

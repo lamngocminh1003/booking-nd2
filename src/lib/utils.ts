@@ -56,3 +56,24 @@ export const postJSONAuth = async (endpoint: string, data: any) => {
     throw error?.response?.data ?? error;
   }
 };
+export const putJSONAuth = async (endpoint: string, data: any) => {
+  try {
+    const config = await createConfig();
+    const url = `${backendURL}${endpoint}`;
+
+    const response = await axios.put(url, data, config);
+    return response.data;
+  } catch (error: any) {
+    throw error?.response?.data ?? error;
+  }
+};
+export const deleteJSONAuth = async (endpoint: string) => {
+  try {
+    const config = await createConfig();
+    const url = `${backendURL}${endpoint}`;
+    const response = await axios.delete(url, config);
+    return response.data;
+  } catch (error: any) {
+    throw error?.response?.data ?? error;
+  }
+};

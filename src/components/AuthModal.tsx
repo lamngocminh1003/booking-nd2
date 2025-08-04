@@ -114,6 +114,7 @@ const AuthModal = ({
           refreshToken: refreshToken,
           expiration: expiration,
           status: status,
+          user: user?.displayName || "",
         });
       }
       toast({

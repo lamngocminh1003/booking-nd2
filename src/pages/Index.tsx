@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -7,12 +6,40 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Shield, Heart, Star } from "lucide-react";
-import {  useSelector } from "react-redux";
+import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { getAuthStorage } from "@/utils/authStorage";
+import logo from "../assets/imgs/logo.png"; // Adjust the path as necessary
+
+import {
+  Calendar,
+  Heart,
+  Stethoscope,
+  Activity,
+  TestTube,
+  Brain,
+  Scissors,
+} from "lucide-react";
+import { useSelector } from "react-redux";
 import { RootState } from "@/store"; // path đến store của bạn
 const Index = () => {
+  const [userLocal, setUserLocal] = useState<string | null>(null);
+  useEffect(() => {
+    const checkUser = async () => {
+      const { user } = await getAuthStorage();
+      setUserLocal(user);
+    };
+    checkUser();
+  }, [userLocal]);
   const loading = useSelector((state: RootState) => state.auth.loading);
-
+  const navigate = useNavigate();
+  const handleAuthClick = (mode: "login" | "register") => {
+    if (mode === "login") {
+      navigate("/login");
+    } else if (mode === "register") {
+      navigate("/register");
+    }
+  };
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -30,7 +57,11 @@ const Index = () => {
         <div className="max-w-7xl mx-auto text-center">
           <div className="animate-fade-in">
             <Badge className="mb-6 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-4 py-2">
-              <Heart className="w-4 h-4 mr-2" />
+              <img
+                alt="Logo Bệnh Viện Nhi Đồng 2"
+                src={logo}
+                className="w-4 h-4 text-white mr-2 "
+              />
               Hệ thống đăng ký khám bệnh hiện đại - nhanh chóng
             </Badge>
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
@@ -43,148 +74,167 @@ const Index = () => {
               Đặt lịch khám nhanh chóng, quản lý hồ sơ sức khỏe và theo dõi lịch
               sử khám bệnh của bé một cách dễ dàng
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                size="lg"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg transition-all duration-300 hover:scale-105"
-                onClick={() => handleAuthClick("register")}
-              >
-                {/* <User className="w-5 h-5 mr-2" /> */}
-                Đăng ký ngay
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 px-8 py-3 text-lg transition-all duration-300"
-                onClick={() => handleAuthClick("login")}
-              >
-                Đăng nhập
-              </Button>
-            </div>
+            {!userLocal ? (
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button
+                  size="lg"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg transition-all duration-300 hover:scale-105"
+                  onClick={() => handleAuthClick("register")}
+                >
+                  {/* <User className="w-5 h-5 mr-2" /> */}
+                  Đăng ký ngay
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 px-8 py-3 text-lg transition-all duration-300"
+                  onClick={() => handleAuthClick("login")}
+                >
+                  Đăng nhập
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link to="/book-appointment">
+                  <Button
+                    size="lg"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg transition-all duration-300 hover:scale-105 w-full sm:w-auto"
+                  >
+                    <Calendar className="w-5 h-5 mr-2" />
+                    Đặt lịch khám ngay
+                  </Button>
+                </Link>
+                <Link to="/children">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-600 py-3 text-lg transition-all duration-300 w-full sm:w-auto"
+                  >
+                    <Heart className="w-5 h-5 mr-2" />
+                    Khám cho trẻ em
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </section>
-
-      {/* Features Section */}
       <section className="py-20 px-4 bg-white/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Tính năng nổi bật
+              Khám bệnh dễ dàng, an tâm chọn lựa
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Hệ thống quản lý khám bệnh toàn diện, mang lại trải nghiệm tốt
-              nhất cho phụ huynh
+              Với các dịch vụ chất lượng cao từ đội ngũ y bác sĩ chuyên môn
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
               <CardHeader>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <Calendar className="w-6 h-6 text-emerald-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                  <Stethoscope className="w-8 h-8 text-emerald-600" />
                 </div>
-                <CardTitle className="text-emerald-900">
-                  Đặt lịch dễ dàng
+                <CardTitle className="text-emerald-900 text-xl">
+                  🩺 Khám Chuyên Khoa
                 </CardTitle>
-                <CardDescription>
-                  Chọn bác sĩ, thời gian khám phù hợp chỉ với vài thao tác đơn
-                  giản
+                <CardDescription className="text-base leading-relaxed">
+                  Tư vấn & chẩn đoán từ đội ngũ bác sĩ chuyên môn cao thuộc
+                  nhiều chuyên khoa khác nhau.
                 </CardDescription>
               </CardHeader>
             </Card>
 
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
               <CardHeader>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <Shield className="w-6 h-6 text-emerald-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                  <Activity className="w-8 h-8 text-emerald-600" />
                 </div>
-                <CardTitle className="text-emerald-900">
-                  Bảo mật thông tin
+                <CardTitle className="text-emerald-900 text-xl">
+                  🩹 Khám Tổng Quát
                 </CardTitle>
-                <CardDescription>
-                  Hồ sơ sức khỏe của bé được bảo vệ với công nghệ mã hóa hiện
-                  đại
+                <CardDescription className="text-base leading-relaxed">
+                  Tầm soát sức khỏe định kỳ, phát hiện sớm nguy cơ bệnh lý để
+                  kịp thời điều trị.
                 </CardDescription>
               </CardHeader>
             </Card>
 
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
               <CardHeader>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <Clock className="w-6 h-6 text-emerald-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                  <TestTube className="w-8 h-8 text-emerald-600" />
                 </div>
-                <CardTitle className="text-emerald-900">
-                  Theo dõi lịch hẹn
+                <CardTitle className="text-emerald-900 text-xl">
+                  🧪 Xét Nghiệm Y Học
                 </CardTitle>
-                <CardDescription>
-                  Nhận thông báo nhắc nhở và quản lý lịch khám một cách khoa học
+                <CardDescription className="text-base leading-relaxed">
+                  Đa dạng dịch vụ xét nghiệm chính xác, nhanh chóng – hỗ trợ
+                  chẩn đoán hiệu quả.
                 </CardDescription>
               </CardHeader>
             </Card>
 
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
               <CardHeader>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <Heart className="w-6 h-6 text-emerald-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                  <Brain className="w-8 h-8 text-emerald-600" />
                 </div>
-                <CardTitle className="text-emerald-900">
-                  Đội ngũ chuyên môn
+                <CardTitle className="text-emerald-900 text-xl">
+                  🧠 Sức Khỏe Tinh Thần
                 </CardTitle>
-                <CardDescription>
-                  Bác sĩ nhi khoa giàu kinh nghiệm, tận tâm chăm sóc sức khỏe
-                  trẻ em
+                <CardDescription className="text-base leading-relaxed">
+                  Hỗ trợ tâm lý – tư vấn & điều trị các vấn đề liên quan đến sức
+                  khỏe tinh thần.
                 </CardDescription>
               </CardHeader>
             </Card>
 
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
               <CardHeader>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <Star className="w-6 h-6 text-emerald-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                  <Heart className="w-8 h-8 text-emerald-600" />
                 </div>
-                <CardTitle className="text-emerald-900">Đánh giá cao</CardTitle>
-                <CardDescription>
-                  Được hàng nghìn phụ huynh tin tưởng và đánh giá 5 sao
+                <CardTitle className="text-emerald-900 text-xl">
+                  🦷 Khám Nha Khoa
+                </CardTitle>
+                <CardDescription className="text-base leading-relaxed">
+                  Dịch vụ chăm sóc răng miệng toàn diện – từ thẩm mỹ đến điều
+                  trị chuyên sâu.
                 </CardDescription>
               </CardHeader>
             </Card>
 
             <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
               <CardHeader>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  {/* <User className="w-6 h-6 text-emerald-600" /> */}
+                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                  <Scissors className="w-8 h-8 text-emerald-600" />
                 </div>
-                <CardTitle className="text-emerald-900">Hỗ trợ 24/7</CardTitle>
-                <CardDescription>
-                  Đội ngũ hỗ trợ khách hàng sẵn sàng giải đáp mọi thắc mắc
+                <CardTitle className="text-emerald-900 text-xl">
+                  🔪 Gói Phẫu Thuật
+                </CardTitle>
+                <CardDescription className="text-base leading-relaxed">
+                  Tư vấn, lên kế hoạch và thực hiện các ca phẫu thuật theo chuẩn
+                  y khoa hiện đại.
                 </CardDescription>
               </CardHeader>
             </Card>
           </div>
+
+          <div className="text-center mt-12">
+            <Link to="/services">
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 px-8 py-3 text-lg transition-all duration-300"
+              >
+                Xem tất cả dịch vụ
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-4 bg-emerald-600">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Bắt đầu chăm sóc sức khỏe bé ngay hôm nay
-          </h2>
-          <p className="text-xl text-emerald-100 mb-8">
-            Đăng ký tài khoản miễn phí và trải nghiệm dịch vụ y tế hiện đại
-          </p>
-          <Button
-            size="lg"
-            className="bg-white text-emerald-600 hover:bg-emerald-50 px-8 py-3 text-lg transition-all duration-300 hover:scale-105"
-            onClick={() => handleAuthClick("register")}
-          >
-            Đăng ký miễn phí
-          </Button>
-        </div>
-      </section>
-
-    
     </div>
   );
 };

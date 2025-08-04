@@ -11,6 +11,10 @@ import {
   Hospital,
   BriefcaseMedical,
   CalendarDays,
+  ClipboardPlus,
+  CalendarClock,
+  Banknote,
+  University,
 } from "lucide-react";
 import logo from "@/assets/imgs/logo.png";
 import {
@@ -40,6 +44,11 @@ const sidebarItems = [
     title: "Quản lý bác sĩ",
     url: "/admin/doctors",
     icon: BriefcaseMedical,
+  },
+  {
+    title: "Quản lý chuyên khoa",
+    url: "/admin/specialties",
+    icon: ClipboardPlus,
   },
   {
     title: "Quản lý lịch hẹn",
@@ -75,6 +84,21 @@ const sidebarItems = [
     title: "Lịch khám theo tuần",
     url: "/admin/weekly-schedule",
     icon: CalendarDays,
+  },
+  {
+    title: "Gía dịch vụ",
+    url: "/admin/service-prices",
+    icon: Banknote,
+  },
+  {
+    title: "Khu khám",
+    url: "/admin/zones",
+    icon: University,
+  },
+  {
+    title: "Ca khám",
+    url: "/admin/examinations",
+    icon: CalendarClock,
   },
   {
     title: "Báo cáo",
