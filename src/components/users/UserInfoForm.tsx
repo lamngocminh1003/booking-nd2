@@ -14,13 +14,12 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
-import { useCapacitor } from "../../hooks/useCapacitor"; // hoặc đường dẫn đúng
+import { useCapacitor } from "../../hooks/useCapacitor";
 import { Clipboard } from "@capacitor/clipboard";
 import { parseCCCDQR } from "@/services/UsersServices";
 import {
   getProvinces,
-  getDistricts,
-  getWards,
+  getWards, // Bỏ getDistricts
   resetLocation,
 } from "@/store/slices/locationSlice";
 import { User, Phone, Mail, MapPin, IdCard, Calendar } from "lucide-react";
@@ -34,7 +33,7 @@ export interface UserInfoFormValues {
   gender: number;
   address: string;
   provinceCode: string;
-  districtCode: string;
+  // districtCode: string; // Bỏ field này
   wardCode: string;
 }
 
@@ -54,7 +53,7 @@ const UserInfoForm = ({
   const dispatch = useAppDispatch();
   const {
     provinces,
-    districts,
+    // districts, // Bỏ districts
     wards,
     loading: locationLoading,
   } = useAppSelector((state) => state.location);
@@ -75,7 +74,7 @@ const UserInfoForm = ({
       gender: 0,
       address: "",
       provinceCode: "",
-      districtCode: "",
+      // districtCode: "", // Bỏ field này
       wardCode: "",
       ...defaultValues,
     },
@@ -83,28 +82,20 @@ const UserInfoForm = ({
   const { isNative } = useCapacitor();
 
   const watchedProvinceCode = watch("provinceCode");
-  const watchedDistrictCode = watch("districtCode");
+  // const watchedDistrictCode = watch("districtCode"); // Bỏ dòng này
 
   // Load danh sách tỉnh/thành phố
   useEffect(() => {
     dispatch(getProvinces());
   }, [dispatch]);
 
-  // Nếu có sẵn provinceCode (chế độ edit) → gọi load districts
+  // Nếu có sẵn provinceCode (chế độ edit) → gọi load wards trực tiếp
   useEffect(() => {
     if (isEditMode && defaultValues?.provinceCode) {
-      dispatch(getDistricts(defaultValues.provinceCode));
+      dispatch(getWards(defaultValues.provinceCode)); // Load wards với provinceCode
       setValue("provinceCode", defaultValues.provinceCode);
     }
   }, [isEditMode, defaultValues?.provinceCode, dispatch, setValue]);
-
-  // Khi đã có danh sách districts, kiểm tra để set districtCode và load wards
-  useEffect(() => {
-    if (isEditMode && defaultValues?.districtCode && districts.length > 0) {
-      setValue("districtCode", defaultValues.districtCode);
-      dispatch(getWards(defaultValues.districtCode));
-    }
-  }, [isEditMode, defaultValues?.districtCode, districts, dispatch, setValue]);
 
   // Khi đã có danh sách wards, kiểm tra để set wardCode
   useEffect(() => {
@@ -113,29 +104,24 @@ const UserInfoForm = ({
     }
   }, [isEditMode, defaultValues?.wardCode, wards, setValue]);
 
-  // Khi chọn lại tỉnh mới: reset huyện, xã và load lại huyện
+  // Khi chọn lại tỉnh mới: reset xã và load lại xã trực tiếp
   useEffect(() => {
-    if (watch("provinceCode")) {
-      dispatch(resetLocation("wards")); // chỉ reset xã
-      setValue("districtCode", "");
+    if (watchedProvinceCode) {
+      dispatch(resetLocation("wards")); // Reset wards
       setValue("wardCode", "");
-      dispatch(getDistricts(watch("provinceCode")));
+      dispatch(getWards(watchedProvinceCode)); // Load wards với provinceCode
     }
-  }, [watch("provinceCode"), dispatch, setValue]);
+  }, [watchedProvinceCode, dispatch, setValue]);
 
-  // Khi chọn lại huyện mới: reset xã và load lại xã
-  useEffect(() => {
-    if (watch("districtCode")) {
-      setValue("wardCode", "");
-      dispatch(getWards(watch("districtCode")));
-    }
-  }, [watch("districtCode"), dispatch, setValue]);
+  // Bỏ useEffect cho districtCode
+
   const handleFormSubmit = (data: UserInfoFormValues) => {
     onSubmit({
       ...data,
       dateOfBirth: new Date(data.dateOfBirth).toISOString(),
     });
   };
+
   const handleReadCCCDFromClipboard = async () => {
     try {
       const { value } = await Clipboard.read();
@@ -143,15 +129,12 @@ const UserInfoForm = ({
         alert("Không có dữ liệu trong clipboard.");
         return;
       }
-      console.log("Đã đọc dữ liệu từ clipboard:value", value);
       const parsedData = await parseCCCDQR(value);
-      console.log("Parsed CCCD data:parsedData", parsedData);
-      // Gán vào form nếu đúng cấu trúc:
+
       setValue("fullName", parsedData.fullName);
-      setValue("dateOfBirth", parsedData.dateOfBirth); // bạn có thể cần xử lý định dạng
+      setValue("dateOfBirth", parsedData.dateOfBirth);
       setValue("gender", parsedData.gender);
       setValue("cccd", parsedData.cccd);
-      // Các trường khác nếu API trả về
 
       alert("Đã quét và điền dữ liệu CCCD thành công!");
     } catch (error) {
@@ -175,7 +158,7 @@ const UserInfoForm = ({
                 onClick={() => handleReadCCCDFromClipboard()}
               >
                 📋 Quét CCCD từ Clipboard
-              </Button>{" "}
+              </Button>
             </span>
           )}
         </CardTitle>
@@ -295,7 +278,8 @@ const UserInfoForm = ({
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4">
+          {/* ✅ Cập nhật phần địa chỉ: chỉ còn 2 cấp */}
+          <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tỉnh/Thành phố *</Label>
               <Select
@@ -321,37 +305,14 @@ const UserInfoForm = ({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Quận/Huyện *</Label>
-              <Select
-                value={watch("districtCode")}
-                onValueChange={(value) => setValue("districtCode", value)}
-                disabled={!watchedProvinceCode || locationLoading.districts}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn quận/huyện" />
-                </SelectTrigger>
-                <SelectContent>
-                  {districts &&
-                    districts?.length > 0 &&
-                    districts?.map((district) => (
-                      <SelectItem
-                        key={district.districtCode}
-                        value={district.districtCode}
-                      >
-                        {district.districtName}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* ✅ Bỏ phần Quận/Huyện */}
 
             <div className="space-y-2">
               <Label>Phường/Xã *</Label>
               <Select
                 value={watch("wardCode")}
                 onValueChange={(value) => setValue("wardCode", value)}
-                disabled={!watchedDistrictCode || locationLoading.wards}
+                disabled={!watchedProvinceCode || locationLoading.wards}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn phường/xã" />

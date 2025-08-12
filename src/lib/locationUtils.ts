@@ -1,24 +1,14 @@
-import {
-  getProvinces,
-  getDistricts,
-  getWards,
-} from "@/store/slices/locationSlice";
+import { getProvinces, getWards } from "@/store/slices/locationSlice";
 
 interface Province {
   provinceCode: string;
   provinceName: string;
 }
 
-interface District {
-  districtCode: string;
-  districtName: string;
-  provinceCode: string;
-}
-
 interface Ward {
   wardCode: string;
   wardName: string;
-  districtCode: string;
+  provinceCode: string; // Liên kết trực tiếp với province thay vì district
 }
 
 export const getProvinceName = (
@@ -27,14 +17,6 @@ export const getProvinceName = (
 ): string => {
   const province = provinces.find((p) => p.provinceCode === provinceCode);
   return province?.provinceName || "";
-};
-
-export const getDistrictName = (
-  districts: District[],
-  districtCode: string
-): string => {
-  const district = districts.find((d) => d.districtCode === districtCode);
-  return district?.districtName || "";
 };
 
 export const getWardName = (wards: Ward[], wardCode: string): string => {
@@ -51,20 +33,21 @@ export const buildFullAddress = (
   return parts.join(", ");
 };
 
+// Cập nhật hàm này để chỉ sử dụng province và ward
 export const getFullAddressFromCodes = (
   provinces: Province[],
   wards: Ward[],
   address: string,
   provinceCode: string,
-  districtCode: string,
   wardCode: string
 ): string => {
   const provinceName = getProvinceName(provinces, provinceCode);
-
   const wardName = getWardName(wards, wardCode);
+
   if (!provinceName || !wardName) {
     console.warn("Incomplete address information provided.");
-    return address; // Return the original address if any part is missing
+    return address;
   }
+
   return buildFullAddress(address, wardName, provinceName);
 };

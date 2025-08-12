@@ -96,7 +96,9 @@ const AdminHeader = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem>Hồ sơ cá nhân</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/profile")}>
+                Hồ sơ cá nhân
+              </DropdownMenuItem>
               <DropdownMenuItem>Cài đặt</DropdownMenuItem>
               <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
                 Đăng xuất

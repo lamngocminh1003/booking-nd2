@@ -43,6 +43,7 @@ const Profile = () => {
     wards,
     loading: locationLoading,
   } = useAppSelector((state) => state.location);
+  console.log(provinces, wards);
 
   const dispatch = useAppDispatch();
   const refreshToken = useSelector((state: any) => state.auth.refreshToken);
@@ -89,15 +90,14 @@ const Profile = () => {
       dispatch(getProvinces());
     }
 
-    if (userInfo?.districtCode && wards?.length === 0) {
-      dispatch(getWards(userInfo?.districtCode));
+    if (userInfo?.provinceCode && wards?.length === 0) {
+      dispatch(getWards(userInfo?.provinceCode)); // Sử dụng provinceCode thay vì districtCode
     }
   }, [
     dispatch,
     provinces?.length,
     wards?.length,
-    userInfo?.provinceCode,
-    userInfo?.districtCode,
+    userInfo?.provinceCode, // Bỏ districtCode
   ]);
 
   const fullAddress = getFullAddressFromCodes(
@@ -105,8 +105,7 @@ const Profile = () => {
     wards,
     userInfo?.address,
     userInfo?.provinceCode,
-    userInfo?.districtCode,
-    userInfo?.wardCode
+    userInfo?.wardCode // Bỏ districtCode
   );
 
   const getGenderText = (gender: number) => {
@@ -281,8 +280,7 @@ const Profile = () => {
                   gender: userInfo?.gender,
                   address: userInfo?.address,
                   provinceCode: userInfo?.provinceCode,
-                  districtCode: userInfo?.districtCode,
-                  wardCode: userInfo?.wardCode,
+                  wardCode: userInfo?.wardCode, // Bỏ districtCode
                 }}
                 onSubmit={handleFormSubmit}
                 loading={loading}

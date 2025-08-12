@@ -1,10 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { useTokenRefresher } from "@/hooks/useTokenRefresher";
-
 import {
   fetchAllProvinces,
-  fetchAllDistricts,
-  fetchAllWards,
+  fetchAllWards, // Bỏ fetchAllDistricts
 } from "@/services/LocationServices";
 import { userInfo } from "@/services/UsersServices";
 
@@ -22,36 +19,27 @@ export const getUserInfo = createAsyncThunk(
   }
 );
 
-export const getDistricts = createAsyncThunk(
-  "location/getDistricts",
-  async (provinceId: string) => {
-    return await fetchAllDistricts(provinceId);
-  }
-);
-
+// Cập nhật getWards để nhận provinceId thay vì districtId
 export const getWards = createAsyncThunk(
   "location/getWards",
-  async (districtId: string) => {
-    return await fetchAllWards(districtId);
+  async (provinceId: string) => {
+    return await fetchAllWards(provinceId);
   }
 );
 
 // Initial state type
 interface LocationState {
   provinces: any[];
-  districts: any[];
-  wards: any[];
+  wards: any[]; // Bỏ districts
   userInfo: any | null;
   loading: {
     provinces: boolean;
-    districts: boolean;
-    wards: boolean;
+    wards: boolean; // Bỏ districts
     userInfo: boolean;
   };
   error: {
     provinces: string | null;
-    districts: string | null;
-    wards: string | null;
+    wards: string | null; // Bỏ districts
     userInfo: string | null;
   };
 }
@@ -59,19 +47,16 @@ interface LocationState {
 // Initial state
 const initialState: LocationState = {
   provinces: [],
-  districts: [],
-  wards: [],
+  wards: [], // Bỏ districts
   userInfo: null,
   loading: {
     provinces: false,
-    districts: false,
-    wards: false,
+    wards: false, // Bỏ districts
     userInfo: false,
   },
   error: {
     provinces: null,
-    districts: null,
-    wards: null,
+    wards: null, // Bỏ districts
     userInfo: null,
   },
 };
@@ -81,24 +66,14 @@ const locationSlice = createSlice({
   name: "location",
   initialState,
   reducers: {
-    resetLocation: (
-      state,
-      action: PayloadAction<"districts" | "wards" | "all">
-    ) => {
-      if (action?.payload === "districts") {
-        state.districts = [];
-        state.loading.districts = false;
-        state.error.districts = null;
-      } else if (action?.payload === "wards") {
+    resetLocation: (state, action: PayloadAction<"wards" | "all">) => {
+      if (action?.payload === "wards") {
         state.wards = [];
         state.loading.wards = false;
         state.error.wards = null;
       } else {
-        state.districts = [];
         state.wards = [];
-        state.loading.districts = false;
         state.loading.wards = false;
-        state.error.districts = null;
         state.error.wards = null;
       }
     },
@@ -132,28 +107,15 @@ const locationSlice = createSlice({
         state.loading.userInfo = false;
         state.error.userInfo = "Failed to load user info";
       })
-      // Districts
-      .addCase(getDistricts.pending, (state) => {
-        state.loading.districts = true;
-        state.error.districts = null;
-      })
-      .addCase(getDistricts.fulfilled, (state, action) => {
-        state.loading.districts = false;
-        state.districts = action?.payload?.data?.data;
-      })
-      .addCase(getDistricts.rejected, (state) => {
-        state.loading.districts = false;
-        state.error.districts = "Failed to load districts";
-      })
 
-      // Wards
+      // Wards (bỏ Districts)
       .addCase(getWards.pending, (state) => {
         state.loading.wards = true;
         state.error.wards = null;
       })
       .addCase(getWards.fulfilled, (state, action) => {
         state.loading.wards = false;
-        state.wards = action?.payload?.data?.data;
+        state.wards = action?.payload?.data?.data || [];
       })
       .addCase(getWards.rejected, (state) => {
         state.loading.wards = false;
