@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useAppDispatch, useAppSelector } from "@/hooks/redux";
+import { fetchZones } from "@/store/slices/zoneSlice";
+import { fetchDepartments } from "@/store/slices/departmentSlice";
+import {
+  format,
+  addWeeks,
+  startOfWeek,
+  endOfWeek,
+  getISOWeek,
+  endOfYear,
+  differenceInWeeks,
+} from "date-fns";
+import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
 
 // Types
 interface RoomSlot {
@@ -72,8 +86,100 @@ interface ShiftSlot {
   rooms: RoomSlot[];
 }
 
+const getWeeksList = () => {
+  const today = new Date();
+  const endYear = endOfYear(today);
+  const weeksUntilEndOfYear = Math.ceil(differenceInWeeks(endYear, today));
+  const weeks = [];
+
+  // Add past weeks (12 weeks)
+  for (let i = 12; i > 0; i--) {
+    const currentDate = addWeeks(today, -i);
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekNumber = getISOWeek(currentDate);
+    const year = currentDate.getFullYear();
+
+    weeks.push({
+      value: `${year}-W${weekNumber}`,
+      label: `Tuần ${weekNumber} (${format(weekStart, "dd/MM")} - ${format(
+        weekEnd,
+        "dd/MM/yyyy"
+      )})`,
+      startDate: format(weekStart, "yyyy-MM-dd"),
+      endDate: format(weekEnd, "yyyy-MM-dd"),
+      isPast: true,
+    });
+  }
+
+  // Add current week
+  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const currentWeekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const currentWeekNumber = getISOWeek(today);
+  weeks.push({
+    value: `${today.getFullYear()}-W${currentWeekNumber}`,
+    label: `Tuần ${currentWeekNumber} (${format(
+      currentWeekStart,
+      "dd/MM"
+    )} - ${format(currentWeekEnd, "dd/MM/yyyy")}) - Hiện tại`,
+    startDate: format(currentWeekStart, "yyyy-MM-dd"),
+    endDate: format(currentWeekEnd, "yyyy-MM-dd"),
+    isCurrent: true,
+  });
+
+  // Add future weeks until end of year
+  for (let i = 1; i <= weeksUntilEndOfYear; i++) {
+    const currentDate = addWeeks(today, i);
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekNumber = getISOWeek(currentDate);
+    const year = currentDate.getFullYear();
+
+    weeks.push({
+      value: `${year}-W${weekNumber}`,
+      label: `Tuần ${weekNumber} (${format(weekStart, "dd/MM")} - ${format(
+        weekEnd,
+        "dd/MM/yyyy"
+      )})`,
+      startDate: format(weekStart, "yyyy-MM-dd"),
+      endDate: format(weekEnd, "yyyy-MM-dd"),
+      isFuture: true,
+    });
+  }
+
+  return weeks;
+};
+
 const WeeklySchedule = () => {
-  const [selectedWeek, setSelectedWeek] = useState("2025-W25");
+  const dispatch = useAppDispatch();
+  const { list: zones, loading: zonesLoading } = useAppSelector(
+    (state) => state.zone
+  );
+  const { list: allDepartments, loading: departmentsLoading } = useAppSelector(
+    (state) => state.department
+  );
+
+  // Filter only enabled departments
+  const departments = useMemo(() => {
+    const enabledDepartments =
+      allDepartments?.filter((dept) => dept.enable) || [];
+    return [
+      { id: "all", name: "Tất cả khoa phòng" },
+      ...enabledDepartments.map((dept) => ({
+        id: dept.id.toString(),
+        name: dept.name,
+      })),
+    ];
+  }, [allDepartments]);
+
+  // Add weeks state
+  const [weeks] = useState(() => getWeeksList());
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    const today = new Date();
+    const weekNumber = getISOWeek(today);
+    const year = today.getFullYear();
+    return `${year}-W${weekNumber}`;
+  });
   const [selectedZone, setSelectedZone] = useState("all");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [viewMode, setViewMode] = useState<"week" | "day">("week");
@@ -335,260 +441,121 @@ const WeeklySchedule = () => {
     { id: "zone-d", name: "Khu D - Đặc biệt" },
   ];
 
-  // Mock data dựa theo hình ảnh tham khảo
-  const departments = [
-    { id: "all", name: "Tất cả khoa phòng" },
-    { id: "OTBN", name: "OTBN" },
-    { id: "cap-cuu", name: "Cấp cứu" },
-    { id: "dinh-duong", name: "Dinh dưỡng" },
-    { id: "noi-tong-hop", name: "Nội tổng hợp" },
-    { id: "noi-1", name: "Nội 1" },
-    { id: "noi-3", name: "Nội 3" },
-    { id: "skte", name: "SKTE" },
-    { id: "hs-nhiem", name: "Hs Nhiễm" },
-    { id: "hs-chong-doc", name: "Hs chống độc" },
-    { id: "pttmln", name: "PTTMLN" },
-    { id: "ho-hap", name: "Hô hấp 1" },
-    { id: "suyen", name: "Suyền" },
-    { id: "nhiem", name: "Nhiễm" },
-    { id: "hs-so-sinh", name: "Hs sơ sinh" },
-    { id: "so-sinh", name: "Sơ sinh" },
-    { id: "tieu-hoa", name: "Tiêu hóa" },
-    { id: "tim-mach", name: "Tim mạch" },
-    { id: "than-kinh", name: "Thần kinh" },
-    { id: "than-noi-tiet", name: "Thận-Nội tiết" },
-    { id: "ubhh", name: "UBHH" },
-    { id: "gan-mat-tuy", name: "Gan Mật Tuy" },
-    { id: "ngoai", name: "Ngoại" },
-    { id: "ngoai-th", name: "Ngoại TH" },
-    { id: "ngoai-ch", name: "Ngoại CH" },
-    { id: "ngoai-tk", name: "Ngoại TK" },
-    { id: "ngoai-nieu", name: "Ngoại niều" },
-    { id: "rhm", name: "RHM" },
-    { id: "mat", name: "Mắt" },
-    { id: "tmh", name: "TMH" },
-  ];
-
   // Get week date range
   const getWeekDateRange = (weekString: string) => {
-    const weekNum = parseInt(weekString.split("-W")[1]);
-    // Calculate dates for week (simplified for demo)
-    const startDate = `${16 + (weekNum - 25) * 7}/07`;
-    const endDate = `${20 + (weekNum - 25) * 7}/07`;
-    return { startDate, endDate, weekNum };
+    const [year, weekStr] = weekString.split("-W");
+    const weekNum = parseInt(weekStr);
+    const yearNum = parseInt(year);
+
+    // Calculate the first day (Monday) of the selected week
+    const startOfYear = new Date(yearNum, 0, 1);
+    const daysToAdd = (weekNum - 1) * 7 - startOfYear.getDay() + 1;
+    const mondayOfWeek = new Date(yearNum, 0, 1 + daysToAdd);
+
+    // Calculate Friday of the week
+    const fridayOfWeek = new Date(mondayOfWeek);
+    fridayOfWeek.setDate(mondayOfWeek.getDate() + 4);
+
+    return {
+      startDate: format(mondayOfWeek, "dd/MM"),
+      endDate: format(fridayOfWeek, "dd/MM"),
+      weekNum,
+      mondayDate: mondayOfWeek,
+      fridayDate: fridayOfWeek,
+    };
   };
 
-  const weekRange = getWeekDateRange(selectedWeek);
+  // Update timeSlots generation to use actual dates
+  const timeSlots = useMemo(() => {
+    const weekRange = getWeekDateRange(selectedWeek);
+    const slots = [];
+    const dayNames = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu"];
 
-  // Generate time slots based on current week
-  const timeSlots = [
-    {
-      id: "mon-morning",
-      day: "Thứ Hai",
-      period: "sáng",
-      date: `${16 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-16",
-    },
-    {
-      id: "mon-afternoon",
-      day: "Thứ Hai",
-      period: "chiều",
-      date: `${16 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-16",
-    },
-    {
-      id: "tue-morning",
-      day: "Thứ Ba",
-      period: "sáng",
-      date: `${17 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-17",
-    },
-    {
-      id: "tue-afternoon",
-      day: "Thứ Ba",
-      period: "chiều",
-      date: `${17 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-17",
-    },
-    {
-      id: "wed-morning",
-      day: "Thứ Tư",
-      period: "sáng",
-      date: `${18 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-18",
-    },
-    {
-      id: "wed-afternoon",
-      day: "Thứ Tư",
-      period: "chiều",
-      date: `${18 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-18",
-    },
-    {
-      id: "thu-morning",
-      day: "Thứ Năm",
-      period: "sáng",
-      date: `${19 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-19",
-    },
-    {
-      id: "thu-afternoon",
-      day: "Thứ Năm",
-      period: "chiều",
-      date: `${19 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-19",
-    },
-    {
-      id: "fri-morning",
-      day: "Thứ Sáu",
-      period: "sáng",
-      date: `${20 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-20",
-    },
-    {
-      id: "fri-afternoon",
-      day: "Thứ Sáu",
-      period: "chiều",
-      date: `${20 + (weekRange.weekNum - 25) * 7}/07`,
-      fullDate: "2025-07-20",
-    },
-  ];
+    for (let i = 0; i < 5; i++) {
+      // Monday to Friday
+      const currentDay = new Date(weekRange.mondayDate);
+      currentDay.setDate(weekRange.mondayDate.getDate() + i);
+
+      const formattedDate = format(currentDay, "dd/MM");
+      const fullDate = format(currentDay, "yyyy-MM-dd");
+
+      // Morning slot
+      slots.push({
+        id: `${fullDate}-morning`,
+        day: dayNames[i],
+        period: "sáng",
+        date: formattedDate,
+        fullDate: fullDate,
+      });
+
+      // Afternoon slot
+      slots.push({
+        id: `${fullDate}-afternoon`,
+        day: dayNames[i],
+        period: "chiều",
+        date: formattedDate,
+        fullDate: fullDate,
+      });
+    }
+
+    return slots;
+  }, [selectedWeek]);
+
+  // Update the header description to show dynamic dates
+  const weekRange = useMemo(
+    () => getWeekDateRange(selectedWeek),
+    [selectedWeek]
+  );
+
+  // Update the header JSX
+  <div className="flex flex-col space-y-6 animate-fade-in">
+    <div className="">
+      <h1 className="text-2xl font-bold">Lịch phân ban khoa khám bệnh</h1>
+      <p className="text-blue-500 mt-2">
+        Quản lý lịch khám bệnh theo tuần - Tuần {weekRange.weekNum} năm{" "}
+        {selectedWeek.split("-W")[0]}
+      </p>
+      <p className="text-sm text-blue-700 font-medium mt-1">
+        Từ ngày {weekRange.startDate} đến ngày {weekRange.endDate}
+      </p>
+    </div>
+  </div>;
 
   // Mock schedule data with multiple rooms per shift
   const [scheduleData, setScheduleData] = useState<
     Record<string, Record<string, ShiftSlot>>
-  >({
-    OTBN: {
-      "mon-morning": {
-        rooms: [
-          {
-            id: "307",
-            name: "Phòng 307",
-            classification: "normal",
-            appointmentCount: 12,
-            specialties: ["Khám nội tổng quát"],
-            selectedSpecialty: "Khám nội tổng quát",
-            selectedDoctor: "BS001",
-          },
-          {
-            id: "439",
-            name: "Phòng 439",
-            classification: "priority",
-            customStartTime: "08:00",
-            appointmentCount: 8,
-            specialties: ["Khám nhi"],
-            selectedSpecialty: "Khám nhi",
-            selectedDoctor: "BS002",
-          },
-        ],
-      },
-      "tue-morning": {
-        rooms: [
-          {
-            id: "307",
-            name: "Phòng 307",
-            classification: "normal",
-            appointmentCount: 10,
-            specialties: ["Khám nội tổng quát"],
-            selectedSpecialty: "Khám nội tổng quát",
-            selectedDoctor: "BS003",
-          },
-        ],
-      },
-      "wed-morning": {
-        rooms: [
-          {
-            id: "439",
-            name: "Phòng 439",
-            classification: "priority",
-            appointmentCount: 15,
-            specialties: ["Khám nhi"],
-            selectedSpecialty: "Khám nhi",
-            selectedDoctor: "BS004",
-          },
-        ],
-      },
-      "fri-afternoon": {
-        rooms: [
-          {
-            id: "405",
-            name: "Phòng 405 (Đặc biệt)",
-            classification: "special",
-            customEndTime: "16:30",
-            appointmentCount: 6,
-            specialties: ["Nội soi", "Xét nghiệm"],
-            selectedSpecialty: "Nội soi",
-            selectedDoctor: "BS005",
-          },
-        ],
-      },
-    },
-    "cap-cuu": {
-      "mon-morning": {
-        rooms: [
-          {
-            id: "420",
-            name: "Phòng 420",
-            classification: "urgent",
-            appointmentCount: 20,
-            specialties: ["Khám nội tổng quát"],
-            selectedSpecialty: "Khám chuyên khoa",
-            selectedDoctor: "BS006",
-          },
-          {
-            id: "444",
-            name: "Phòng 444",
-            classification: "urgent",
-            appointmentCount: 18,
-            specialties: ["Xét nghiệm"],
-            selectedSpecialty: "Xét nghiệm",
-            selectedDoctor: "BS001",
-          },
-        ],
-      },
-      "tue-afternoon": {
-        rooms: [
-          {
-            id: "422",
-            name: "Phòng 422 (11h-13h)",
-            classification: "special",
-            customStartTime: "11:00",
-            customEndTime: "13:00",
-            appointmentCount: 5,
-            specialties: ["Tư vấn dinh dưỡng"],
-            selectedSpecialty: "Tư vấn dinh dưỡng",
-            selectedDoctor: "BS002",
-          },
-        ],
-      },
-    },
-    "dinh-duong": {
-      "mon-morning": {
-        rooms: [
-          {
-            id: "446",
-            name: "Phòng 446",
-            classification: "normal",
-            appointmentCount: 10,
-            specialties: ["Đo điện tim (ECG)"],
-            selectedSpecialty: "Đo điện tim (ECG)",
-            selectedDoctor: "BS003",
-          },
-          {
-            id: "422",
-            name: "Phòng 422 (11h-13h)",
-            classification: "special",
-            customStartTime: "11:00",
-            customEndTime: "13:00",
-            appointmentCount: 8,
-            specialties: ["Tư vấn dinh dưỡng"],
-            selectedSpecialty: "Tư vấn dinh dưỡng",
-            selectedDoctor: "BS004",
-          },
-        ],
-      },
-    },
-  });
+  >({});
+
+  // Load initial data when departments are fetched
+  useEffect(() => {
+    if (allDepartments.length > 0) {
+      // Initialize empty schedule data for enabled departments
+      const initialData: Record<string, Record<string, ShiftSlot>> = {};
+
+      allDepartments
+        .filter((dept) => dept.enable) // ✅ Chỉ lấy enabled departments
+        .forEach((dept) => {
+          initialData[dept.id.toString()] = {};
+        });
+
+      setScheduleData(initialData);
+    }
+  }, [allDepartments]);
+
+  useEffect(() => {
+    dispatch(fetchZones());
+    dispatch(fetchDepartments()); // Fetch departments
+  }, [dispatch]);
+
+  const zoneOptions = useMemo(() => {
+    return [
+      { id: "all", name: "Tất cả khu khám" },
+      ...(zones || []).map((zone) => ({
+        id: zone.id.toString(),
+        name: zone.name,
+      })),
+    ];
+  }, [zones]);
 
   const getRoomStyle = (type: string) => {
     const classification =
@@ -752,28 +719,20 @@ const WeeklySchedule = () => {
     }, 1000);
   };
 
-  const filteredDepartments =
-    selectedDepartment === "all"
-      ? departments.filter((d) => d.id !== "all")
-      : departments.filter((d) => d.id === selectedDepartment);
+  const filteredDepartments = useMemo(() => {
+    if (selectedDepartment === "all") {
+      return departments.filter((d) => d.id !== "all");
+    }
+    return departments.filter((d) => d.id === selectedDepartment);
+  }, [departments, selectedDepartment]);
 
-  const searchFilteredDepartments = searchTerm
-    ? filteredDepartments.filter((dept) =>
-        dept.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : filteredDepartments;
-
-  const handlePreviousWeek = () => {
-    const currentWeek = parseInt(selectedWeek.split("-W")[1]);
-    const newWeek = currentWeek - 1;
-    setSelectedWeek(`2025-W${newWeek.toString().padStart(2, "0")}`);
-  };
-
-  const handleNextWeek = () => {
-    const currentWeek = parseInt(selectedWeek.split("-W")[1]);
-    const newWeek = currentWeek + 1;
-    setSelectedWeek(`2025-W${newWeek.toString().padStart(2, "0")}`);
-  };
+  const searchFilteredDepartments = useMemo(() => {
+    return searchTerm
+      ? filteredDepartments.filter((dept) =>
+          dept.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : filteredDepartments;
+  }, [filteredDepartments, searchTerm]);
 
   // Excel upload/download functions
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -901,6 +860,48 @@ const WeeklySchedule = () => {
     fileInputRef.current?.click();
   };
 
+  const isLoading = zonesLoading || departmentsLoading;
+
+  // Add loading check in the render
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Add these handler functions to your WeeklySchedule component
+  const handlePreviousWeek = () => {
+    const currentIndex = weeks.findIndex((week) => week.value === selectedWeek);
+    if (currentIndex > 0) {
+      setSelectedWeek(weeks[currentIndex - 1].value);
+    } else {
+      // Nếu đang ở tuần đầu tiên, có thể thêm logic để tạo tuần trước đó
+      toast.info("Đã đến tuần sớm nhất");
+    }
+  };
+
+  const handleNextWeek = () => {
+    const currentIndex = weeks.findIndex((week) => week.value === selectedWeek);
+    if (currentIndex < weeks.length - 1) {
+      setSelectedWeek(weeks[currentIndex + 1].value);
+    } else {
+      // Nếu đang ở tuần cuối, có thể thêm logic để tạo tuần sau
+      toast.info("Đã đến tuần muộn nhất");
+    }
+  };
+
+  // Add this after your existing useMemo hooks
+  const filterOptions = createFilterOptions({
+    matchFrom: "any",
+    stringify: (option: any) => option.name,
+    limit: 100,
+  });
+
   return (
     <TooltipProvider>
       <div className="space-y-6 p-4 min-w-0 overflow-x-auto">
@@ -913,11 +914,11 @@ const WeeklySchedule = () => {
                   Lịch phân ban khoa khám bệnh
                 </h1>
                 <p className="text-blue-500 mt-2">
-                  Quản lý lịch khám bệnh theo tuần - Tuần{" "}
-                  {selectedWeek.split("-W")[1]} năm 2025
+                  Quản lý lịch khám bệnh theo tuần - Tuần {weekRange.weekNum}{" "}
+                  năm {selectedWeek.split("-W")[0]}
                 </p>
                 <p className="text-sm text-blue-700 font-medium mt-1">
-                  Từ ngày 16/6 đến ngày 20/6
+                  Từ ngày {weekRange.startDate} đến ngày {weekRange.endDate}
                 </p>
               </div>
             </div>
@@ -945,7 +946,7 @@ const WeeklySchedule = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {examinationZones.map((zone) => (
+                        {zoneOptions.map((zone) => (
                           <SelectItem key={zone.id} value={zone.id}>
                             {zone.name}
                           </SelectItem>
@@ -972,14 +973,21 @@ const WeeklySchedule = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 10 }, (_, i) => {
-                          const week = 25 + i;
-                          return (
-                            <SelectItem key={week} value={`2025-W${week}`}>
-                              Tuần {week}
-                            </SelectItem>
-                          );
-                        })}
+                        {weeks.map((week) => (
+                          <SelectItem
+                            key={week.value}
+                            value={week.value}
+                            className={`${
+                              week.isCurrent
+                                ? "text-blue-600 font-medium"
+                                : week.isPast
+                                ? "text-gray-500"
+                                : "text-gray-900"
+                            }`}
+                          >
+                            {week.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <Button
@@ -1003,22 +1011,50 @@ const WeeklySchedule = () => {
                     />
                   </div>
 
-                  {/* Department Filter */}
-                  <Select
-                    value={selectedDepartment}
-                    onValueChange={setSelectedDepartment}
-                  >
-                    <SelectTrigger className="w-48 h-9">
-                      <SelectValue placeholder="Chọn khoa phòng" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Department Filter - Replace the existing Select with this */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium whitespace-nowrap">
+                      Khoa phòng:
+                    </Label>
+                    <Autocomplete
+                      value={
+                        departments.find(
+                          (dept) => dept.id === selectedDepartment
+                        ) || null
+                      }
+                      onChange={(_, newValue) => {
+                        setSelectedDepartment(newValue?.id || "all");
+                      }}
+                      options={departments}
+                      getOptionLabel={(option) => option.name}
+                      filterOptions={filterOptions}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Chọn khoa phòng..."
+                          size="small"
+                          sx={{
+                            minWidth: "300px",
+                            "& .MuiOutlinedInput-root": {
+                              height: "36px", // Match the h-9 class
+                            },
+                          }}
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <li {...props}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span>{option.name}</span>
+                          </div>
+                        </li>
+                      )}
+                      noOptionsText="Không tìm thấy khoa phòng"
+                      clearText="Xóa"
+                      openText="Mở"
+                      closeText="Đóng"
+                    />
+                  </div>
 
                   {/* Excel Import/Export */}
                   <div className="flex gap-2">
@@ -1077,14 +1113,52 @@ const WeeklySchedule = () => {
                                 (s) => s.fullDate === slot.fullDate
                               ) === index
                           )
-                          .map((slot) => (
-                            <SelectItem
-                              key={slot.fullDate}
-                              value={slot.fullDate}
-                            >
-                              {slot.day} - {slot.date}
-                            </SelectItem>
-                          ))}
+                          .map((slot) => {
+                            // Parse the date properly from the week selection
+                            const [year, weekStr] = selectedWeek.split("-W");
+                            const weekNum = parseInt(weekStr);
+
+                            // Calculate the actual date based on the week
+                            const yearNum = parseInt(year);
+                            const startOfYear = new Date(yearNum, 0, 1);
+                            const daysToAdd =
+                              (weekNum - 1) * 7 - startOfYear.getDay() + 1;
+                            const mondayOfWeek = new Date(
+                              yearNum,
+                              0,
+                              1 + daysToAdd
+                            );
+
+                            // Map day names to day numbers
+                            const dayIndex =
+                              slot.day === "Thứ Hai"
+                                ? 0
+                                : slot.day === "Thứ Ba"
+                                ? 1
+                                : slot.day === "Thứ Tư"
+                                ? 2
+                                : slot.day === "Thứ Năm"
+                                ? 3
+                                : slot.day === "Thứ Sáu"
+                                ? 4
+                                : 0;
+
+                            const actualDate = new Date(mondayOfWeek);
+                            actualDate.setDate(
+                              mondayOfWeek.getDate() + dayIndex
+                            );
+
+                            const formattedDate = format(actualDate, "dd/MM");
+
+                            return (
+                              <SelectItem
+                                key={slot.fullDate}
+                                value={slot.fullDate}
+                              >
+                                {slot.day} - {formattedDate}
+                              </SelectItem>
+                            );
+                          })}
                       </SelectContent>
                     </Select>
                   )}
@@ -2001,7 +2075,7 @@ const WeeklySchedule = () => {
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-blue-600">
-                {Object.keys(scheduleData).length}
+                {departments.filter((d) => d.id !== "all").length}
               </div>
               <p className="text-sm text-gray-600">Khoa phòng hoạt động</p>
             </CardContent>

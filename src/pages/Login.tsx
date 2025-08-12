@@ -44,6 +44,7 @@ const Login = () => {
       const token = await user.getIdToken();
       dispatch(setAuthUser({ user: serializeUser(user), token }));
       const response = await loginWithFirebaseToken(token);
+
       const { accessToken, refreshToken, expiration, status } = response.data;
 
       dispatch(setAuth({ accessToken, refreshToken, expiration, status }));
@@ -65,6 +66,8 @@ const Login = () => {
           variant: "destructive",
         });
       } else if (status === "Active") {
+        console.log("1");
+
         navigate("/");
         toast({
           title: "Đăng nhập thành công!",
@@ -96,10 +99,9 @@ const Login = () => {
     setLoading(true);
     try {
       const response = await loginLocal(formData.email, formData.password);
-      console.log(formData);
 
       const { accessToken, refreshToken, expiration, status } =
-        response?.data?.data || {};
+        response?.data || {};
 
       dispatch(setAuth({ accessToken, refreshToken, expiration, status }));
 

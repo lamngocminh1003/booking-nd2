@@ -38,6 +38,7 @@ import {
   Download,
   Filter,
   Search,
+  User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
@@ -45,6 +46,7 @@ import { fetchRooms } from "@/store/slices/roomSlice";
 import { fetchSpecialties } from "@/store/slices/specialtySlice";
 import { fetchDoctors } from "@/store/slices/doctorSlice";
 import { fetchZones } from "@/store/slices/zoneSlice";
+import { fetchDepartments } from "@/store/slices/departmentSlice";
 import {
   Command,
   CommandGroup,
@@ -56,6 +58,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
+import { styled } from "@mui/material/styles";
 
 // Thêm function để lấy danh sách tuần
 const getWeeksList = () => {
@@ -159,6 +164,43 @@ const mapDayOfWeek = (engDay: string): string => {
   return dayMap[engDay] || engDay;
 };
 
+const StyledAutocomplete = styled(Autocomplete)({
+  "& .MuiInputBase-root": {
+    borderRadius: "0.375rem",
+    backgroundColor: "white",
+    borderColor: "rgb(209 213 219)",
+    "&:hover": {
+      borderColor: "rgb(156 163 175)",
+    },
+    "&.Mui-focused": {
+      borderColor: "rgb(16 185 129)",
+      boxShadow: "0 0 0 2px rgba(16, 185, 129, 0.2)",
+    },
+  },
+});
+
+// Add this to your existing styles
+const autoCompleteStyles = {
+  "& .MuiAutocomplete-input": {
+    padding: "8px 12px !important",
+  },
+  "& .MuiOutlinedInput-root": {
+    padding: "0 !important",
+  },
+  "& .MuiAutocomplete-endAdornment": {
+    right: "8px !important",
+  },
+};
+
+const filterOptions = createFilterOptions({
+  matchFrom: "any",
+  stringify: (option) => {
+    // Combine both name and ID for searching
+    return `${option.name} ${option.doctor_IdEmployee_Postgresql || ""}`;
+  },
+  limit: 100, // Adjust this number based on your needs
+});
+
 const ScheduleManagement = () => {
   const dispatch = useAppDispatch();
   // Sửa lại cách lấy data từ store để phù hợp với interface
@@ -172,9 +214,13 @@ const ScheduleManagement = () => {
     (state) => state.doctor
   );
   const { list: zones } = useAppSelector((state) => state.zone);
+  const { list: departments, loading: departmentsLoading } = useAppSelector(
+    (state) => state.department
+  );
 
   // Thêm loading state chung
-  const isLoading = roomsLoading || specialtiesLoading || doctorsLoading;
+  const isLoading =
+    roomsLoading || specialtiesLoading || doctorsLoading || departmentsLoading;
 
   const [selectedWeek, setSelectedWeek] = useState(() => {
     const today = new Date();
@@ -183,63 +229,58 @@ const ScheduleManagement = () => {
     return `${year}-W${weekNumber}`;
   });
   const [selectedDay, setSelectedDay] = useState("all");
-  const [selectedZone, setSelectedZone] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
+  const [selectedZone, setSelectedZone] = useState(() => {
+    const lyTuTrongZone = zones?.find((zone) => zone.name === "Lý Tự Trọng");
+    return lyTuTrongZone?.id || "all";
+  });
 
-  // Mock schedule data
-  const [schedules, setSchedules] = useState<Schedule[]>([
-    {
-      id: 1,
-      year: 2024,
-      week: 25,
-      date: "2024-06-17",
-      dayOfWeek: "Thứ 2",
-      area: "Khu A",
-      room: "Phòng 101",
-      shift: "Ca sáng",
-      examType: "Khám thường",
-      specialty: "Nhi khoa",
-      department: "Khoa Nhi",
-      doctor: "BS. Nguyễn Văn A",
-      isActive: true,
-    },
-    {
-      id: 2,
-      year: 2024,
-      week: 25,
-      date: "2024-06-17",
-      dayOfWeek: "Thứ 2",
-      area: "Khu A",
-      room: "Phòng 102",
-      shift: "Ca chiều",
-      examType: "Khám chuyên khoa",
-      specialty: "Tai mũi họng",
-      department: "Khoa TMH",
-      doctor: "BS. Trần Thị B",
-      isActive: true,
-    },
-    {
-      id: 3,
-      year: 2024,
-      week: 25,
-      date: "2024-06-18",
-      dayOfWeek: "Thứ 3",
-      area: "Khu B",
-      room: "Phòng 201",
-      shift: "Trực đêm",
-      examType: "Cấp cứu",
-      specialty: "Khoa ngoại",
-      department: "Khoa Ngoại",
-      doctor: "BS. Lê Văn C",
-      isActive: false,
-    },
-  ]);
+  // Remove mock schedules and update initialization
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [weekDays, setWeekDays] = useState(() => getWeekDays(selectedWeek));
+
+  // Add selected date state
+  const [selectedDate, setSelectedDate] = useState("");
+
+  // Update useEffect to set default zone and date
+  useEffect(() => {
+    dispatch(fetchZones());
+    dispatch(fetchRooms());
+    dispatch(fetchSpecialties());
+    dispatch(fetchDoctors());
+    dispatch(fetchDepartments());
+  }, [dispatch]);
+
+  useEffect(() => {
+    // Set default date to first day of selected week
+    setSelectedDate(weekDays[0].date);
+  }, [weekDays]);
+
+  // Update empty schedule template
+  const emptySchedule: Partial<Schedule> = {
+    year: new Date().getFullYear(),
+    week: parseInt(selectedWeek.split("-W")[1]),
+    date: selectedDate, // Use selected date instead of first day
+    dayOfWeek: mapDayOfWeek(
+      format(
+        parse(selectedDate || weekDays[0].date, "yyyy-MM-dd", new Date()),
+        "EEEE",
+        { locale: vi }
+      )
+    ),
+    room: "",
+    shift: "",
+    examType: "",
+    specialty: "",
+    doctor: "",
+    isActive: true,
+    priority: 0,
+    patientsPerHour: 4,
+    zone: "Lý Tự Trọng", // Set default zone
+  };
 
   const weeks = useMemo(() => getWeeksList(), []); // Cached list of weeks
 
   // Thêm state để lưu danh sách ngày trong tuần
-  const [weekDays, setWeekDays] = useState(() => getWeekDays(selectedWeek));
 
   // Cập nhật useEffect để theo dõi thay đổi tuần
   useEffect(() => {
@@ -268,13 +309,11 @@ const ScheduleManagement = () => {
     })),
   ];
 
-  const filteredSchedules = schedules.filter((schedule) => {
-    const matchesDay =
-      selectedDay === "all" || schedule.dayOfWeek === selectedDay;
-    const matchesZone =
-      selectedZone === "all" || schedule.area === selectedZone;
-    return matchesDay && matchesZone;
-  });
+  const filteredSchedules = useMemo(() => {
+    return schedules.filter((schedule) => {
+      return schedule.date === selectedDate;
+    });
+  }, [schedules, selectedDate]);
 
   const handleToggleActive = (id: number) => {
     setSchedules(
@@ -324,60 +363,16 @@ const ScheduleManagement = () => {
     }
   };
 
-  // Fetch data when component mounts
-  useEffect(() => {
-    dispatch(fetchZones());
-    dispatch(fetchRooms());
-    dispatch(fetchSpecialties());
-    dispatch(fetchDoctors());
-  }, [dispatch]);
+  const handleAddSchedule = (newScheduleData: Partial<Schedule>) => {
+    const newSchedule: Schedule = {
+      ...emptySchedule,
+      ...newScheduleData,
+      id: Math.max(...schedules.map((s) => s.id)) + 1,
+    } as Schedule;
 
-  const searchBoxStyles = {
-    position: "relative" as const,
-    width: "100%",
-    maxWidth: "500px",
+    setSchedules([newSchedule, ...schedules]);
+    toast.success("Đã thêm ca khám mới");
   };
-
-  const searchResultsStyles = {
-    position: "absolute" as const,
-    top: "100%",
-    left: 0,
-    right: 0,
-    backgroundColor: "white",
-    border: "1px solid #e2e8f0",
-    borderRadius: "0.5rem",
-    marginTop: "0.25rem",
-    maxHeight: "300px",
-    overflowY: "auto" as const,
-    zIndex: 50,
-    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-  };
-
-  const filteredDoctors = useMemo(() => {
-    if (!searchQuery) return [];
-
-    return doctors.filter(
-      (doctor) =>
-        doctor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doctor.doctor_IdEmployee_Postgresql
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase())
-    );
-  }, [doctors, searchQuery]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        isSearching &&
-        !(event.target as HTMLElement).closest(".search-container")
-      ) {
-        setIsSearching(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isSearching]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -397,23 +392,26 @@ const ScheduleManagement = () => {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-4 mb-4">
-            {/* Thêm select zone trước select week */}
+            {/* Zone selection */}
             <div className="flex items-center space-x-2">
-              <Select value={selectedZone} onValueChange={setSelectedZone}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Chọn khu vực" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả khu vực</SelectItem>
-                  {zones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id.toString()}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Search className="w-4 h-4 text-gray-500" />
+              <StyledAutocomplete
+                options={zones || []}
+                getOptionLabel={(option) => option.name}
+                value={zones.find((zone) => zone.name === "Lý Tự Trọng")}
+                disabled // Disable zone selection
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Khu Lý Tự Trọng"
+                    sx={{ minWidth: "200px" }}
+                  />
+                )}
+              />
             </div>
 
+            {/* Existing week selection */}
             <div className="flex items-center space-x-2">
               <Calendar className="w-4 h-4 text-gray-500" />
               <Select value={selectedWeek} onValueChange={setSelectedWeek}>
@@ -430,6 +428,24 @@ const ScheduleManagement = () => {
               </Select>
             </div>
 
+            {/* Date selection */}
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              <Select value={selectedDate} onValueChange={setSelectedDate}>
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Chọn ngày trong tuần" />
+                </SelectTrigger>
+                <SelectContent>
+                  {weekDays.map((day) => (
+                    <SelectItem key={day.date} value={day.date}>
+                      {`${mapDayOfWeek(day.dayOfWeek)} (${day.dayDisplay})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Existing day selection */}
             <Select value={selectedDay} onValueChange={setSelectedDay}>
               <SelectTrigger className="w-[300px]">
                 <SelectValue placeholder="Chọn ngày" />
@@ -442,51 +458,6 @@ const ScheduleManagement = () => {
                 ))}
               </SelectContent>
             </Select>
-
-            <div style={searchBoxStyles}>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm bác sĩ theo tên hoặc mã..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => setIsSearching(true)}
-                  className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
-              </div>
-
-              {isSearching && searchQuery && (
-                <div style={searchResultsStyles}>
-                  {filteredDoctors.map((doctor) => (
-                    <div
-                      key={doctor.id}
-                      className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer"
-                      onClick={() => {
-                        // Handle doctor selection
-                        setSearchQuery("");
-                        setIsSearching(false);
-                      }}
-                    >
-                      <User className="h-5 w-5 text-gray-500" />
-                      <div>
-                        <div className="font-medium">
-                          {doctor.doctor_IdEmployee_Postgresql} - {doctor.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {doctor.specialty}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredDoctors.length === 0 && (
-                    <div className="p-2 text-gray-500 text-center">
-                      Không tìm thấy bác sĩ
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="flex space-x-2">
@@ -540,86 +511,361 @@ const ScheduleManagement = () => {
                     <TableHead>Ngày</TableHead>
                     <TableHead>Thứ</TableHead>
                     <TableHead>Phòng khám</TableHead>
-                    <TableHead>Ca khám</TableHead>
+                    <TableHead>Ca</TableHead>
                     <TableHead>Loại khám</TableHead>
                     <TableHead>Chuyên khoa</TableHead>
-                    <TableHead>Khoa phòng</TableHead>
                     <TableHead>Bác sĩ</TableHead>
-                    <TableHead>Trạng thái</TableHead>
+                    <TableHead>Số ưu tiên</TableHead>
+                    <TableHead>Số ca khám/giờ</TableHead>
+                    <TableHead>Tr.Thái</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredSchedules?.map((schedule) => (
+                  {/* Empty row for new schedule */}
+                  <TableRow>
+                    <TableCell>
+                      {format(
+                        parse(weekDays[0].date, "yyyy-MM-dd", new Date()),
+                        "dd/MM/yyyy"
+                      )}
+                    </TableCell>
+                    <TableCell>{mapDayOfWeek(weekDays[0].dayOfWeek)}</TableCell>
+                    <TableCell>
+                      <StyledAutocomplete
+                        options={rooms || []}
+                        getOptionLabel={(option) => option.name}
+                        onChange={(_, newValue) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            room: newValue?.name || "",
+                          });
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            size="small"
+                            placeholder="Chọn phòng"
+                            sx={{ minWidth: "150px" }}
+                          />
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value=""
+                        onValueChange={(value) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            shift: value,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue placeholder="Chọn ca" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Sáng">Ca sáng</SelectItem>
+                          <SelectItem value="Chiều">Ca chiều</SelectItem>
+                          <SelectItem value="Tối">Ca tối</SelectItem>
+                          <SelectItem value="Trưa">Ca trưa</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value=""
+                        onValueChange={(value) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            examType: value,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue placeholder="Chọn loại" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Chuyên khoa">
+                            Chuyên khoa
+                          </SelectItem>
+                          <SelectItem value="Tạp">Tạp</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <StyledAutocomplete
+                        options={specialties || []}
+                        getOptionLabel={(option) => option.name}
+                        onChange={(_, newValue) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            specialty: newValue?.name || "",
+                          });
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            size="small"
+                            placeholder="Chọn chuyên khoa"
+                            sx={{ minWidth: "200px" }}
+                          />
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <StyledAutocomplete
+                        options={doctors || []}
+                        getOptionLabel={(option) =>
+                          `${option.doctor_IdEmployee_Postgresql} - ${option.name}`
+                        }
+                        filterOptions={filterOptions}
+                        onChange={(_, newValue) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            doctor: newValue?.name || "",
+                            doctorId:
+                              newValue?.doctor_IdEmployee_Postgresql || "",
+                          });
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            size="small"
+                            placeholder="Tìm bác sĩ..."
+                            sx={{ minWidth: "250px" }}
+                          />
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        type="number"
+                        size="small"
+                        placeholder="0"
+                        onChange={(e) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            priority: parseInt(e.target.value) || 0,
+                          });
+                        }}
+                        inputProps={{ min: 0 }}
+                        sx={{ width: "100px" }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        type="number"
+                        size="small"
+                        placeholder="4"
+                        onChange={(e) => {
+                          handleAddSchedule({
+                            ...emptySchedule,
+                            patientsPerHour: parseInt(e.target.value) || 4,
+                          });
+                        }}
+                        inputProps={{ min: 0 }}
+                        sx={{ width: "100px" }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Switch checked={true} />
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Existing schedules */}
+                  {filteredSchedules.map((schedule) => (
                     <TableRow key={schedule.id}>
-                      <TableCell>{schedule.date}</TableCell>
+                      <TableCell>
+                        {format(
+                          parse(schedule.date, "yyyy-MM-dd", new Date()),
+                          "dd/MM/yyyy"
+                        )}
+                      </TableCell>
                       <TableCell>{schedule.dayOfWeek}</TableCell>
                       <TableCell>
+                        <StyledAutocomplete
+                          disabled={isSelectedWeekInPast}
+                          options={rooms || []}
+                          getOptionLabel={(option) => option.name}
+                          value={rooms.find(
+                            (room) => room.name === schedule.room
+                          )}
+                          onChange={(_, newValue) => {
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? { ...s, room: newValue?.name || "" }
+                                  : s
+                              )
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              size="small"
+                              placeholder="Chọn phòng"
+                              sx={{ minWidth: "150px" }}
+                            />
+                          )}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Select
-                          defaultValue={schedule.room}
-                          value={schedule.room}
+                          disabled={isSelectedWeekInPast}
+                          value={schedule.shift}
                           onValueChange={(value) => {
-                            // Xử lý cập nhật giá trị
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? { ...s, shift: value }
+                                  : s
+                              )
+                            );
                           }}
                         >
-                          <SelectTrigger className="w-32">
+                          <SelectTrigger className="w-[120px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {(rooms || []).map((room) => (
-                              <SelectItem key={room.id} value={room.name}>
-                                {room.name}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="Sáng">Ca sáng</SelectItem>
+                            <SelectItem value="Chiều">Ca chiều</SelectItem>
+                            <SelectItem value="Tối">Ca tối</SelectItem>
+                            <SelectItem value="Trưa">Ca trưa</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell>
-                        <Badge className={getShiftColor(schedule.shift)}>
-                          {schedule.shift}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{schedule.examType}</TableCell>
                       <TableCell>
                         <Select
-                          defaultValue={schedule.specialty}
                           disabled={isSelectedWeekInPast}
-                          onPointerDown={handleDisabledFieldClick}
-                          className={disabledStyle}
+                          value={schedule.examType}
+                          onValueChange={(value) => {
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? { ...s, examType: value }
+                                  : s
+                              )
+                            );
+                          }}
                         >
-                          <SelectTrigger className={`w-32 ${disabledStyle}`}>
+                          <SelectTrigger className="w-[150px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {(specialties || []).map((specialty) => (
-                              <SelectItem
-                                key={specialty.id}
-                                value={specialty.name}
-                              >
-                                {specialty.name}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="Chuyên khoa">
+                              Chuyên khoa
+                            </SelectItem>
+                            <SelectItem value="Tạp">Tạp</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell>{schedule.department}</TableCell>
                       <TableCell>
-                        <Select
-                          defaultValue={schedule.doctor}
+                        <StyledAutocomplete
                           disabled={isSelectedWeekInPast}
-                          onPointerDown={handleDisabledFieldClick}
-                          className={disabledStyle}
-                        >
-                          <SelectTrigger className={`w-40 ${disabledStyle}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(doctors || []).map((doctor) => (
-                              <SelectItem key={doctor.id} value={doctor.name}>
-                                {doctor.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={specialties || []}
+                          getOptionLabel={(option) => option.name}
+                          value={specialties.find(
+                            (spec) => spec.name === schedule.specialty
+                          )}
+                          onChange={(_, newValue) => {
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? { ...s, specialty: newValue?.name || "" }
+                                  : s
+                              )
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              size="small"
+                              placeholder="Chọn chuyên khoa"
+                              sx={{ minWidth: "200px" }}
+                            />
+                          )}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <StyledAutocomplete
+                          disabled={isSelectedWeekInPast}
+                          options={doctors || []}
+                          getOptionLabel={(option) =>
+                            `${option.doctor_IdEmployee_Postgresql} - ${option.name}`
+                          }
+                          filterOptions={filterOptions}
+                          value={doctors.find(
+                            (doc) => doc.name === schedule.doctor
+                          )}
+                          onChange={(_, newValue) => {
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? {
+                                      ...s,
+                                      doctor: newValue?.name || "",
+                                      doctorId:
+                                        newValue?.doctor_IdEmployee_Postgresql ||
+                                        "",
+                                    }
+                                  : s
+                              )
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              size="small"
+                              placeholder="Tìm bác sĩ..."
+                              sx={{ minWidth: "250px" }}
+                            />
+                          )}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={schedule.priority || 0}
+                          onChange={(e) => {
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? {
+                                      ...s,
+                                      priority: parseInt(e.target.value) || 0,
+                                    }
+                                  : s
+                              )
+                            );
+                          }}
+                          disabled={isSelectedWeekInPast}
+                          inputProps={{ min: 0 }}
+                          sx={{ width: "100px" }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={schedule.patientsPerHour || 0}
+                          onChange={(e) => {
+                            setSchedules((prevSchedules) =>
+                              prevSchedules.map((s) =>
+                                s.id === schedule.id
+                                  ? {
+                                      ...s,
+                                      patientsPerHour:
+                                        parseInt(e.target.value) || 0,
+                                    }
+                                  : s
+                              )
+                            );
+                          }}
+                          disabled={isSelectedWeekInPast}
+                          inputProps={{ min: 0 }}
+                          sx={{ width: "100px" }}
+                        />
                       </TableCell>
                       <TableCell>
                         <Switch
@@ -627,6 +873,7 @@ const ScheduleManagement = () => {
                           onCheckedChange={() =>
                             handleToggleActive(schedule.id)
                           }
+                          disabled={isSelectedWeekInPast}
                         />
                       </TableCell>
                     </TableRow>
@@ -685,12 +932,14 @@ interface Schedule {
   week: number;
   date: string;
   dayOfWeek: string;
-  area: string;
-  room: string;
-  shift: string;
-  examType: string;
-  specialty: string;
-  department: string;
-  doctor: string;
+  zone: string; // Zone/Khu
+  room: string; // Phòng khám
+  shift: string; // Ca
+  examType: string; // Loại khám
+  specialty: string; // Chuyên khoa
+  doctor: string; // Bác sĩ
   isActive: boolean;
+  doctorId?: string;
+  priority: number;
+  patientsPerHour: number;
 }

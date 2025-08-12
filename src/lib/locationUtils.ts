@@ -45,16 +45,14 @@ export const getWardName = (wards: Ward[], wardCode: string): string => {
 export const buildFullAddress = (
   address: string,
   wardName: string,
-  districtName: string,
   provinceName: string
 ): string => {
-  const parts = [address, wardName, districtName, provinceName].filter(Boolean);
+  const parts = [address, wardName, provinceName].filter(Boolean);
   return parts.join(", ");
 };
 
 export const getFullAddressFromCodes = (
   provinces: Province[],
-  districts: District[],
   wards: Ward[],
   address: string,
   provinceCode: string,
@@ -63,12 +61,10 @@ export const getFullAddressFromCodes = (
 ): string => {
   const provinceName = getProvinceName(provinces, provinceCode);
 
-  const districtName = getDistrictName(districts, districtCode);
-
   const wardName = getWardName(wards, wardCode);
-  if (!provinceName || !districtName || !wardName) {
+  if (!provinceName || !wardName) {
     console.warn("Incomplete address information provided.");
     return address; // Return the original address if any part is missing
   }
-  return buildFullAddress(address, wardName, districtName, provinceName);
+  return buildFullAddress(address, wardName, provinceName);
 };

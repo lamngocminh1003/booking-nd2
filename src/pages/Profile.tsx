@@ -30,11 +30,7 @@ import { setAuthStorage, getAuthStorage } from "@/utils/authStorage";
 import { getUserInfo } from "@/store/slices/locationSlice";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
 import { User } from "firebase/auth";
-import {
-  getProvinces,
-  getDistricts,
-  getWards,
-} from "@/store/slices/locationSlice";
+import { getProvinces, getWards } from "@/store/slices/locationSlice";
 import { getFullAddressFromCodes } from "@/lib/locationUtils";
 const Profile = () => {
   const [userStatus, setUserStatus] = useState<string>("Pending");
@@ -44,7 +40,6 @@ const Profile = () => {
   const {
     userInfo,
     provinces,
-    districts,
     wards,
     loading: locationLoading,
   } = useAppSelector((state) => state.location);
@@ -93,16 +88,13 @@ const Profile = () => {
     if (provinces?.length === 0) {
       dispatch(getProvinces());
     }
-    if (userInfo?.provinceCode && districts?.length === 0) {
-      dispatch(getDistricts(userInfo?.provinceCode));
-    }
+
     if (userInfo?.districtCode && wards?.length === 0) {
       dispatch(getWards(userInfo?.districtCode));
     }
   }, [
     dispatch,
     provinces?.length,
-    districts?.length,
     wards?.length,
     userInfo?.provinceCode,
     userInfo?.districtCode,
@@ -110,7 +102,6 @@ const Profile = () => {
 
   const fullAddress = getFullAddressFromCodes(
     provinces,
-    districts,
     wards,
     userInfo?.address,
     userInfo?.provinceCode,
