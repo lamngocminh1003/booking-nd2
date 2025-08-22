@@ -43,7 +43,6 @@ const Profile = () => {
     wards,
     loading: locationLoading,
   } = useAppSelector((state) => state.location);
-  console.log(provinces, wards);
 
   const dispatch = useAppDispatch();
   const refreshToken = useSelector((state: any) => state.auth.refreshToken);

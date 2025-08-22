@@ -11,16 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Edit, Trash2, Phone, Mail, Filter } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import EditDoctorModal from "@/components/admin/doctors/EditDoctorModal";
-import AddDoctorModal from "@/components/admin/doctors/AddDoctorModal";
-import DoctorScheduleModal from "@/components/admin/doctors/DoctorScheduleModal";
+import { Search, Filter } from "lucide-react";
 import { useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
 import { fetchDoctors } from "@/store/slices/doctorSlice";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
-import { RootState } from "@/store";
 
 interface Doctor {
   id: string;
@@ -37,15 +31,33 @@ interface Doctor {
 
 const DoctorManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const { doctors, loading, error } = useAppSelector((state) => state.doctor);
 
-  const filteredDoctors = doctors?.filter(
-    (doctor) =>
-      doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doctor.doctor_IdEmployee_Postgresql || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase())
-  );
+  // ✅ Sửa selector để consistent với doctorSlice
+  const {
+    list: doctors,
+    loading,
+    error,
+  } = useAppSelector((state) => state.doctor);
+  const dispatch = useAppDispatch();
+
+  // ✅ Debug log
+  useEffect(() => {
+    console.log("📋 Doctor Management Debug:", {
+      doctors: doctors?.length || 0,
+      loading,
+      error,
+      sample: doctors?.[0],
+    });
+  }, [doctors, loading, error]);
+
+  const filteredDoctors =
+    doctors?.filter(
+      (doctor) =>
+        doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doctor.doctor_IdEmployee_Postgresql || "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())
+    ) || [];
 
   const [currentPage, setCurrentPage] = useState(1);
   const doctorsPerPage = 10;
@@ -56,7 +68,6 @@ const DoctorManagement = () => {
     currentPage * doctorsPerPage
   );
 
-  const dispatch = useAppDispatch();
   useEffect(() => {
     dispatch(fetchDoctors());
   }, [dispatch]);
@@ -65,34 +76,31 @@ const DoctorManagement = () => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  const handleDoctorUpdate = (updatedDoctor: Doctor) => {
-    // This function will need to be updated to interact with Redux state
-    console.log("Cập nhật thông tin bác sĩ:", updatedDoctor);
-  };
+  // ✅ Hiển thị loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">
+            Đang tải danh sách bác sĩ...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleDoctorAdd = (newDoctor: Doctor) => {
-    // This function will need to be updated to interact with Redux state
-    console.log("Thêm bác sĩ mới:", newDoctor);
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return (
-          <Badge className="bg-green-100 text-green-800">Đang hoạt động</Badge>
-        );
-      case "inactive":
-        return (
-          <Badge className="bg-gray-100 text-gray-800">Không hoạt động</Badge>
-        );
-      case "on_leave":
-        return (
-          <Badge className="bg-orange-100 text-orange-800">Nghỉ phép</Badge>
-        );
-      default:
-        return <Badge variant="outline">Không xác định</Badge>;
-    }
-  };
+  // ✅ Hiển thị error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={() => dispatch(fetchDoctors())}>Thử lại</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen animate-fade-in">
@@ -138,23 +146,47 @@ const DoctorManagement = () => {
                   <TableRow>
                     <TableHead>Họ tên</TableHead>
                     <TableHead>Mã bác sĩ</TableHead>
+                    <TableHead>Chuyên khoa</TableHead>
+                    <TableHead>Khoa</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedDoctors.map((doctor) => (
-                    <TableRow key={doctor.id}>
-                      <TableCell>
-                        <div>
+                  {paginatedDoctors.length > 0 ? (
+                    paginatedDoctors.map((doctor) => (
+                      <TableRow key={doctor.id}>
+                        <TableCell>
                           <div className="font-medium">{doctor.name}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-500">
-                          {doctor.doctor_IdEmployee_Postgresql}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-gray-500">
+                            {doctor.doctor_IdEmployee_Postgresql ||
+                              doctor.code ||
+                              "N/A"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {doctor.specialtyName || "Chưa xác định"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {doctor.departmentName || "Chưa xác định"}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8">
+                        <div className="text-gray-500">
+                          {searchTerm
+                            ? "Không tìm thấy bác sĩ nào"
+                            : "Chưa có dữ liệu bác sĩ"}
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

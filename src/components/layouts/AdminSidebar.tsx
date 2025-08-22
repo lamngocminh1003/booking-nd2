@@ -15,6 +15,7 @@ import {
   CalendarClock,
   Banknote,
   University,
+  Hotel,
 } from "lucide-react";
 import logo from "@/assets/imgs/logo.png";
 import {
@@ -91,9 +92,14 @@ const sidebarItems = [
     icon: Banknote,
   },
   {
-    title: "Khu khám",
+    title: "Khu vực",
     url: "/admin/zones",
     icon: University,
+  },
+  {
+    title: "Khu khám",
+    url: "/admin/exam-types",
+    icon: Hotel,
   },
   {
     title: "Ca khám",

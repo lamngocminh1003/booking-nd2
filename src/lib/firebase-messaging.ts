@@ -20,7 +20,6 @@ export const getFcmToken = async (): Promise<string | null> => {
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY,
     });
-    console.log("FCM token:", token);
     return token;
   } catch (err) {
     console.error("Lỗi lấy FCM token:", err);

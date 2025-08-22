@@ -211,13 +211,6 @@ export default function DepartmentManagement() {
                         >
                           Sửa
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(dept.id)}
-                        >
-                          Xóa
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

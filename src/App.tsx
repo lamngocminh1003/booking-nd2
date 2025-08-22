@@ -49,6 +49,7 @@ import ZoneManagement from "./pages/admin/ZoneManagement";
 import PrivateRoute from "@/components/PrivateRoute";
 import SpecialtyManagement from "./pages/admin/SpecialtyManagement";
 import ServicePriceManagement from "./pages/admin/ServicePriceManagement";
+import ExamTypeManagement from "./pages/admin/exam-type-management/index";
 function AppWrapper() {
   return (
     <Provider store={store}>
@@ -195,6 +196,7 @@ function App() {
           <Route path="zones" element={<ZoneManagement />} />
           <Route path="specialties" element={<SpecialtyManagement />} />
           <Route path="service-prices" element={<ServicePriceManagement />} />
+          <Route path="exam-types" element={<ExamTypeManagement />} />
         </Route>
       </Routes>
       {!hideNav && <Footer />}

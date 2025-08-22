@@ -13,7 +13,7 @@ import zoneSlice from "./slices/zoneSlice"; // Ensure zoneSlice is imported
 import specialtySlice from "./slices/specialtySlice";
 import servicePriceSlice from "./slices/servicePriceSlice";
 import roomSlice from "./slices/roomSlice";
-import { ro } from "date-fns/locale";
+import examTypeSlice from "./slices/examTypeSlice"; // ✅ Thêm import
 export const store = configureStore({
   reducer: {
     user: userSlice,
@@ -29,6 +29,7 @@ export const store = configureStore({
     specialty: specialtySlice,
     servicePrice: servicePriceSlice,
     room: roomSlice,
+    examType: examTypeSlice, // ✅ Thêm vào reducer
     zone: zoneSlice, // Ensure zoneSlice is imported and added here
   },
 });

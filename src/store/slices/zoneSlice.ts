@@ -12,6 +12,7 @@ export interface Zone {
   name: string;
   address: string;
   enable: boolean;
+  roomCount?: number;
 }
 
 interface ZoneState {

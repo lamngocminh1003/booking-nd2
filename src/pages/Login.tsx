@@ -66,7 +66,6 @@ const Login = () => {
           variant: "destructive",
         });
       } else if (status === "Active") {
-        console.log("1");
 
         navigate("/");
         toast({

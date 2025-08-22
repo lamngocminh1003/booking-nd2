@@ -45,6 +45,8 @@ export default function RoomManagement() {
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<any>(null);
+  // Thêm state cho zone filter
+  const [selectedZone, setSelectedZone] = useState<string>("all");
 
   // Debounce search
   useEffect(() => {
@@ -55,19 +57,31 @@ export default function RoomManagement() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Reset page khi thay đổi zone filter
+  useEffect(() => {
+    setPage(1);
+  }, [selectedZone]);
+
   useEffect(() => {
     dispatch(fetchRooms() as any);
     dispatch(fetchZones() as any);
   }, [dispatch]);
 
-  // Filter and pagination
-  const filteredList = useMemo(
-    () =>
-      list.filter((room) =>
-        room?.name?.toLowerCase().includes(debouncedSearch?.toLowerCase())
-      ),
-    [list, debouncedSearch]
-  );
+  // Filter and pagination - Cập nhật để bao gồm zone filter
+  const filteredList = useMemo(() => {
+    let filtered = list.filter((room) =>
+      room?.name?.toLowerCase().includes(debouncedSearch?.toLowerCase())
+    );
+
+    // Lọc theo zone nếu không phải "all"
+    if (selectedZone !== "all") {
+      filtered = filtered.filter(
+        (room) => room.zoneId?.toString() === selectedZone
+      );
+    }
+
+    return filtered;
+  }, [list, debouncedSearch, selectedZone]);
 
   const totalPages = Math.ceil(filteredList.length / PAGE_SIZE);
   const pagedList = filteredList.slice(
@@ -204,16 +218,61 @@ export default function RoomManagement() {
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">
+                      Khu đã chọn
+                    </p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {selectedZone === "all" ? "Tất cả" : filteredList.length}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Search */}
-          <div className="flex justify-between mb-4">
+          {/* Search and Zone Filter */}
+          <div className="flex gap-4 mb-4 flex-wrap items-center">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm kiếm phòng..."
-              className="max-w-xs"
+              className="max-w-xs flex-1"
             />
+
+            {/* Zone Filter Select - đặt kế bên input search */}
+            <Select value={selectedZone} onValueChange={setSelectedZone}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Chọn khu khám" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả khu khám</SelectItem>
+                {zoneList
+                  ?.filter((zone) => zone.enable)
+                  .map((zone) => (
+                    <SelectItem key={zone.id} value={zone.id.toString()}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+
+            {/* Có thể thêm button reset filter */}
+            {(search || selectedZone !== "all") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setSelectedZone("all");
+                }}
+              >
+                Xóa bộ lọc
+              </Button>
+            )}
           </div>
 
           {/* Table */}
@@ -235,7 +294,17 @@ export default function RoomManagement() {
                   <TableRow key={room.id}>
                     <TableCell className="w-[100px]">{room.id}</TableCell>
                     <TableCell>{room.name}</TableCell>
-                    <TableCell>{room.zoneName}</TableCell>
+                    <TableCell>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          room.enable
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {room.zoneName}
+                      </span>
+                    </TableCell>
                     <TableCell className="w-[120px]">
                       <Switch
                         checked={room.enable}
@@ -259,6 +328,17 @@ export default function RoomManagement() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Show filtered results info */}
+          <div className="text-sm text-gray-500 mt-2">
+            Hiển thị {pagedList.length} / {filteredList.length} phòng
+            {selectedZone !== "all" && (
+              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                Khu:{" "}
+                {zoneList.find((z) => z.id.toString() === selectedZone)?.name}
+              </span>
+            )}
           </div>
 
           {/* Pagination */}
