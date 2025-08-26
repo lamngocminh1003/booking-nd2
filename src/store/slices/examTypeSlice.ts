@@ -154,9 +154,11 @@ export const fetchExamsByZone = createAsyncThunk(
   async (zoneId: number | string, { rejectWithValue }) => {
     try {
       const response = await ExamTypeService.getExamsByZoneId(zoneId);
+
       console.log(`✅ Exams by zone ${zoneId} response:`, response);
 
       const exams = response?.data?.data || response?.data || [];
+
       return { zoneId: zoneId.toString(), exams };
     } catch (err: any) {
       console.error(`❌ Error fetching exams for zone ${zoneId}:`, err);

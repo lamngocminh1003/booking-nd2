@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,9 +27,14 @@ import {
   Users,
   Plus,
   Info,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { AddSpecialtyModal } from "./AddSpecialtyModal";
 import type { ExamZoneDetails } from "./types";
+import { useAppDispatch } from "@/hooks/redux";
+import { deleteExamTypeSpecialty } from "@/store/slices/examTypeSlice";
+import { toast } from "sonner";
 
 interface DepartmentsModalProps {
   open: boolean;
@@ -29,9 +44,20 @@ interface DepartmentsModalProps {
     name: string;
     zoneName: string;
   } | null;
-  examDetails: ExamZoneDetails | null; // ✅ Thay đổi type
+  examDetails: ExamZoneDetails | null;
   loading: Record<number, boolean>;
   onRefreshDepartments?: () => void;
+}
+
+// ✅ Add delete confirmation state interface
+interface DeleteConfirmState {
+  open: boolean;
+  specialty?: {
+    id: number;
+    name: string;
+    departmentId: number;
+    departmentName: string;
+  };
 }
 
 export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
@@ -42,35 +68,119 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
   loading,
   onRefreshDepartments,
 }) => {
-  const [showAddSpecialtyModal, setShowAddSpecialtyModal] = useState(false);
+  const dispatch = useAppDispatch();
+
+  // ✅ State management
+  const [showAddSpecialtyModal, setShowAddSpecialtyModal] = useState<{
+    open: boolean;
+    departmentId?: number;
+  }>({
+    open: false,
+  });
+
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
+    open: false,
+  });
+
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const isLoading = selectedZone && loading[selectedZone.id];
 
+  // ✅ Event handlers
   const handleAddSpecialty = () => {
-    setShowAddSpecialtyModal(true);
+    setShowAddSpecialtyModal({ open: true });
   };
 
   const handleSpecialtyAdded = () => {
-    // Refresh exam details after adding specialty
     if (onRefreshDepartments) {
       onRefreshDepartments();
     }
   };
 
+  // ✅ Handle delete specialty
+  const handleDeleteSpecialty = (
+    specialtyId: number,
+    specialtyName: string,
+    departmentId: number,
+    departmentName: string
+  ) => {
+    setDeleteConfirm({
+      open: true,
+      specialty: {
+        id: specialtyId,
+        name: specialtyName,
+        departmentId,
+        departmentName,
+      },
+    });
+  };
+
+  // ✅ Confirm delete specialty
+  const confirmDeleteSpecialty = async () => {
+    if (!deleteConfirm.specialty || !selectedZone) return;
+
+    setIsDeleting(true);
+    try {
+      await dispatch(
+        deleteExamTypeSpecialty({
+          examTypeId: selectedZone.id,
+          specialtyId: deleteConfirm.specialty.id,
+          departmentId: deleteConfirm.specialty.departmentId,
+        })
+      ).unwrap();
+
+      toast.success(
+        `Đã xóa chuyên khoa "${deleteConfirm.specialty.name}" khỏi khoa phòng "${deleteConfirm.specialty.departmentName}"`
+      );
+
+      // Close dialog and refresh data
+      setDeleteConfirm({ open: false });
+
+      if (onRefreshDepartments) {
+        onRefreshDepartments();
+      }
+    } catch (error: any) {
+      console.error("❌ Error deleting specialty:", error);
+      toast.error(error?.message || "Lỗi khi xóa chuyên khoa!");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // ✅ Calculate statistics from new data structure
-  const totalDepartments = examDetails?.departmentHospitals?.length || 0;
-  const totalSpecialties =
-    examDetails?.departmentHospitals?.reduce(
+  const stats = useMemo(() => {
+    if (!examDetails?.departmentHospitals) {
+      return {
+        totalDepartments: 0,
+        totalSpecialties: 0,
+        activeDepartments: 0,
+        activeSpecialties: 0,
+      };
+    }
+
+    const totalDepartments = examDetails.departmentHospitals.length;
+    const activeDepartments = examDetails.departmentHospitals.filter(
+      (d) => d.enable
+    ).length;
+
+    const totalSpecialties = examDetails.departmentHospitals.reduce(
       (sum, dept) => sum + (dept.sepicalties?.length || 0),
       0
-    ) || 0;
-  const activeDepartments =
-    examDetails?.departmentHospitals?.filter((d) => d.enable).length || 0;
-  const activeSpecialties =
-    examDetails?.departmentHospitals?.reduce(
+    );
+
+    const activeSpecialties = examDetails.departmentHospitals.reduce(
       (sum, dept) =>
         sum + (dept.sepicalties?.filter((s) => s.enable).length || 0),
       0
-    ) || 0;
+    );
+
+    return {
+      totalDepartments,
+      totalSpecialties,
+      activeDepartments,
+      activeSpecialties,
+    };
+  }, [examDetails]);
 
   return (
     <>
@@ -123,48 +233,98 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
 
           <div className="max-h-[65vh] overflow-y-auto">
             {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-                <span>Đang tải thông tin chi tiết...</span>
+              <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+                <p className="text-sm text-gray-500">
+                  Đang tải dữ liệu khoa phòng...
+                </p>
               </div>
             ) : !examDetails ? (
-              <div className="text-center py-12 text-gray-500">
-                <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-medium mb-2">Không có thông tin</h3>
-                <p className="text-sm mb-4">
-                  Không thể tải thông tin chi tiết cho khu khám này
-                </p>
+              <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Info className="h-12 w-12 text-gray-400" />
+                <div className="text-center">
+                  <h3 className="font-medium text-gray-900">
+                    Không có dữ liệu
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Không tìm thấy thông tin khoa phòng cho khu khám này.
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
-                {/* ✅ Exam Type Info Card */}
+                {/* ✅ Statistics Overview */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Building2 className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">
+                          Tổng khoa phòng
+                        </p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {stats.totalDepartments}
+                        </p>
+                        {stats.activeDepartments !== stats.totalDepartments && (
+                          <p className="text-xs text-green-600">
+                            {stats.activeDepartments} đang hoạt động
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
 
-                {/* ✅ Department Hospitals */}
-                {totalDepartments === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                    <h3 className="text-lg font-medium mb-2">
-                      Chưa có khoa phòng nào
-                    </h3>
-                    <p className="text-sm mb-4">
-                      Bắt đầu bằng cách thêm khoa phòng đầu tiên cho khu khám
-                      này
-                    </p>
-                    <Button
-                      onClick={handleAddSpecialty}
-                      className="gap-2"
-                      disabled={!selectedZone}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Thêm Khoa/Phòng Đầu Tiên
-                    </Button>
-                  </div>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Users className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">
+                          Tổng chuyên khoa
+                        </p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {stats.totalSpecialties}
+                        </p>
+                        {stats.activeSpecialties !== stats.totalSpecialties && (
+                          <p className="text-xs text-green-600">
+                            {stats.activeSpecialties} đang hoạt động
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* ✅ Department List */}
+                {stats.totalDepartments === 0 ? (
+                  <Card className="p-8">
+                    <div className="text-center space-y-3">
+                      <Building2 className="h-12 w-12 text-gray-400 mx-auto" />
+                      <h3 className="font-medium text-gray-900">
+                        Chưa có khoa phòng nào
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Hãy thêm khoa phòng đầu tiên cho khu khám này.
+                      </p>
+                      <Button
+                        onClick={handleAddSpecialty}
+                        className="gap-2"
+                        disabled={!selectedZone}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Thêm Khoa/Phòng Đầu Tiên
+                      </Button>
+                    </div>
+                  </Card>
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-4">
                       <Building2 className="h-5 w-5 text-green-600" />
                       <h3 className="font-semibold text-lg">
-                        Danh sách Khoa/Phòng ({totalDepartments})
+                        Danh sách Khoa/Phòng ({stats.totalDepartments})
                       </h3>
                     </div>
 
@@ -181,7 +341,6 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
                                 <h4 className="font-semibold text-lg">
                                   {department.name}
                                 </h4>
-
                                 <Badge
                                   variant={
                                     department.enable ? "default" : "secondary"
@@ -191,71 +350,106 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
                                   {department.enable ? "Hoạt động" : "Tắt"}
                                 </Badge>
                               </div>
-                              {/* Specialties */}
-                              {department.sepicalties &&
-                              department.sepicalties.length > 0 ? (
-                                <div className="mt-3">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <Users className="h-4 w-4 text-purple-600" />
-                                    <span className="font-medium text-sm">
-                                      Chuyên khoa (
-                                      {department.sepicalties.length})
-                                    </span>
-                                  </div>
-                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                                    {department.sepicalties.map(
-                                      (specialty, sIndex) => (
-                                        <div
-                                          key={sIndex}
-                                          className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-l-4 border-l-purple-500"
-                                        >
-                                          <div className="flex items-center justify-between mb-1">
-                                            <span className="font-medium text-sm text-purple-800">
-                                              {specialty.name}
-                                            </span>
-                                          </div>
 
-                                          <div className="flex items-center justify-between">
-                                            <Badge
-                                              variant={
-                                                specialty.enable
-                                                  ? "default"
-                                                  : "secondary"
-                                              }
-                                              className="text-xs"
-                                            >
-                                              {specialty.enable
-                                                ? "Hoạt động"
-                                                : "Tắt"}
-                                            </Badge>
+                              {/* ✅ Specialties List */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Users className="h-4 w-4 text-purple-600" />
+                                  <span className="font-medium text-sm">
+                                    Chuyên khoa (
+                                    {department.sepicalties?.length || 0})
+                                  </span>
+                                </div>
+
+                                {!department.sepicalties ||
+                                department.sepicalties.length === 0 ? (
+                                  <div className="ml-6 p-4 bg-yellow-50 rounded-lg border-2 border-dashed border-yellow-300">
+                                    <div className="text-center text-yellow-700">
+                                      <Users className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
+                                      <p className="text-sm">
+                                        Chưa có chuyên khoa nào
+                                      </p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 gap-2 ml-6">
+                                    {department.sepicalties.map(
+                                      (specialty, specIndex) => (
+                                        <div
+                                          key={specIndex}
+                                          className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-l-4 border-l-purple-500"
+                                        >
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <span className="font-medium text-sm text-purple-800">
+                                                {specialty.name}
+                                              </span>
+                                              <Badge
+                                                variant={
+                                                  specialty.enable
+                                                    ? "default"
+                                                    : "secondary"
+                                                }
+                                                className="text-xs"
+                                              >
+                                                {specialty.enable
+                                                  ? "Hoạt động"
+                                                  : "Tắt"}
+                                              </Badge>
+                                            </div>
+
+                                            {specialty.description && (
+                                              <p className="text-xs text-gray-600">
+                                                {specialty.description}
+                                              </p>
+                                            )}
+
                                             {specialty.listType && (
-                                              <span className="text-xs text-gray-600">
+                                              <span className="text-xs text-gray-500">
                                                 Type: {specialty.listType}
                                               </span>
                                             )}
                                           </div>
 
-                                          {specialty.description && (
-                                            <p className="text-xs text-gray-600 mt-2">
-                                              {specialty.description}
-                                            </p>
-                                          )}
+                                          {/* ✅ Delete Specialty Button */}
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 ml-2"
+                                            onClick={() =>
+                                              handleDeleteSpecialty(
+                                                specialty.id,
+                                                specialty.name,
+                                                department.id,
+                                                department.name
+                                              )
+                                            }
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
                                         </div>
                                       )
                                     )}
                                   </div>
-                                </div>
-                              ) : (
-                                <div className="mt-3 p-4 bg-yellow-50 rounded-lg border-2 border-dashed border-yellow-300">
-                                  <div className="text-center text-yellow-700">
-                                    <Users className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
-                                    <p className="text-sm">
-                                      Chưa có chuyên khoa nào
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
+
+                            {/* ✅ Add Specialty Button for this department */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="ml-2"
+                              onClick={() => {
+                                setShowAddSpecialtyModal({
+                                  open: true,
+                                  departmentId: department.id,
+                                });
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Thêm chuyên khoa
+                            </Button>
                           </div>
                         </Card>
                       )
@@ -272,18 +466,18 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
                 {examDetails && (
                   <div className="flex items-center gap-6">
                     <span>
-                      <strong>{totalDepartments}</strong> khoa phòng
-                      {activeDepartments !== totalDepartments && (
+                      <strong>{stats.totalDepartments}</strong> khoa phòng
+                      {stats.activeDepartments !== stats.totalDepartments && (
                         <span className="text-green-600 ml-1">
-                          ({activeDepartments} hoạt động)
+                          ({stats.activeDepartments} hoạt động)
                         </span>
                       )}
                     </span>
                     <span>
-                      <strong>{totalSpecialties}</strong> chuyên khoa
-                      {activeSpecialties !== totalSpecialties && (
+                      <strong>{stats.totalSpecialties}</strong> chuyên khoa
+                      {stats.activeSpecialties !== stats.totalSpecialties && (
                         <span className="text-green-600 ml-1">
-                          ({activeSpecialties} hoạt động)
+                          ({stats.activeSpecialties} hoạt động)
                         </span>
                       )}
                     </span>
@@ -298,13 +492,65 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* ✅ Add Specialty Modal with existing exam details */}
+      {/* ✅ Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm({ open })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Xác nhận xóa chuyên khoa
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa chuyên khoa{" "}
+              <span className="font-semibold text-red-600">
+                "{deleteConfirm.specialty?.name}"
+              </span>{" "}
+              khỏi khoa phòng{" "}
+              <span className="font-semibold">
+                "{deleteConfirm.specialty?.departmentName}"
+              </span>
+              ?
+              <br />
+              <br />
+              <span className="text-red-600 font-medium">
+                Hành động này không thể hoàn tác.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteSpecialty}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  Đang xóa...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Xóa chuyên khoa
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ✅ Add Specialty Modal */}
       <AddSpecialtyModal
-        open={showAddSpecialtyModal}
-        onOpenChange={setShowAddSpecialtyModal}
+        open={showAddSpecialtyModal.open}
+        onOpenChange={(open) => setShowAddSpecialtyModal({ open })}
         examTypeId={selectedZone?.id}
         onSpecialtyAdded={handleSpecialtyAdded}
-        existingExamDetails={examDetails} // ✅ Pass existing exam details for department check
+        existingExamDetails={examDetails}
+        departmentHospitalId={showAddSpecialtyModal.departmentId}
       />
     </>
   );

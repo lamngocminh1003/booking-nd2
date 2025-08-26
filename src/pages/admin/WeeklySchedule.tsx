@@ -16,9 +16,7 @@ import { fetchDoctors } from "@/store/slices/doctorSlice";
 // ✅ Thêm missing imports
 import {
   fetchExamTypes,
-  fetchZoneRelatedData,
   fetchDepartmentsByZone,
-  fetchExamsByZone,
 } from "@/store/slices/examTypeSlice";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -185,19 +183,10 @@ const WeeklySchedule = () => {
     const fetchZoneData = async () => {
       if (selectedZone && selectedZone !== "all" && zones.length > 0) {
         try {
-          console.log(`🔍 Fetching zone data for: ${selectedZone}`);
-
           // ✅ Gọi 2 API riêng lẻ
-          const [departmentsResult, examsResult] = await Promise.all([
+          const [departmentsResult] = await Promise.all([
             dispatch(fetchDepartmentsByZone(selectedZone)),
-            dispatch(fetchExamsByZone(selectedZone)),
           ]);
-
-          console.log("✅ Zone API Results:", {
-            zoneId: selectedZone,
-            departments: departmentsResult,
-            exams: examsResult,
-          });
         } catch (error) {
           console.error(`❌ Error fetching zone ${selectedZone} data:`, error);
           toast.error(`Lỗi khi tải dữ liệu cho khu khám ${selectedZone}`);
@@ -209,107 +198,11 @@ const WeeklySchedule = () => {
     return () => clearTimeout(timeoutId);
   }, [selectedZone, zones, dispatch]);
 
-  // ✅ Log và analyze zone data khi thay đổi
   useEffect(() => {
     if (selectedZone && selectedZone !== "all") {
-      const zoneExams = examsByZone[selectedZone] || [];
       const zoneDepartments = departmentsByZone[selectedZone] || [];
       const isLoading = zoneDataLoading[selectedZone] || false;
       const error = zoneDataErrors[selectedZone] || null;
-
-      console.log(`📊 Zone ${selectedZone} Data Analysis:`, {
-        zoneId: selectedZone,
-        zoneName:
-          zones.find((z) => z.id.toString() === selectedZone)?.name ||
-          "All zones",
-
-        // ✅ Analyze exams data
-        exams: {
-          total: zoneExams.length,
-          enabled: zoneExams.filter((e) => e.enable).length,
-          disabled: zoneExams.filter((e) => !e.enable).length,
-          byAppointmentForm: zoneExams.reduce((acc, exam) => {
-            const form = exam.appointmentFormName || "Unknown";
-            acc[form] = (acc[form] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>),
-          list: zoneExams.map((e) => ({
-            id: e.id,
-            name: e.name,
-            enabled: e.enable,
-            appointmentForm: e.appointmentFormName,
-            departmentCount: e.departmentHospitals?.length || 0,
-          })),
-        },
-
-        // ✅ Analyze departments data
-        departments: {
-          total: zoneDepartments.length,
-          list: zoneDepartments.map((d) => ({
-            id: d.departmentHospitalId,
-            name: d.departmentHospitalName,
-            examTypesCount: d.examTypes?.length || 0,
-            examTypes:
-              d.examTypes?.map((et) => ({
-                id: et.id,
-                name: et.name,
-                enabled: et.enable,
-                specialtiesCount: et.sepicalties?.length || 0,
-              })) || [],
-          })),
-        },
-
-        // ✅ Cross-reference analysis
-        integration: {
-          departmentsWithExams: zoneDepartments.filter(
-            (d) => d.examTypes && d.examTypes.length > 0
-          ).length,
-          totalSpecialties: zoneDepartments.reduce(
-            (sum, d) =>
-              sum +
-              (d.examTypes?.reduce(
-                (examSum, et) => examSum + (et.sepicalties?.length || 0),
-                0
-              ) || 0),
-            0
-          ),
-        },
-
-        loading: isLoading,
-        error: error,
-        timestamp: new Date().toISOString(),
-      });
-
-      // ✅ Detailed logging for development
-      if (process.env.NODE_ENV === "development") {
-        if (zoneExams.length > 0) {
-          console.log(`🩺 Zone ${selectedZone} Exams Detail:`, zoneExams);
-        }
-
-        if (zoneDepartments.length > 0) {
-          console.log(
-            `🏥 Zone ${selectedZone} Departments Detail:`,
-            zoneDepartments
-          );
-        }
-
-        // ✅ Log potential issues
-        const enabledExams = zoneExams.filter((e) => e.enable);
-        const examsWithNoDepartments = zoneExams.filter(
-          (e) => !e.departmentHospitals || e.departmentHospitals.length === 0
-        );
-
-        if (examsWithNoDepartments.length > 0) {
-          console.warn(
-            `⚠️ Zone ${selectedZone} - Exams without departments:`,
-            examsWithNoDepartments.map((e) => e.name)
-          );
-        }
-
-        if (enabledExams.length === 0 && zoneExams.length > 0) {
-          console.warn(`⚠️ Zone ${selectedZone} - No enabled exams found!`);
-        }
-      }
     }
   }, [
     selectedZone,
@@ -321,49 +214,6 @@ const WeeklySchedule = () => {
   ]);
 
   // ✅ Debug trong useEffect
-  useEffect(() => {
-    console.log("🔍 Redux State Debug:", {
-      zones: zones?.length || 0,
-      departments: allDepartments?.length || 0,
-      examinations: examinations?.length || 0,
-      rooms: allRooms?.length || 0,
-      specialties: allSpecialties?.length || 0,
-      doctors: allDoctors?.length || 0,
-      examTypes: examTypes?.length || 0,
-
-      // ✅ Zone-specific data
-      zoneData:
-        selectedZone !== "all"
-          ? {
-              selectedZone,
-              examsByZone: (examsByZone[selectedZone] || []).length,
-              departmentsByZone: (departmentsByZone[selectedZone] || []).length,
-              loading: zoneDataLoading[selectedZone] || false,
-              error: zoneDataErrors[selectedZone] || null,
-            }
-          : null,
-
-      doctorsError,
-      doctorsLoading,
-      examTypesLoading,
-    });
-  }, [
-    zones,
-    allDepartments,
-    examinations,
-    allRooms,
-    allSpecialties,
-    allDoctors,
-    examTypes,
-    selectedZone,
-    examsByZone,
-    departmentsByZone,
-    zoneDataLoading,
-    zoneDataErrors,
-    doctorsError,
-    doctorsLoading,
-    examTypesLoading,
-  ]);
 
   // ✅ Convert specialties from Redux state with fallback
   const availableSpecialties = useMemo(() => {
@@ -379,12 +229,6 @@ const WeeklySchedule = () => {
   // ✅ Convert doctors from Redux state with fallback
   const availableDoctors = useMemo(() => {
     try {
-      console.log("🩺 Processing doctors:", {
-        allDoctors,
-        length: allDoctors?.length,
-        sample: allDoctors?.[0],
-      });
-
       if (allDoctors && Array.isArray(allDoctors) && allDoctors.length > 0) {
         const processedDoctors = allDoctors
           .filter((doctor) => {
@@ -422,12 +266,6 @@ const WeeklySchedule = () => {
           })
           .filter((doctor) => doctor.name && doctor.id);
 
-        console.log("✅ Processed doctors:", {
-          original: allDoctors.length,
-          processed: processedDoctors.length,
-          sample: processedDoctors[0],
-        });
-
         if (processedDoctors.length > 0) {
           return processedDoctors;
         }
@@ -437,7 +275,6 @@ const WeeklySchedule = () => {
     }
 
     // ✅ Enhanced fallback data
-    console.log("🔄 Using fallback doctors data");
     return [
       {
         id: "BS001",
@@ -881,7 +718,6 @@ const WeeklySchedule = () => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-        console.log("Imported data:", jsonData);
         toast.success(
           `Đã tải lên file Excel thành công! ${jsonData.length} dòng dữ liệu.`
         );
@@ -1122,13 +958,6 @@ const WeeklySchedule = () => {
         toast.success(
           `Đã nhân bản thành công ${totalClonedRooms} phòng sang ${targetWeeks.length} tuần!`
         );
-
-        console.log("✅ Clone week completed:", {
-          sourceWeek: selectedWeek,
-          targetWeeks,
-          totalClonedRooms,
-          options,
-        });
       } catch (error) {
         console.error("❌ Error cloning week:", error);
         toast.error("Lỗi khi nhân bản tuần!");
@@ -1162,46 +991,6 @@ const WeeklySchedule = () => {
   return (
     <TooltipProvider>
       <div className="space-y-6 p-4 min-w-0 overflow-x-auto">
-        {/* ✅ Enhanced debug panel */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="bg-gray-100 p-4 rounded-lg text-xs space-y-2">
-            <div className="font-bold">🔍 Debug Info:</div>
-            <div>
-              Selected Zone: {selectedZone} (
-              {zones.find((z) => z.id.toString() === selectedZone)?.name ||
-                "All zones"}
-              )
-            </div>
-            {selectedZone !== "all" && (
-              <>
-                <div>
-                  Zone Exam Types: {(examsByZone[selectedZone] || []).length}{" "}
-                  (Enabled:{" "}
-                  {
-                    (examsByZone[selectedZone] || []).filter((e) => e.enable)
-                      .length
-                  }
-                  )
-                </div>
-                <div>
-                  Zone Departments:{" "}
-                  {(departmentsByZone[selectedZone] || []).length}
-                </div>
-                <div>
-                  Zone Loading: {zoneDataLoading[selectedZone] ? "Yes" : "No"}
-                </div>
-                <div>Zone Error: {zoneDataErrors[selectedZone] || "None"}</div>
-              </>
-            )}
-            <div>Time Slots: {timeSlots.length}</div>
-            <div>Filtered Departments: {departments.length - 1}</div>
-            <div>
-              API Data: ExamTypes={examTypes.length}, Zones=
-              {Object.keys(examsByZone).length} loaded
-            </div>
-          </div>
-        )}
-
         <WeeklyScheduleHeader
           weekRange={weekRange}
           selectedWeek={selectedWeek}

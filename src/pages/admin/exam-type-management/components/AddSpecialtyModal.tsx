@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   RefreshCw,
   Building2,
@@ -46,6 +47,7 @@ interface AddSpecialtyModalProps {
   examTypeId?: number;
   onSpecialtyAdded?: () => void;
   existingExamDetails?: ExamZoneDetails | null;
+  departmentHospitalId?: number;
 }
 
 interface ExamTypeSpecialtyPayload {
@@ -61,6 +63,7 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
   examTypeId,
   onSpecialtyAdded,
   existingExamDetails,
+  departmentHospitalId,
 }) => {
   const dispatch = useAppDispatch();
 
@@ -77,7 +80,7 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
   const [formData, setFormData] = useState<Partial<ExamTypeSpecialtyPayload>>({
     examTypeId: examTypeId || 0,
     specialtyId: undefined,
-    departmentHospitalId: undefined,
+    departmentHospitalId: departmentHospitalId || undefined,
     enable: true,
   });
 
@@ -94,12 +97,21 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
       return new Set<number>();
     }
 
+    // Find the selected department in existing exam details
     const selectedDept = existingExamDetails.departmentHospitals.find(
       (dept) => dept.id === formData.departmentHospitalId
     );
 
-    const specialtyIds =
-      selectedDept?.sepicalties?.map((specialty) => specialty.id) || [];
+    if (!selectedDept?.sepicalties) return new Set<number>();
+
+    const specialtyIds = selectedDept.sepicalties.map(
+      (specialty) => specialty.id
+    );
+    console.log(
+      "🔍 Existing specialty IDs for dept:",
+      formData.departmentHospitalId,
+      specialtyIds
+    );
     return new Set(specialtyIds);
   }, [existingExamDetails, formData.departmentHospitalId]);
 
@@ -129,14 +141,14 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
       setFormData({
         examTypeId: examTypeId || 0,
         specialtyId: undefined,
-        departmentHospitalId: undefined,
+        departmentHospitalId: departmentHospitalId || undefined,
         enable: true,
       });
       // Reset combobox states
       setDepartmentOpen(false);
       setSpecialtyOpen(false);
     }
-  }, [open, examTypeId, dispatch]);
+  }, [open, examTypeId, departmentHospitalId, dispatch]);
 
   // Update examTypeId when prop changes
   useEffect(() => {
@@ -145,12 +157,25 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
     }
   }, [examTypeId]);
 
+  // ✅ Update departmentHospitalId when prop changes
+  useEffect(() => {
+    if (departmentHospitalId) {
+      setFormData((prev) => ({ ...prev, departmentHospitalId }));
+    }
+  }, [departmentHospitalId]);
+
   // ✅ Reset specialty selection when department changes
   useEffect(() => {
     setFormData((prev) => ({ ...prev, specialtyId: undefined }));
   }, [formData.departmentHospitalId]);
 
   const handleSave = async () => {
+    // Validation
+    if (!formData.examTypeId) {
+      toast.error("Không tìm thấy ID khu khám!");
+      return;
+    }
+
     if (!formData.specialtyId) {
       toast.error("Vui lòng chọn chuyên khoa!");
       return;
@@ -216,7 +241,7 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* ✅ Department Search Combobox - No duplicate check */}
+          {/* ✅ Department Search Combobox - Show readonly if departmentHospitalId provided */}
           <div className="space-y-2">
             <Label htmlFor="departmentHospitalId">
               Khoa phòng *
@@ -225,76 +250,90 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
               )}
             </Label>
 
-            <Popover open={departmentOpen} onOpenChange={setDepartmentOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={departmentOpen}
-                  className="w-full justify-between"
-                  disabled={departmentsLoading}
-                >
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-gray-500" />
-                    {selectedDepartment ? (
-                      <span>{selectedDepartment.name}</span>
-                    ) : (
-                      <span className="text-gray-500">
-                        Tìm kiếm khoa phòng...
-                      </span>
-                    )}
-                  </div>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
-                <Command>
-                  <CommandInput
-                    placeholder="Tìm kiếm khoa phòng..."
-                    className="h-9"
-                  />
-                  <CommandList>
-                    <CommandEmpty>
-                      {departmentsLoading
-                        ? "Đang tải..."
-                        : "Không tìm thấy khoa phòng nào"}
-                    </CommandEmpty>
-                    <CommandGroup>
-                      {enabledDepartments.map((department) => {
-                        const isSelected =
-                          formData.departmentHospitalId === department.id;
+            {/* ✅ If department is pre-selected, show readonly */}
+            {departmentHospitalId && selectedDepartment ? (
+              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium">{selectedDepartment.name}</span>
+                  <Badge variant="outline" className="text-xs">
+                    Đã chọn
+                  </Badge>
+                </div>
+              </div>
+            ) : (
+              // Regular combobox for department selection
+              <Popover open={departmentOpen} onOpenChange={setDepartmentOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={departmentOpen}
+                    className="w-full justify-between"
+                    disabled={departmentsLoading}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-gray-500" />
+                      {selectedDepartment ? (
+                        <span>{selectedDepartment.name}</span>
+                      ) : (
+                        <span className="text-gray-500">
+                          Tìm kiếm khoa phòng...
+                        </span>
+                      )}
+                    </div>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Tìm kiếm khoa phòng..."
+                      className="h-9"
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {departmentsLoading
+                          ? "Đang tải..."
+                          : "Không tìm thấy khoa phòng nào"}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {enabledDepartments.map((department) => {
+                          const isSelected =
+                            formData.departmentHospitalId === department.id;
 
-                        return (
-                          <CommandItem
-                            key={department.id}
-                            value={`${department.name} ${department.id}`}
-                            onSelect={() => {
-                              handleFormChange(
-                                "departmentHospitalId",
-                                department.id
-                              );
-                              setDepartmentOpen(false);
-                            }}
-                            className="flex items-center gap-2"
-                          >
-                            <Building2 className="h-4 w-4" />
-                            <div className="flex-1 flex items-center justify-between">
-                              <span>{department.name}</span>
-                              <Check
-                                className={cn(
-                                  "h-4 w-4",
-                                  isSelected ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                            </div>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                          return (
+                            <CommandItem
+                              key={department.id}
+                              value={`${department.name} ${department.id}`}
+                              onSelect={() => {
+                                handleFormChange(
+                                  "departmentHospitalId",
+                                  department.id
+                                );
+                                setDepartmentOpen(false);
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Building2 className="h-4 w-4" />
+                              <div className="flex-1 flex items-center justify-between">
+                                <span>{department.name}</span>
+                                <Check
+                                  className={cn(
+                                    "h-4 w-4",
+                                    isSelected ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           {/* ✅ Specialty Search Combobox - With duplicate check for selected department */}
@@ -432,11 +471,17 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
                     <Building2 className="h-3 w-3" />
                     <span className="font-medium">Khoa phòng:</span>
                     <span>{selectedDepartment.name}</span>
+                    <span className="text-xs text-gray-600">
+                      (ID: {selectedDepartment.id})
+                    </span>
                   </div>
                   <div className="text-green-700 flex items-center gap-2">
                     <Users className="h-3 w-3" />
                     <span className="font-medium">Chuyên khoa:</span>
                     <span>{selectedSpecialty.name}</span>
+                    <span className="text-xs text-gray-600">
+                      (ID: {selectedSpecialty.id})
+                    </span>
                   </div>
                 </div>
               </div>
