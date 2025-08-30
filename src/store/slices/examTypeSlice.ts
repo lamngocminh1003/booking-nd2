@@ -155,8 +155,6 @@ export const fetchExamsByZone = createAsyncThunk(
     try {
       const response = await ExamTypeService.getExamsByZoneId(zoneId);
 
-      console.log(`✅ Exams by zone ${zoneId} response:`, response);
-
       const exams = response?.data?.data || response?.data || [];
 
       return { zoneId: zoneId.toString(), exams };
@@ -175,10 +173,14 @@ export const fetchDepartmentsByZone = createAsyncThunk(
   async (zoneId: number | string, { rejectWithValue }) => {
     try {
       const response = await ExamTypeService.getDepartmentsByZoneId(zoneId);
-      console.log(`✅ Departments by zone ${zoneId} response:`, response);
 
-      const departments = response?.data?.data || response?.data || [];
-      return { zoneId: zoneId.toString(), departments };
+      // ✅ Updated to handle new response structure with departments and examTypes
+      const responseData = response?.data?.data || response?.data || {};
+
+      const departments = responseData.departments || [];
+      const examTypes = responseData.examTypes || [];
+
+      return { zoneId: zoneId.toString(), departments, examTypes };
     } catch (err: any) {
       console.error(`❌ Error fetching departments for zone ${zoneId}:`, err);
       return rejectWithValue({
@@ -195,7 +197,6 @@ export const fetchZoneRelatedData = createAsyncThunk(
   async (zoneId: number | string, { rejectWithValue }) => {
     try {
       const response = await ExamTypeService.getZoneRelatedData(zoneId);
-      console.log(`✅ Zone ${zoneId} related data:`, response);
 
       return {
         zoneId: zoneId.toString(),
@@ -406,9 +407,13 @@ const examTypeSlice = createSlice({
         state.zoneDataErrors[zoneId] = null;
       })
       .addCase(fetchDepartmentsByZone.fulfilled, (state, action) => {
-        const { zoneId, departments } = action.payload;
+        const { zoneId, departments, examTypes } = action.payload;
         state.zoneDataLoading[zoneId] = false;
         state.departmentsByZone[zoneId] = departments;
+        // ✅ Also update examTypes if provided
+        if (examTypes && examTypes.length > 0) {
+          state.examsByZone[zoneId] = examTypes;
+        }
         state.zoneDataErrors[zoneId] = null;
       })
       .addCase(fetchDepartmentsByZone.rejected, (state, action) => {

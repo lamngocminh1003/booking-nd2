@@ -20,10 +20,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Building2,
   RefreshCw,
-  Stethoscope,
   Users,
   Plus,
   Info,
@@ -33,7 +33,10 @@ import {
 import { AddSpecialtyModal } from "./AddSpecialtyModal";
 import type { ExamZoneDetails } from "./types";
 import { useAppDispatch } from "@/hooks/redux";
-import { deleteExamTypeSpecialty } from "@/store/slices/examTypeSlice";
+import {
+  deleteExamTypeSpecialty,
+  createExamTypeSpecialty,
+} from "@/store/slices/examTypeSlice";
 import { toast } from "sonner";
 
 interface DepartmentsModalProps {
@@ -60,6 +63,14 @@ interface DeleteConfirmState {
   };
 }
 
+// ✅ Add local payload interface
+interface ExamTypeSpecialtyPayload {
+  examTypeId: number;
+  specialtyId: number;
+  departmentHospitalId: number;
+  enable: boolean;
+}
+
 export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
   open,
   onOpenChange,
@@ -83,6 +94,9 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
   });
 
   const [isDeleting, setIsDeleting] = useState(false);
+  const [updatingSpecialty, setUpdatingSpecialty] = useState<number | null>(
+    null
+  );
 
   const isLoading = selectedZone && loading[selectedZone.id];
 
@@ -144,6 +158,42 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
       toast.error(error?.message || "Lỗi khi xóa chuyên khoa!");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // ✅ Handle toggle specialty status
+  const handleToggleSpecialty = async (
+    specialtyId: number,
+    currentStatus: boolean,
+    specialtyName: string,
+    departmentId: number
+  ) => {
+    if (!selectedZone) return;
+
+    setUpdatingSpecialty(specialtyId);
+    try {
+      // ✅ Create payload object as requested
+      const payload: ExamTypeSpecialtyPayload = {
+        examTypeId: selectedZone.id,
+        specialtyId: specialtyId,
+        departmentHospitalId: departmentId,
+        enable: !currentStatus,
+      };
+
+      await dispatch(createExamTypeSpecialty(payload as any)).unwrap();
+
+      toast.success(
+        `Đã ${!currentStatus ? "bật" : "tắt"} chuyên khoa "${specialtyName}"`
+      );
+
+      if (onRefreshDepartments) {
+        onRefreshDepartments();
+      }
+    } catch (error: any) {
+      console.error("❌ Error updating specialty status:", error);
+      toast.error(error?.message || "Lỗi khi cập nhật trạng thái chuyên khoa!");
+    } finally {
+      setUpdatingSpecialty(null);
     }
   };
 
@@ -351,7 +401,7 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
                                 </Badge>
                               </div>
 
-                              {/* ✅ Specialties List */}
+                              {/* ✅ Specialties List - Optimized */}
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2">
                                   <Users className="h-4 w-4 text-purple-600" />
@@ -363,59 +413,55 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
 
                                 {!department.sepicalties ||
                                 department.sepicalties.length === 0 ? (
-                                  <div className="ml-6 p-4 bg-yellow-50 rounded-lg border-2 border-dashed border-yellow-300">
-                                    <div className="text-center text-yellow-700">
-                                      <Users className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
-                                      <p className="text-sm">
-                                        Chưa có chuyên khoa nào
-                                      </p>
-                                    </div>
+                                  <div className="ml-6 p-3 bg-yellow-50 rounded border-l-2 border-l-yellow-400">
+                                    <p className="text-sm text-yellow-700 flex items-center gap-2">
+                                      <Users className="h-4 w-4" />
+                                      Chưa có chuyên khoa nào
+                                    </p>
                                   </div>
                                 ) : (
-                                  <div className="grid grid-cols-1 gap-2 ml-6">
+                                  <div className="ml-6 grid grid-cols-2 gap-2">
                                     {department.sepicalties.map(
                                       (specialty, specIndex) => (
                                         <div
                                           key={specIndex}
-                                          className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-l-4 border-l-purple-500"
+                                          className="flex items-center justify-between p-2 bg-purple-50 rounded border-l-2 border-l-purple-400 hover:bg-purple-100 transition-colors"
                                         >
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <span className="font-medium text-sm text-purple-800">
-                                                {specialty.name}
-                                              </span>
-                                              <Badge
-                                                variant={
-                                                  specialty.enable
-                                                    ? "default"
-                                                    : "secondary"
+                                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span className="font-medium text-xs text-purple-800 truncate">
+                                              {specialty.name}
+                                            </span>
+
+                                            {/* ✅ Compact toggle and status */}
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <Switch
+                                                checked={specialty.enable}
+                                                onCheckedChange={() =>
+                                                  handleToggleSpecialty(
+                                                    specialty.id,
+                                                    specialty.enable,
+                                                    specialty.name,
+                                                    department.id
+                                                  )
                                                 }
-                                                className="text-xs"
-                                              >
-                                                {specialty.enable
-                                                  ? "Hoạt động"
-                                                  : "Tắt"}
-                                              </Badge>
+                                                disabled={
+                                                  updatingSpecialty ===
+                                                  specialty.id
+                                                }
+                                                className="data-[state=checked]:bg-green-600 scale-75"
+                                              />
+                                              {updatingSpecialty ===
+                                                specialty.id && (
+                                                <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                                              )}
                                             </div>
-
-                                            {specialty.description && (
-                                              <p className="text-xs text-gray-600">
-                                                {specialty.description}
-                                              </p>
-                                            )}
-
-                                            {specialty.listType && (
-                                              <span className="text-xs text-gray-500">
-                                                Type: {specialty.listType}
-                                              </span>
-                                            )}
                                           </div>
 
-                                          {/* ✅ Delete Specialty Button */}
+                                          {/* ✅ Compact delete button */}
                                           <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 ml-2"
+                                            className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-100 shrink-0 ml-1"
                                             onClick={() =>
                                               handleDeleteSpecialty(
                                                 specialty.id,
@@ -425,7 +471,7 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
                                               )
                                             }
                                           >
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="h-2.5 w-2.5" />
                                           </Button>
                                         </div>
                                       )

@@ -157,7 +157,6 @@ export const useExamTypeManagement = () => {
         zoneName: examType.zoneName || "N/A",
       });
 
-      console.log(`🏥 Fetching exam details for examType ${examType.id}...`);
       await dispatch(fetchExamsByZone(examType.id)).unwrap();
       setShowDepartmentsModal(true);
       toast.success(`Đã tải thông tin chi tiết cho ${examType.name}`);
@@ -250,9 +249,6 @@ export const useExamTypeManagement = () => {
     }
 
     try {
-      console.log(
-        `🔄 Refreshing exam details for examType ${selectedZoneForDepartments.id}...`
-      );
       await dispatch(fetchExamsByZone(selectedZoneForDepartments.id)).unwrap();
       toast.success("Đã làm mới thông tin chi tiết!");
     } catch (error: any) {

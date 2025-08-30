@@ -33,7 +33,6 @@ export const fetchDoctors = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await fetchDoctorsList();
-      console.log("✅ Doctor API response:", response); // Debug log
 
       // ✅ Kiểm tra cấu trúc response
       if (response?.data?.data) {

@@ -10,13 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Palette, Save, RotateCcw, Plus, Trash2 } from "lucide-react";
+import { Palette, Save, RotateCcw } from "lucide-react";
 
 interface RoomClassificationDialogProps {
   showRoomClassificationDialog: boolean;
   setShowRoomClassificationDialog: (value: boolean) => void;
   roomClassifications: any;
   setRoomClassifications: (value: any) => void;
+  updateClassificationColor?: (key: string, hexColor: string) => void;
+  tailwindToHex?: (tailwindClass: string) => string;
+  hexToTailwind?: (hex: string) => string;
+  examsByZone?: any; // ✅ Thêm examsByZone data
+  selectedZone?: string; // ✅ Thêm selected zone
+  zones?: any[]; // ✅ Thêm zones data để hiển thị tên
 }
 
 export const RoomClassificationDialog: React.FC<
@@ -26,6 +32,12 @@ export const RoomClassificationDialog: React.FC<
   setShowRoomClassificationDialog,
   roomClassifications,
   setRoomClassifications,
+  updateClassificationColor,
+  tailwindToHex,
+  hexToTailwind,
+  examsByZone,
+  selectedZone,
+  zones,
 }) => {
   const [tempClassifications, setTempClassifications] =
     useState(roomClassifications);
@@ -34,38 +46,200 @@ export const RoomClassificationDialog: React.FC<
     setTempClassifications(roomClassifications);
   }, [roomClassifications]);
 
+  // ✅ Helper function để kiểm tra màu đã được sử dụng
+  const isColorInUse = (color: string, excludeKey?: string) => {
+    return Object.entries(tempClassifications).some(
+      ([key, classification]: [string, any]) =>
+        key !== excludeKey && classification.color === color
+    );
+  };
+
+  // ✅ Helper function để tìm màu khả dụng (không trùng)
+  const findAvailableColor = (excludeKey?: string) => {
+    const colorOptions = [
+      "bg-blue-50 text-blue-700 border-blue-200",
+      "bg-green-50 text-green-700 border-green-200",
+      "bg-purple-50 text-purple-700 border-purple-200",
+      "bg-yellow-50 text-yellow-700 border-yellow-200",
+      "bg-red-50 text-red-700 border-red-200",
+      "bg-indigo-50 text-indigo-700 border-indigo-200",
+      "bg-pink-50 text-pink-700 border-pink-200",
+      "bg-orange-50 text-orange-700 border-orange-200",
+      "bg-cyan-50 text-cyan-700 border-cyan-200",
+      "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "bg-violet-50 text-violet-700 border-violet-200",
+      "bg-rose-50 text-rose-700 border-rose-200",
+      "bg-sky-50 text-sky-700 border-sky-200",
+      "bg-amber-50 text-amber-700 border-amber-200",
+      "bg-lime-50 text-lime-700 border-lime-200",
+      "bg-teal-50 text-teal-700 border-teal-200",
+    ];
+
+    for (const color of colorOptions) {
+      if (!isColorInUse(color, excludeKey)) {
+        return color;
+      }
+    }
+
+    // Nếu tất cả màu đã được sử dụng, trả về màu đầu tiên
+    return colorOptions[0];
+  };
+
+  // ✅ Auto load examsByZone data khi dialog mở
+  useEffect(() => {
+    if (
+      showRoomClassificationDialog &&
+      selectedZone &&
+      selectedZone !== "all" &&
+      examsByZone?.[selectedZone]
+    ) {
+      const zoneExams = examsByZone[selectedZone];
+      const examClassifications = {};
+
+      if (Array.isArray(zoneExams)) {
+        const availableColors = [
+          "bg-blue-50 text-blue-700 border-blue-200",
+          "bg-green-50 text-green-700 border-green-200",
+          "bg-purple-50 text-purple-700 border-purple-200",
+          "bg-yellow-50 text-yellow-700 border-yellow-200",
+          "bg-red-50 text-red-700 border-red-200",
+          "bg-indigo-50 text-indigo-700 border-indigo-200",
+          "bg-pink-50 text-pink-700 border-pink-200",
+          "bg-orange-50 text-orange-700 border-orange-200",
+          "bg-cyan-50 text-cyan-700 border-cyan-200",
+          "bg-emerald-50 text-emerald-700 border-emerald-200",
+          "bg-violet-50 text-violet-700 border-violet-200",
+          "bg-rose-50 text-rose-700 border-rose-200",
+          "bg-sky-50 text-sky-700 border-sky-200",
+          "bg-amber-50 text-amber-700 border-amber-200",
+          "bg-lime-50 text-lime-700 border-lime-200",
+          "bg-teal-50 text-teal-700 border-teal-200",
+        ];
+
+        // ✅ Tạo Set để theo dõi màu đã được sử dụng
+        const usedColors = new Set();
+
+        zoneExams.forEach((exam, index) => {
+          if (exam.id && exam.name) {
+            const shortName =
+              exam.name.length > 15
+                ? exam.name.substring(0, 15) + "..."
+                : exam.name;
+
+            const classificationKey = `exam_${exam.id}`;
+
+            // ✅ Kiểm tra màu hiện có từ roomClassifications
+            let currentColor = roomClassifications[classificationKey]?.color;
+
+            // ✅ Nếu màu chưa có hoặc đã được sử dụng, tìm màu mới
+            if (!currentColor || usedColors.has(currentColor)) {
+              // Tìm màu chưa được sử dụng
+              currentColor = availableColors.find(
+                (color) => !usedColors.has(color)
+              );
+
+              // Nếu không còn màu nào, sử dụng index
+              if (!currentColor) {
+                currentColor = availableColors[index % availableColors.length];
+              }
+            }
+
+            // ✅ Đánh dấu màu đã được sử dụng
+            usedColors.add(currentColor);
+
+            examClassifications[classificationKey] = {
+              name: shortName,
+              color: currentColor,
+              description: exam.description || `Loại khám: ${exam.name}`,
+              enabled: exam.enable !== false,
+              examId: exam.id,
+              originalName: exam.name,
+            };
+          }
+        });
+
+        // ✅ Merge với custom classifications hiện có
+        const customClassifications = Object.fromEntries(
+          Object.entries(roomClassifications).filter(([key]) =>
+            key.startsWith("custom_")
+          )
+        );
+
+        setTempClassifications({
+          ...examClassifications,
+          ...customClassifications,
+        });
+      }
+    }
+  }, [
+    showRoomClassificationDialog,
+    selectedZone,
+    examsByZone,
+    roomClassifications,
+  ]);
+
   const handleSave = () => {
     setRoomClassifications(tempClassifications);
     setShowRoomClassificationDialog(false);
   };
 
   const handleReset = () => {
-    const defaultClassifications = {
-      normal: {
-        name: "Phòng thường",
-        color: "bg-gray-200 border-gray-300 text-gray-800",
-        description: "Phòng khám thường, không đặc biệt",
-      },
-      priority: {
-        name: "Phòng ưu tiên",
-        color: "bg-blue-100 border-blue-300 text-blue-800",
-        description: "Phòng dành cho bệnh nhân ưu tiên",
-      },
-      special: {
-        name: "Phòng đặc biệt",
-        color: "bg-green-100 border-green-300 text-green-800",
-        description: "Phòng có trang thiết bị đặc biệt",
-      },
-      urgent: {
-        name: "Phòng cấp cứu",
-        color: "bg-red-100 border-red-300 text-red-800",
-        description: "Phòng dành cho ca cấp cứu",
-      },
-    };
-    setTempClassifications(defaultClassifications);
+    // ✅ Bỏ defaultClassifications, sử dụng examsByZone
+    if (selectedZone && selectedZone !== "all" && examsByZone?.[selectedZone]) {
+      const zoneExams = examsByZone[selectedZone];
+      const resetClassifications = {};
+
+      if (Array.isArray(zoneExams)) {
+        const availableColors = [
+          "bg-blue-50 text-blue-700 border-blue-200",
+          "bg-green-50 text-green-700 border-green-200",
+          "bg-purple-50 text-purple-700 border-purple-200",
+          "bg-yellow-50 text-yellow-700 border-yellow-200",
+          "bg-red-50 text-red-700 border-red-200",
+          "bg-indigo-50 text-indigo-700 border-indigo-200",
+          "bg-pink-50 text-pink-700 border-pink-200",
+          "bg-orange-50 text-orange-700 border-orange-200",
+          "bg-cyan-50 text-cyan-700 border-cyan-200",
+          "bg-emerald-50 text-emerald-700 border-emerald-200",
+          "bg-violet-50 text-violet-700 border-violet-200",
+          "bg-rose-50 text-rose-700 border-rose-200",
+          "bg-sky-50 text-sky-700 border-sky-200",
+          "bg-amber-50 text-amber-700 border-amber-200",
+          "bg-lime-50 text-lime-700 border-lime-200",
+          "bg-teal-50 text-teal-700 border-teal-200",
+        ];
+
+        zoneExams.forEach((exam, index) => {
+          if (exam.id && exam.name) {
+            // ✅ Đảm bảo mỗi exam có màu riêng biệt
+            const colorIndex = index % availableColors.length;
+            const shortName =
+              exam.name.length > 15
+                ? exam.name.substring(0, 15) + "..."
+                : exam.name;
+
+            const classificationKey = `exam_${exam.id}`;
+            resetClassifications[classificationKey] = {
+              name: shortName,
+              color: availableColors[colorIndex],
+              description: exam.description || `Loại khám: ${exam.name}`,
+              enabled: exam.enable !== false,
+              examId: exam.id,
+              originalName: exam.name,
+            };
+          }
+        });
+      }
+
+      setTempClassifications(resetClassifications);
+    } else {
+      // Fallback nếu không có examsByZone
+      setTempClassifications({});
+    }
   };
 
   const updateClassification = (key: string, field: string, value: string) => {
+    // ✅ Cho phép chọn màu thoải mái - bỏ logic ngăn chặn trùng lặp
     setTempClassifications((prev: any) => ({
       ...prev,
       [key]: {
@@ -75,35 +249,65 @@ export const RoomClassificationDialog: React.FC<
     }));
   };
 
-  const addNewClassification = () => {
-    const newKey = `custom_${Date.now()}`;
-    setTempClassifications((prev: any) => ({
-      ...prev,
-      [newKey]: {
-        name: "Phòng tùy chỉnh",
-        color: "bg-purple-100 border-purple-300 text-purple-800",
-        description: "Mô tả phòng tùy chỉnh",
-      },
-    }));
+  // ✅ Helper function để tự động sắp xếp màu không trùng
+  const autoAssignUniqueColors = () => {
+    const availableColors = [
+      "bg-blue-50 text-blue-700 border-blue-200",
+      "bg-green-50 text-green-700 border-green-200",
+      "bg-purple-50 text-purple-700 border-purple-200",
+      "bg-yellow-50 text-yellow-700 border-yellow-200",
+      "bg-red-50 text-red-700 border-red-200",
+      "bg-indigo-50 text-indigo-700 border-indigo-200",
+      "bg-pink-50 text-pink-700 border-pink-200",
+      "bg-orange-50 text-orange-700 border-orange-200",
+      "bg-cyan-50 text-cyan-700 border-cyan-200",
+      "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "bg-violet-50 text-violet-700 border-violet-200",
+      "bg-rose-50 text-rose-700 border-rose-200",
+      "bg-sky-50 text-sky-700 border-sky-200",
+      "bg-amber-50 text-amber-700 border-amber-200",
+      "bg-lime-50 text-lime-700 border-lime-200",
+      "bg-teal-50 text-teal-700 border-teal-200",
+    ];
+
+    const newClassifications = { ...tempClassifications };
+    const keys = Object.keys(newClassifications);
+
+    keys.forEach((key, index) => {
+      const colorIndex = index % availableColors.length;
+      newClassifications[key] = {
+        ...newClassifications[key],
+        color: availableColors[colorIndex],
+      };
+    });
+
+    setTempClassifications(newClassifications);
   };
 
-  const removeClassification = (key: string) => {
-    setTempClassifications((prev: any) => {
-      const updated = { ...prev };
-      delete updated[key];
-      return updated;
-    });
+  // ✅ Helper function để lấy tên zone
+  const getZoneName = () => {
+    if (selectedZone === "all") return "Tất cả zones";
+    const zone = zones?.find((z) => z.id.toString() === selectedZone);
+    return zone ? zone.name : `Zone ${selectedZone}`;
   };
 
   const colorOptions = [
-    "bg-gray-100 border-gray-300 text-gray-800",
-    "bg-blue-100 border-blue-300 text-blue-800",
-    "bg-green-100 border-green-300 text-green-800",
-    "bg-red-100 border-red-300 text-red-800",
-    "bg-yellow-100 border-yellow-300 text-yellow-800",
-    "bg-purple-100 border-purple-300 text-purple-800",
-    "bg-pink-100 border-pink-300 text-pink-800",
-    "bg-indigo-100 border-indigo-300 text-indigo-800",
+    "bg-blue-50 text-blue-700 border-blue-200",
+    "bg-green-50 text-green-700 border-green-200",
+    "bg-purple-50 text-purple-700 border-purple-200",
+    "bg-yellow-50 text-yellow-700 border-yellow-200",
+    "bg-red-50 text-red-700 border-red-200",
+    "bg-indigo-50 text-indigo-700 border-indigo-200",
+    "bg-pink-50 text-pink-700 border-pink-200",
+    "bg-orange-50 text-orange-700 border-orange-200",
+    "bg-cyan-50 text-cyan-700 border-cyan-200",
+    "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "bg-violet-50 text-violet-700 border-violet-200",
+    "bg-rose-50 text-rose-700 border-rose-200",
+    "bg-sky-50 text-sky-700 border-sky-200",
+    "bg-amber-50 text-amber-700 border-amber-200",
+    "bg-lime-50 text-lime-700 border-lime-200",
+    "bg-teal-50 text-teal-700 border-teal-200",
   ];
 
   return (
@@ -115,7 +319,7 @@ export const RoomClassificationDialog: React.FC<
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Palette className="w-5 h-5" />
-            Cấu hình phân loại phòng khám
+            Cấu hình màu sắc phòng khám - {getZoneName()}
           </DialogTitle>
         </DialogHeader>
 
@@ -125,19 +329,19 @@ export const RoomClassificationDialog: React.FC<
               ([key, classification]: [string, any]) => (
                 <Card key={key} className="relative">
                   <CardContent className="pt-4">
-                    <div className="grid md:grid-cols-3 gap-4 items-start">
-                      {/* Name and Preview */}
+                    <div className="grid md:grid-cols-2 gap-4 items-start">
+                      {/* Name and Preview - Read only */}
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">
-                          Tên loại phòng
-                        </Label>
-                        <Input
-                          value={classification.name}
-                          onChange={(e) =>
-                            updateClassification(key, "name", e.target.value)
-                          }
-                          placeholder="Tên phân loại"
-                        />
+                        <Label className="text-sm font-medium">Loại khám</Label>
+                        {/* ✅ Hiển thị thông tin exam từ examsByZone - chỉ đọc */}
+                        <div className="space-y-2">
+                          <div className="p-3 bg-gray-50 rounded text-sm border">
+                            <div className="font-medium">
+                              {classification.originalName ||
+                                classification.name}
+                            </div>
+                          </div>
+                        </div>
                         <div className="pt-2">
                           <Badge className={`${classification.color} border`}>
                             {classification.name}
@@ -145,25 +349,58 @@ export const RoomClassificationDialog: React.FC<
                         </div>
                       </div>
 
-                      {/* Color Selection */}
+                      {/* Color Selection với Color Picker */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Màu sắc</Label>
+
+                        {/* ✅ Color Picker */}
+                        {updateClassificationColor && tailwindToHex && (
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={tailwindToHex(classification.color)}
+                                onChange={(e) =>
+                                  updateClassificationColor(key, e.target.value)
+                                }
+                                className="w-10 h-10 rounded border cursor-pointer"
+                                title="Chọn màu tùy chỉnh"
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-medium">
+                                  Màu tùy chỉnh
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {tailwindToHex(classification.color)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ✅ Preset colors - Cho phép chọn thoải mái */}
                         <div className="grid grid-cols-4 gap-2">
-                          {colorOptions.map((colorClass) => (
-                            <button
-                              key={colorClass}
-                              type="button"
-                              className={`w-8 h-8 rounded border-2 ${colorClass} ${
-                                classification.color === colorClass
-                                  ? "ring-2 ring-blue-500"
-                                  : ""
-                              }`}
-                              onClick={() =>
-                                updateClassification(key, "color", colorClass)
-                              }
-                            />
-                          ))}
+                          {colorOptions.map((colorClass) => {
+                            const isCurrentColor =
+                              classification.color === colorClass;
+
+                            return (
+                              <button
+                                key={colorClass}
+                                type="button"
+                                className={`w-8 h-8 rounded border-2 ${colorClass} ${
+                                  isCurrentColor ? "ring-2 ring-blue-500" : ""
+                                } cursor-pointer hover:scale-110 transition-transform`}
+                                onClick={() =>
+                                  updateClassification(key, "color", colorClass)
+                                }
+                                title={`Sử dụng màu: ${colorClass}`}
+                              />
+                            );
+                          })}
                         </div>
+
+                        {/* ✅ Custom input */}
                         <Input
                           value={classification.color}
                           onChange={(e) =>
@@ -173,76 +410,66 @@ export const RoomClassificationDialog: React.FC<
                           className="text-xs"
                         />
                       </div>
-
-                      {/* Description */}
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Mô tả</Label>
-                        <textarea
-                          value={classification.description}
-                          onChange={(e) =>
-                            updateClassification(
-                              key,
-                              "description",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Mô tả chi tiết về loại phòng này"
-                          className="w-full p-2 text-sm border border-gray-300 rounded-md resize-none h-20"
-                        />
-                      </div>
                     </div>
-
-                    {/* Delete Button for custom classifications */}
-                    {key.startsWith("custom_") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                        onClick={() => removeClassification(key)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               )
             )}
           </div>
 
-          {/* Add New Classification */}
-          <Button
-            variant="outline"
-            onClick={addNewClassification}
-            className="w-full gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm phân loại mới
-          </Button>
-
           {/* Preview Section */}
           <Card>
             <CardContent className="pt-4">
-              <h4 className="font-medium mb-3">Xem trước</h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(tempClassifications).map(
-                  ([key, classification]: [string, any]) => (
-                    <Badge
-                      key={key}
-                      className={`${classification.color} border`}
-                    >
-                      {classification.name}
-                    </Badge>
-                  )
-                )}
+              <h4 className="font-medium mb-3">
+                Xem trước màu sắc - {getZoneName()}
+              </h4>
+              <div className="space-y-3">
+                {/* ✅ Chỉ hiển thị Exam-based classifications */}
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-2">
+                    Các loại khám:
+                  </h5>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(tempClassifications)
+                      .filter(
+                        ([key, classification]: [string, any]) =>
+                          classification.examId
+                      )
+                      .map(([key, classification]: [string, any]) => (
+                        <Badge
+                          key={key}
+                          className={`${classification.color} border`}
+                        >
+                          {classification.name}
+                        </Badge>
+                      ))}
+                  </div>
+                  {Object.entries(tempClassifications).filter(
+                    ([key, classification]: [string, any]) =>
+                      classification.examId
+                  ).length === 0 && (
+                    <p className="text-sm text-gray-500 italic">
+                      Chưa có loại khám nào cho zone này
+                    </p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Action Buttons */}
           <div className="flex gap-3 justify-end pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={autoAssignUniqueColors}
+              className="gap-2"
+            >
+              <Palette className="w-4 h-4" />
+              Tự động sắp xếp màu
+            </Button>
             <Button variant="outline" onClick={handleReset} className="gap-2">
               <RotateCcw className="w-4 h-4" />
-              Đặt lại mặc định
+              Đặt lại màu mặc định
             </Button>
             <Button
               variant="outline"
