@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -27,6 +27,25 @@ export const ZoneSelector: React.FC<ZoneSelectorProps> = ({
   zoneOptions,
   allRooms,
 }) => {
+  // ✅ Auto-select first zone when zoneOptions change
+  useEffect(() => {
+    const validZones = zoneOptions?.filter((zone) => zone.id !== "all") || [];
+
+    // If no zone is selected or selected zone is "all", select first valid zone
+    if (validZones.length > 0 && (!selectedZone || selectedZone === "all")) {
+      setSelectedZone(validZones[0].id);
+    }
+
+    // If selected zone no longer exists in the list, select first valid zone
+    if (
+      validZones.length > 0 &&
+      selectedZone &&
+      !validZones.find((z) => z.id === selectedZone)
+    ) {
+      setSelectedZone(validZones[0].id);
+    }
+  }, [zoneOptions, selectedZone, setSelectedZone]);
+
   return (
     <div className="flex items-center gap-2">
       <Label
@@ -40,25 +59,24 @@ export const ZoneSelector: React.FC<ZoneSelectorProps> = ({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {zoneOptions?.map((zone) => {
-            const roomCount =
-              zone.id === "all"
-                ? allRooms?.length || 0
-                : allRooms?.filter(
-                    (room) => room.zoneId?.toString() === zone.id
-                  ).length || 0;
+          {zoneOptions
+            ?.filter((zone) => zone.id !== "all") // ✅ Filter out "all" option
+            ?.map((zone) => {
+              const roomCount =
+                allRooms?.filter((room) => room.zoneId?.toString() === zone.id)
+                  .length || 0;
 
-            return (
-              <SelectItem key={zone.id} value={zone.id}>
-                <div className="flex items-center justify-between w-full">
-                  <span>{zone.name}</span>
-                  <span className="text-xs text-gray-500 ml-2">
-                    ({zone.id === "all" ? "Tất cả" : `${roomCount} phòng`})
-                  </span>
-                </div>
-              </SelectItem>
-            );
-          }) || []}
+              return (
+                <SelectItem key={zone.id} value={zone.id}>
+                  <div className="flex items-center justify-between w-full">
+                    <span>{zone.name}</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({roomCount} phòng)
+                    </span>
+                  </div>
+                </SelectItem>
+              );
+            }) || []}
         </SelectContent>
       </Select>
     </div>

@@ -36,6 +36,9 @@ interface WeeklyScheduleTableProps {
     updates: any
   ) => void;
   getRoomStyle: (type: string) => string;
+  // ✅ Thêm props mới cho cấu trúc phân cấp
+  departmentsByZone?: any;
+  selectedZone?: string;
 }
 
 export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
@@ -62,6 +65,9 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   removeRoomFromShift,
   updateRoomConfig,
   getRoomStyle,
+  // ✅ Nhận props mới
+  departmentsByZone,
+  selectedZone,
 }) => {
   const getWeekDateRange = (weekString: string) => {
     try {
@@ -144,6 +150,17 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
       : allRooms || [];
   };
 
+  // ✅ Helper function để chuẩn hóa room ID (đồng bộ với RoomConfigPopover và RoomCell)
+  const normalizeRoomId = (roomData: any): string => {
+    const id =
+      roomData?.id?.toString() ||
+      roomData?.roomId?.toString() ||
+      roomData?.code?.toString() ||
+      roomData?.roomCode?.toString() ||
+      "";
+    return id.trim();
+  };
+
   // ✅ Function để lấy phòng đã được sử dụng trong slot
   const getUsedRoomsInSlot = (slotId: string) => {
     const usedRoomIds = new Set<string>();
@@ -159,9 +176,11 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                 Array.isArray(slot.rooms)
               ) {
                 slot.rooms.forEach((room: any) => {
-                  const roomId =
-                    room.id || room.roomId || room.name || String(room);
-                  usedRoomIds.add(roomId);
+                  // ✅ Sử dụng normalizeRoomId để đồng bộ với logic khác
+                  const roomId = normalizeRoomId(room);
+                  if (roomId) {
+                    usedRoomIds.add(roomId);
+                  }
                 });
               }
             }
@@ -171,6 +190,12 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
     } catch (error) {
       console.error("Error getting used rooms:", error);
     }
+
+    console.log("🔍 Getting used rooms for slot:", {
+      slotId,
+      usedRoomIds: Array.from(usedRoomIds),
+      usedRoomCount: usedRoomIds.size,
+    });
 
     return usedRoomIds;
   };
@@ -195,6 +220,16 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
       ? searchFilteredDepartments
       : [];
   }, [searchFilteredDepartments]);
+
+  // ✅ Debug hook để monitor schedule data changes
+  React.useEffect(() => {
+    console.log("📊 WeeklyScheduleTable schedule data changed:", {
+      hasScheduleData: !!scheduleData,
+      scheduleDataKeys: scheduleData ? Object.keys(scheduleData) : [],
+      safeDepartmentsCount: safeDepartments.length,
+      displayedSlotsCount: displayedSlots.length,
+    });
+  }, [scheduleData, safeDepartments.length, displayedSlots.length]);
 
   return (
     <Card className="shadow-md">
@@ -325,6 +360,24 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           removeRoomFromShift={removeRoomFromShift}
                           updateRoomConfig={updateRoomConfig}
                           getRoomStyle={getRoomStyle}
+                          // ✅ Thêm props mới cho cấu trúc phân cấp
+                          departmentsByZone={departmentsByZone}
+                          selectedZone={selectedZone}
+                          // ✅ Thêm callback để handle room swap
+                          onRoomSwapped={(oldRoomId, newRoomId) => {
+                            console.log(
+                              "🔄 Room swapped in WeeklyScheduleTable:",
+                              {
+                                oldRoomId,
+                                newRoomId,
+                                deptId,
+                                slotId,
+                                affectedSlot: `${deptId}-${slotId}`,
+                              }
+                            );
+                            // Data sẽ được cập nhật tự động thông qua updateRoomConfig
+                            // usedRooms sẽ được recalculate trong getUsedRoomsInSlot
+                          }}
                         />
                       </td>
                     );

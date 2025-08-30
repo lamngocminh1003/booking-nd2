@@ -11,7 +11,6 @@ import { fetchZones } from "@/store/slices/zoneSlice";
 import { fetchDepartments } from "@/store/slices/departmentSlice";
 import { fetchExaminations } from "@/store/slices/examinationSlice";
 import { fetchRooms } from "@/store/slices/roomSlice";
-import { fetchSpecialties } from "@/store/slices/specialtySlice";
 import { fetchDoctors } from "@/store/slices/doctorSlice";
 // ✅ Thêm missing imports
 import {
@@ -103,23 +102,14 @@ const WeeklySchedule = () => {
     afternoon: { startTime: "13:00", endTime: "17:00", maxAppointments: 10 },
     evening: { startTime: "17:30", endTime: "20:30", maxAppointments: 8 },
   });
-  const [roomClassifications, setRoomClassifications] = useState({
-    normal: {
-      name: "Phòng thường",
-      color: "bg-blue-50 text-blue-700 border-blue-200",
-      enabled: true,
-    },
-    vip: {
-      name: "Phòng VIP",
-      color: "bg-purple-50 text-purple-700 border-purple-200",
-      enabled: true,
-    },
-    emergency: {
-      name: "Phòng cấp cứu",
-      color: "bg-red-50 text-red-700 border-red-200",
-      enabled: true,
-    },
+  const [roomClassificationSettings, setRoomClassificationSettings] = useState({
+    showDialog: false,
   });
+
+  // ✅ State để lưu custom room classifications colors
+  const [customClassificationColors, setCustomClassificationColors] = useState<
+    Record<string, string>
+  >({});
 
   // ✅ Add missing ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,15 +121,11 @@ const WeeklySchedule = () => {
   const { list: zones = [], loading: zonesLoading } = useAppSelector(
     (state) => state.zone
   );
-  const { list: allDepartments = [], loading: departmentsLoading } =
-    useAppSelector((state) => state.department);
   const { list: examinations = [], loading: examinationsLoading } =
     useAppSelector((state) => state.examination);
   const { list: allRooms = [], loading: roomsLoading } = useAppSelector(
     (state) => state.room
   );
-  const { list: allSpecialties = [], loading: specialtiesLoading } =
-    useAppSelector((state) => state.specialty);
   const {
     list: allDoctors = [],
     loading: doctorsLoading,
@@ -155,6 +141,206 @@ const WeeklySchedule = () => {
     zoneDataErrors = {},
     loading: examTypesLoading,
   } = useAppSelector((state) => state.examType);
+  console.log(
+    "departmentsByZone",
+    departmentsByZone,
+    "examsByZone",
+    examsByZone
+  );
+
+  // ✅ Dynamic room classifications với custom colors từ user
+  const roomClassifications = useMemo(() => {
+    const defaultClassifications = {
+      normal: {
+        name: "Thường",
+        color:
+          customClassificationColors["normal"] ||
+          "bg-blue-50 text-blue-700 border-blue-200",
+        enabled: true,
+        editable: true, // ✅ Cho phép edit
+      },
+      vip: {
+        name: "VIP",
+        color:
+          customClassificationColors["vip"] ||
+          "bg-purple-50 text-purple-700 border-purple-200",
+        enabled: true,
+        editable: true,
+      },
+      priority: {
+        name: "Ưu tiên",
+        color:
+          customClassificationColors["priority"] ||
+          "bg-red-50 text-red-700 border-red-200",
+        enabled: true,
+        editable: true,
+      },
+    };
+
+    // ✅ Lấy classifications từ examsByZone và cho phép custom màu
+    if (selectedZone && selectedZone !== "all" && examsByZone[selectedZone]) {
+      const zoneExams = examsByZone[selectedZone];
+      const customClassifications = { ...defaultClassifications };
+
+      // ✅ Tạo classifications từ exam types với màu có thể custom
+      if (Array.isArray(zoneExams)) {
+        const defaultColors = [
+          "bg-green-50 text-green-700 border-green-200",
+          "bg-yellow-50 text-yellow-700 border-yellow-200",
+          "bg-indigo-50 text-indigo-700 border-indigo-200",
+          "bg-pink-50 text-pink-700 border-pink-200",
+          "bg-orange-50 text-orange-700 border-orange-200",
+          "bg-cyan-50 text-cyan-700 border-cyan-200",
+        ];
+
+        zoneExams.forEach((exam, index) => {
+          if (exam.id && exam.name) {
+            const colorIndex = index % defaultColors.length;
+            const shortName =
+              exam.name.length > 10
+                ? exam.name.substring(0, 10) + "..."
+                : exam.name;
+
+            const classificationKey = `exam_${exam.id}`;
+            customClassifications[classificationKey] = {
+              name: shortName,
+              color:
+                customClassificationColors[classificationKey] ||
+                defaultColors[colorIndex],
+              enabled: exam.enable !== false,
+              editable: true, // ✅ Cho phép user chỉnh sửa màu
+            };
+          }
+        });
+      }
+
+      return customClassifications;
+    }
+
+    return defaultClassifications;
+  }, [examsByZone, selectedZone, customClassificationColors]);
+
+  // ✅ Function để update room classifications với custom colors
+  const setRoomClassifications = useCallback(
+    (newClassifications: any) => {
+      // ✅ Lưu custom colors cho từng classification
+      const newCustomColors = {};
+      Object.entries(newClassifications).forEach(
+        ([key, classification]: [string, any]) => {
+          if (classification.color) {
+            newCustomColors[key] = classification.color;
+          }
+        }
+      );
+
+      setCustomClassificationColors((prev) => ({
+        ...prev,
+        ...newCustomColors,
+      }));
+
+      // ✅ Lưu vào localStorage để persist across sessions
+      try {
+        const storageKey = `roomClassificationColors_${selectedZone}`;
+        localStorage.setItem(storageKey, JSON.stringify(newCustomColors));
+        toast.success("Đã lưu cấu hình màu sắc!");
+      } catch (error) {
+        console.error("Error saving colors to localStorage:", error);
+      }
+    },
+    [selectedZone]
+  );
+
+  // ✅ Load custom colors từ localStorage khi zone thay đổi
+  useEffect(() => {
+    if (selectedZone && selectedZone !== "all") {
+      try {
+        const storageKey = `roomClassificationColors_${selectedZone}`;
+        const savedColors = localStorage.getItem(storageKey);
+        if (savedColors) {
+          const parsedColors = JSON.parse(savedColors);
+          setCustomClassificationColors((prev) => ({
+            ...prev,
+            ...parsedColors,
+          }));
+        }
+      } catch (error) {
+        console.error("Error loading colors from localStorage:", error);
+      }
+    }
+  }, [selectedZone]);
+
+  // ✅ Utility functions cho color picker
+  const hexToTailwind = useCallback((hex: string) => {
+    // ✅ Simple mapping hex colors to tailwind classes
+    const colorMap = {
+      "#dbeafe": "bg-blue-50 text-blue-700 border-blue-200",
+      "#f3e8ff": "bg-purple-50 text-purple-700 border-purple-200",
+      "#fef2f2": "bg-red-50 text-red-700 border-red-200",
+      "#f0fdf4": "bg-green-50 text-green-700 border-green-200",
+      "#fffbeb": "bg-yellow-50 text-yellow-700 border-yellow-200",
+      "#eef2ff": "bg-indigo-50 text-indigo-700 border-indigo-200",
+      "#fdf2f8": "bg-pink-50 text-pink-700 border-pink-200",
+      "#fff7ed": "bg-orange-50 text-orange-700 border-orange-200",
+      "#ecfeff": "bg-cyan-50 text-cyan-700 border-cyan-200",
+    };
+
+    return (
+      colorMap[hex.toLowerCase()] || `bg-[${hex}] text-gray-700 border-gray-200`
+    );
+  }, []);
+
+  const tailwindToHex = useCallback((tailwindClass: string) => {
+    // ✅ Extract color from tailwind class or return default
+    const colorMap = {
+      "bg-blue-50": "#dbeafe",
+      "bg-purple-50": "#f3e8ff",
+      "bg-red-50": "#fef2f2",
+      "bg-green-50": "#f0fdf4",
+      "bg-yellow-50": "#fffbeb",
+      "bg-indigo-50": "#eef2ff",
+      "bg-pink-50": "#fdf2f8",
+      "bg-orange-50": "#fff7ed",
+      "bg-cyan-50": "#ecfeff",
+    };
+
+    const match = tailwindClass.match(/bg-(\w+)-(\d+)/);
+    if (match) {
+      const key = `bg-${match[1]}-${match[2]}`;
+      return colorMap[key] || "#dbeafe";
+    }
+
+    // Check for custom hex colors
+    const hexMatch = tailwindClass.match(/bg-\[([#\w]+)\]/);
+    if (hexMatch) {
+      return hexMatch[1];
+    }
+
+    return "#dbeafe"; // default
+  }, []);
+
+  // ✅ Function to update single classification color
+  const updateClassificationColor = useCallback(
+    (classificationKey: string, hexColor: string) => {
+      const tailwindClass = hexToTailwind(hexColor);
+      setCustomClassificationColors((prev) => ({
+        ...prev,
+        [classificationKey]: tailwindClass,
+      }));
+
+      // ✅ Save to localStorage
+      try {
+        const storageKey = `roomClassificationColors_${selectedZone}`;
+        const currentColors = JSON.parse(
+          localStorage.getItem(storageKey) || "{}"
+        );
+        currentColors[classificationKey] = tailwindClass;
+        localStorage.setItem(storageKey, JSON.stringify(currentColors));
+      } catch (error) {
+        console.error("Error saving color to localStorage:", error);
+      }
+    },
+    [selectedZone, hexToTailwind]
+  );
 
   // ✅ Fetch all required data với error handling
   useEffect(() => {
@@ -165,7 +351,6 @@ const WeeklySchedule = () => {
           dispatch(fetchDepartments()),
           dispatch(fetchExaminations()),
           dispatch(fetchRooms()),
-          dispatch(fetchSpecialties()),
           dispatch(fetchDoctors()),
           dispatch(fetchExamTypes(true)), // ✅ Thêm
         ]);
@@ -215,18 +400,47 @@ const WeeklySchedule = () => {
 
   // ✅ Debug trong useEffect
 
-  // ✅ Convert specialties from Redux state with fallback
+  // ✅ Convert specialties from departmentsByZone instead of allSpecialties
   const availableSpecialties = useMemo(() => {
-    if (!allSpecialties || allSpecialties.length === 0) {
+    try {
+      // ✅ Updated to handle new response structure: departments is now an array directly
+      const currentZoneDepartments =
+        selectedZone && selectedZone !== "all"
+          ? departmentsByZone[selectedZone] || []
+          : Object.values(departmentsByZone).flat();
+
+      if (currentZoneDepartments.length === 0) {
+        return ["Khám chuyên khoa", "Khám nội tổng quát"];
+      }
+
+      // ✅ Extract specialties from new departmentsByZone structure
+      const specialtiesSet = new Set<string>();
+
+      currentZoneDepartments.forEach((department) => {
+        department.examTypes?.forEach((examType) => {
+          examType.sepicalties?.forEach((specialty) => {
+            if (specialty.enable) {
+              specialtiesSet.add(specialty.name);
+            }
+          });
+        });
+      });
+
+      const specialtiesArray = Array.from(specialtiesSet);
+
+      return specialtiesArray.length > 0
+        ? specialtiesArray
+        : ["Khám chuyên khoa", "Khám nội tổng quát"];
+    } catch (error) {
+      console.error(
+        "❌ Error extracting specialties from departmentsByZone:",
+        error
+      );
       return ["Khám chuyên khoa", "Khám nội tổng quát"];
     }
+  }, [departmentsByZone, selectedZone]);
 
-    return allSpecialties
-      .filter((specialty) => specialty.enable)
-      .map((specialty) => specialty.name);
-  }, [allSpecialties]);
-
-  // ✅ Convert doctors from Redux state with fallback
+  // ✅ Convert doctors from Redux state with zone-specific filtering
   const availableDoctors = useMemo(() => {
     try {
       if (allDoctors && Array.isArray(allDoctors) && allDoctors.length > 0) {
@@ -242,7 +456,16 @@ const WeeklySchedule = () => {
               console.warn("⚠️ Invalid doctor:", doctor);
             }
 
-            return isValid && doctor.enable !== false; // Default to enabled if not specified
+            // ✅ Filter by available specialties in current zone
+            const doctorSpecialty = doctor.specialtyName || "Chưa xác định";
+            const isSpecialtyAvailable =
+              availableSpecialties.includes(doctorSpecialty);
+
+            return (
+              isValid &&
+              doctor.enable !== false && // Default to enabled if not specified
+              isSpecialtyAvailable
+            ); // Only include doctors with specialties available in zone
           })
           .map((doctor) => {
             const processed = {
@@ -274,28 +497,21 @@ const WeeklySchedule = () => {
       console.error("❌ Error processing doctors:", error);
     }
 
-    // ✅ Enhanced fallback data
-    return [
-      {
-        id: "BS001",
-        code: "BS001",
-        name: "BS. Nguyễn Thị Mai",
-        specialty: "Nhi khoa tổng quát",
-        specialtyId: 1,
+    // ✅ Enhanced fallback data with zone-specific specialties
+    const fallbackDoctors = availableSpecialties
+      .slice(0, 2)
+      .map((specialty, index) => ({
+        id: `BS00${index + 1}`,
+        code: `BS00${index + 1}`,
+        name: `BS. ${index === 0 ? "Nguyễn Thị Mai" : "Trần Văn Nam"}`,
+        specialty: specialty,
+        specialtyId: index + 1,
         departmentId: 1,
-        departmentName: "Khoa Nhi",
-      },
-      {
-        id: "BS002",
-        code: "BS002",
-        name: "BS. Trần Văn Nam",
-        specialty: "Tim mạch nhi",
-        specialtyId: 2,
-        departmentId: 1,
-        departmentName: "Khoa Nhi",
-      },
-    ];
-  }, [allDoctors]);
+        departmentName: "Khoa chuyên khoa",
+      }));
+
+    return fallbackDoctors;
+  }, [allDoctors, availableSpecialties]);
 
   // ✅ Available rooms with real data
   const availableRooms = useMemo(() => {
@@ -404,18 +620,21 @@ const WeeklySchedule = () => {
 
   // ✅ Initialize schedule data when departments are loaded
   useEffect(() => {
-    if (allDepartments.length > 0) {
+    const currentZoneDepartments =
+      selectedZone && selectedZone !== "all"
+        ? departmentsByZone[selectedZone] || []
+        : Object.values(departmentsByZone).flat();
+
+    if (currentZoneDepartments.length > 0) {
       const initialData: Record<string, Record<string, ShiftSlot>> = {};
 
-      allDepartments
-        .filter((dept) => dept.enable)
-        .forEach((dept) => {
-          initialData[dept.id.toString()] = {};
-        });
+      currentZoneDepartments.forEach((dept) => {
+        initialData[dept.departmentHospitalId.toString()] = {};
+      });
 
       setScheduleData(initialData);
     }
-  }, [allDepartments]);
+  }, [departmentsByZone, selectedZone]);
 
   // ✅ Zone options
   const zoneOptions = useMemo(() => {
@@ -678,16 +897,19 @@ const WeeklySchedule = () => {
 
   // ✅ Departments for filtering
   const departments = useMemo(() => {
+    const currentZoneDepartments =
+      selectedZone && selectedZone !== "all"
+        ? departmentsByZone[selectedZone] || []
+        : Object.values(departmentsByZone).flat();
+
     return [
       { id: "all", name: "Tất cả khoa phòng" },
-      ...(allDepartments || [])
-        .filter((dept) => dept.enable)
-        .map((dept) => ({
-          id: dept.id.toString(),
-          name: dept.name,
-        })),
+      ...currentZoneDepartments.map((dept) => ({
+        id: dept.departmentHospitalId.toString(),
+        name: dept.departmentHospitalName,
+      })),
     ];
-  }, [allDepartments]);
+  }, [departmentsByZone, selectedZone]);
 
   const filteredDepartments = useMemo(() => {
     if (selectedDepartment === "all") {
@@ -969,10 +1191,8 @@ const WeeklySchedule = () => {
   // ✅ Loading check
   const isLoading =
     zonesLoading ||
-    departmentsLoading ||
     examinationsLoading ||
     roomsLoading ||
-    specialtiesLoading ||
     doctorsLoading ||
     examTypesLoading ||
     (selectedZone !== "all" && zoneDataLoading[selectedZone]);
@@ -1058,9 +1278,19 @@ const WeeklySchedule = () => {
           removeRoomFromShift={removeRoomFromShift}
           updateRoomConfig={updateRoomConfig}
           getRoomStyle={getRoomStyle}
+          // ✅ Thêm props cho cấu trúc phân cấp
+          departmentsByZone={departmentsByZone}
+          selectedZone={selectedZone}
         />
 
-        <WeeklyScheduleLegend roomClassifications={roomClassifications} />
+        <WeeklyScheduleLegend
+          roomClassifications={roomClassifications}
+          departmentsByZone={departmentsByZone}
+          examsByZone={examsByZone}
+          examinations={examinations}
+          selectedZone={selectedZone}
+          zones={zones}
+        />
 
         <WeeklyScheduleStats
           departments={departments}
@@ -1081,6 +1311,12 @@ const WeeklySchedule = () => {
           setShowRoomClassificationDialog={setShowRoomClassificationDialog}
           roomClassifications={roomClassifications}
           setRoomClassifications={setRoomClassifications}
+          updateClassificationColor={updateClassificationColor}
+          tailwindToHex={tailwindToHex}
+          hexToTailwind={hexToTailwind}
+          examsByZone={examsByZone}
+          selectedZone={selectedZone}
+          zones={zones}
         />
 
         <input

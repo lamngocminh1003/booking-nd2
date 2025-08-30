@@ -119,7 +119,6 @@ export const getDepartmentsByZoneId = async (zoneId: number | string) => {
     const response = await fetchData(
       `/api/exam-type/get-department-by-zone-id/${zoneId}`
     );
-    console.log(`📡 getDepartmentsByZoneId(${zoneId}) response:`, response);
     return response;
   } catch (error) {
     console.error(`❌ getDepartmentsByZoneId(${zoneId}) error:`, error);
@@ -133,7 +132,6 @@ export const getExamsByZoneId = async (zoneId: number | string) => {
     const response = await fetchData(
       `/api/exam-type/get-exams-by-zone-id/${zoneId}`
     );
-    console.log(`📡 getExamsByZoneId(${zoneId}) response:`, response);
     return response;
   } catch (error) {
     console.error(`❌ getExamsByZoneId(${zoneId}) error:`, error);
@@ -144,8 +142,6 @@ export const getExamsByZoneId = async (zoneId: number | string) => {
 // ✅ Batch API call để lấy cả 2 loại dữ liệu cùng lúc
 export const getZoneRelatedData = async (zoneId: number | string) => {
   try {
-    console.log(`📡 Fetching zone ${zoneId} related data...`);
-
     const [departmentsResponse, examsResponse] = await Promise.all([
       getDepartmentsByZoneId(zoneId),
       getExamsByZoneId(zoneId),
@@ -159,12 +155,6 @@ export const getZoneRelatedData = async (zoneId: number | string) => {
       success: departmentsResponse?.success && examsResponse?.success,
       timestamp: new Date().toISOString(),
     };
-
-    console.log(`✅ getZoneRelatedData(${zoneId}) completed:`, {
-      departmentsCount: result.departments.length,
-      examsCount: result.exams.length,
-      success: result.success,
-    });
 
     return result;
   } catch (error) {

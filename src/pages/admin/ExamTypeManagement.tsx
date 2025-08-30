@@ -199,8 +199,6 @@ const ExamTypeManagement = () => {
         zoneName: examType.zoneName || "N/A",
       });
 
-      console.log(`🏥 Fetching departments for zone ${examType.zoneId}...`);
-
       // ✅ Gọi API với zoneId từ examType
       await dispatch(fetchDepartmentsByZone(examType.id)).unwrap();
 
@@ -223,8 +221,6 @@ const ExamTypeManagement = () => {
     if (!examType) return [];
 
     const departments = departmentsByZone[examType.zoneId] || [];
-
-    console.log(`📊 Departments for zone ${examType.zoneId}:`, departments);
 
     return departments;
   }, [selectedZoneForDepartments, departmentsByZone, examTypes]);
@@ -293,7 +289,6 @@ const ExamTypeManagement = () => {
 
     try {
       const apiData = transformToApiFormat(formData);
-      console.log("🚀 Creating exam type with payload:", apiData);
 
       await dispatch(createExamType(apiData as any)).unwrap();
       toast.success("Tạo khu khám thành công!");
@@ -325,7 +320,6 @@ const ExamTypeManagement = () => {
 
     try {
       const apiData = transformToApiFormat(formData);
-      console.log("🔄 Updating exam type with payload:", apiData);
 
       await dispatch(updateExamType(apiData as any)).unwrap();
       toast.success("Cập nhật khu khám thành công!");

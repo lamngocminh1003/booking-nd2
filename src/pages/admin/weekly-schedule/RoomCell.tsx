@@ -36,6 +36,11 @@ interface RoomCellProps {
   allRooms: any[];
   getDoctorsBySpecialty?: (specialtyName: string) => any[];
   getDoctorsByDepartment?: (departmentId: string) => any[];
+  // ✅ Thêm props mới cho cấu trúc phân cấp
+  departmentsByZone?: any; // Dữ liệu khoa phòng với examTypes và specialties
+  selectedZone?: string; // Zone hiện tại
+  // ✅ Thêm callback để nhận thông tin room swap từ RoomConfigPopover
+  onRoomSwapped?: (oldRoomId: string, newRoomId: string) => void;
 }
 
 export const RoomCell: React.FC<RoomCellProps> = ({
@@ -61,8 +66,140 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   allRooms,
   getDoctorsBySpecialty,
   getDoctorsByDepartment,
+  // ✅ Nhận props mới
+  departmentsByZone,
+  selectedZone,
+  // ✅ Nhận callback cho room swap
+  onRoomSwapped,
 }) => {
   const cellKey = `${deptId}-${slotId}`;
+
+  // ✅ Local state để tracking used rooms (đồng bộ với RoomConfigPopover)
+  const [localUsedRooms, setLocalUsedRooms] = React.useState<Set<string>>(
+    new Set()
+  );
+
+  // ✅ Sync local used rooms với prop
+  React.useEffect(() => {
+    if (usedRooms) {
+      setLocalUsedRooms(new Set(usedRooms));
+      console.log("🔄 RoomCell syncing localUsedRooms:", {
+        deptId,
+        slotId,
+        usedRoomsSize: usedRooms.size,
+        usedRoomsArray: Array.from(usedRooms),
+      });
+    }
+  }, [usedRooms, deptId, slotId]);
+
+  // ✅ Debug hook để monitor local state changes
+  React.useEffect(() => {
+    console.log("🏠 RoomCell localUsedRooms changed:", {
+      deptId,
+      slotId,
+      localUsedRoomsSize: localUsedRooms.size,
+      localUsedRoomsArray: Array.from(localUsedRooms),
+      usedRoomsSize: usedRooms?.size || 0,
+      roomsInSlot: rooms?.length || 0,
+    });
+  }, [localUsedRooms, deptId, slotId, usedRooms, rooms]);
+
+  // ✅ Helper function để chuẩn hóa room ID (giống với RoomConfigPopover)
+  const normalizeRoomId = (roomData: any): string => {
+    const id =
+      roomData?.id?.toString() ||
+      roomData?.roomId?.toString() ||
+      roomData?.code?.toString() ||
+      roomData?.roomCode?.toString() ||
+      "";
+    return id.trim();
+  };
+
+  // ✅ Enhanced isUsed check để dùng cả usedRooms và localUsedRooms
+  const isRoomUsed = (roomData: any): boolean => {
+    const roomId = normalizeRoomId(roomData);
+    if (!roomId) return false;
+
+    const inUsedRooms = usedRooms && usedRooms.has(roomId);
+    const inLocalUsedRooms = localUsedRooms.has(roomId);
+
+    return inUsedRooms || inLocalUsedRooms;
+  };
+
+  // ✅ Handle room swap notification từ RoomConfigPopover
+  const handleRoomSwapped = (oldRoomId: string, newRoomId: string) => {
+    console.log("🔄 RoomCell received room swap notification:", {
+      oldRoomId,
+      newRoomId,
+      deptId,
+      slotId,
+    });
+
+    // ✅ Cập nhật local used rooms ngay lập tức
+    setLocalUsedRooms((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(oldRoomId); // Bỏ phòng cũ
+      newSet.add(newRoomId); // Thêm phòng mới
+
+      console.log("✅ RoomCell localUsedRooms updated:", {
+        before: Array.from(prev),
+        after: Array.from(newSet),
+        removed: oldRoomId,
+        added: newRoomId,
+      });
+
+      return newSet;
+    });
+
+    // ✅ Notify parent component nếu có callback
+    if (onRoomSwapped) {
+      onRoomSwapped(oldRoomId, newRoomId);
+    }
+  };
+
+  // ✅ Lấy examTypes và specialties từ departmentsByZone
+  const departmentData = React.useMemo(() => {
+    if (!departmentsByZone || !selectedZone || selectedZone === "all") {
+      return { examTypes: [], specialties: [] };
+    }
+
+    try {
+      const zoneDepartments = departmentsByZone[selectedZone] || [];
+
+      // Tìm department hiện tại theo deptId
+      const currentDepartment = zoneDepartments.find(
+        (dept: any) => dept.departmentHospitalId.toString() === deptId
+      );
+
+      if (!currentDepartment) {
+        console.warn(`Department ${deptId} not found in zone ${selectedZone}`);
+        return { examTypes: [], specialties: [] };
+      }
+
+      const examTypes = currentDepartment.examTypes || [];
+
+      // Lấy tất cả specialties từ tất cả examTypes
+      const allSpecialties = new Set<string>();
+      examTypes.forEach((examType: any) => {
+        if (examType.sepicalties && Array.isArray(examType.sepicalties)) {
+          examType.sepicalties.forEach((specialty: any) => {
+            if (specialty.enable && specialty.name) {
+              allSpecialties.add(specialty.name);
+            }
+          });
+        }
+      });
+
+      return {
+        examTypes: examTypes.filter((et: any) => et.enable),
+        specialties: Array.from(allSpecialties),
+        department: currentDepartment,
+      };
+    } catch (error) {
+      console.error("Error processing department data:", error);
+      return { examTypes: [], specialties: [] };
+    }
+  }, [departmentsByZone, selectedZone, deptId]);
 
   // ✅ Enhanced search logic với tốt hơn performance
   const searchableRooms = React.useMemo(() => {
@@ -152,32 +289,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     getDoctorsByDepartment,
   ]);
 
-  // ✅ Debug thông tin chi tiết - chỉ trong development
-  React.useEffect(() => {
-    if (process.env.NODE_ENV === "development" && isEditing) {
-      console.log("🔍 RoomCell Debug:", {
-        deptId,
-        slotId,
-        roomSearchTerm,
-        filteredRoomsCount: filteredRooms?.length || 0,
-        allRoomsCount: allRooms?.length || 0,
-        searchableRoomsCount: searchableRooms?.length || 0,
-        usedRoomsSize: usedRooms?.size || 0,
-        usedRoomsArray: Array.from(usedRooms || []),
-        sampleSearchableRoom: searchableRooms?.[0],
-      });
-    }
-  }, [
-    isEditing,
-    roomSearchTerm,
-    filteredRooms,
-    allRooms,
-    searchableRooms,
-    usedRooms,
-    deptId,
-    slotId,
-  ]);
-
   // ✅ Rendering logic cho editing mode
   if (isEditing) {
     return (
@@ -194,31 +305,15 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           />
         </div>
 
-        {/* Debug info - chỉ trong development */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="text-xs text-gray-500 p-1 bg-gray-50 rounded">
-            <div>
-              Phòng: {searchableRooms?.length || 0} | Tìm: "{roomSearchTerm}"
-            </div>
-            <div>
-              Chuyên khoa: {availableSpecialties?.length || 0} | Bác sĩ:{" "}
-              {availableDoctors?.length || 0}
-            </div>
-          </div>
-        )}
-
         {/* Room List */}
         <div className="max-h-40 overflow-y-auto space-y-1">
           {searchableRooms && searchableRooms.length > 0 ? (
             searchableRooms.map((room) => {
-              // ✅ Safe room ID extraction
-              const roomId =
-                room?.id?.toString() ||
-                room?.roomId?.toString() ||
-                room?.name ||
-                `room-${Math.random()}`;
+              // ✅ Safe room ID extraction với normalize function
+              const roomId = normalizeRoomId(room);
 
-              const isUsed = usedRooms ? usedRooms.has(roomId) : false;
+              // ✅ Sử dụng enhanced isUsed check
+              const isUsed = isRoomUsed(room);
               const roomIdentifier =
                 room?.code ||
                 room?.name ||
@@ -244,20 +339,31 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     e.preventDefault();
                     e.stopPropagation();
 
-                    console.log("🔥 Room button clicked:", {
-                      roomId,
-                      isUsed,
-                      deptId,
-                      slotId,
-                      roomName: room?.name,
-                    });
-
                     if (!isUsed && roomId && addRoomToShift) {
                       try {
+                        console.log("➕ Adding room to shift:", {
+                          roomId,
+                          roomCode: room?.code,
+                          deptId,
+                          slotId,
+                          currentUsedRooms: Array.from(localUsedRooms),
+                        });
+
                         addRoomToShift(deptId, slotId, roomId);
                         setEditingCell(null);
                         setRoomSearchTerm("");
-                        console.log("✅ Room added successfully");
+
+                        // ✅ Cập nhật local used rooms ngay lập tức
+                        setLocalUsedRooms((prev) => {
+                          const newSet = new Set(prev);
+                          newSet.add(roomId);
+                          console.log("✅ Added room to localUsedRooms:", {
+                            roomId,
+                            newSize: newSet.size,
+                            rooms: Array.from(newSet),
+                          });
+                          return newSet;
+                        });
                       } catch (error) {
                         console.error("❌ Error adding room:", error);
                       }
@@ -266,6 +372,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         isUsed,
                         roomId,
                         hasFunction: !!addRoomToShift,
+                        inUsedRooms: usedRooms?.has(roomId),
+                        inLocalUsedRooms: localUsedRooms.has(roomId),
                       });
                     }
                   }}
@@ -311,6 +419,52 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {/* ✅ ExamTypes và Specialties từ departmentData */}
+                    {departmentData.examTypes.length > 0 && (
+                      <div className="space-y-1">
+                        {/* Loại khám */}
+                        <div className="flex gap-1 flex-wrap">
+                          {departmentData.examTypes
+                            .slice(0, 2)
+                            .map((examType: any, idx: number) => (
+                              <span
+                                key={idx}
+                                className="text-xs bg-green-100 text-green-600 px-1 rounded"
+                              >
+                                🩺 {examType.name}
+                              </span>
+                            ))}
+                          {departmentData.examTypes.length > 2 && (
+                            <span className="text-xs text-gray-400">
+                              +{departmentData.examTypes.length - 2} loại khám
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Chuyên khoa */}
+                        {departmentData.specialties.length > 0 && (
+                          <div className="flex gap-1 flex-wrap">
+                            {departmentData.specialties
+                              .slice(0, 3)
+                              .map((specialty: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="text-xs bg-purple-100 text-purple-600 px-1 rounded"
+                                >
+                                  🔬 {specialty}
+                                </span>
+                              ))}
+                            {departmentData.specialties.length > 3 && (
+                              <span className="text-xs text-gray-400">
+                                +{departmentData.specialties.length - 3} chuyên
+                                khoa
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Available Doctors */}
                     {roomDoctors.length > 0 && (
@@ -419,7 +573,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           roomIndex={index}
           deptId={deptId}
           slotId={slotId}
-          availableSpecialties={availableSpecialties}
+          availableSpecialties={departmentData.specialties} // ✅ Sử dụng specialties từ departmentData
           availableDoctors={availableDoctors}
           getDoctorsBySpecialty={getDoctorsBySpecialty}
           roomClassifications={roomClassifications}
@@ -429,6 +583,13 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           removeRoomFromShift={removeRoomFromShift}
           getRoomStyle={getRoomStyle}
           hasChanges={hasChanges}
+          // ✅ Thêm departmentData để truyền xuống
+          departmentData={departmentData}
+          // ✅ Thêm props cho đổi phòng
+          allRooms={allRooms}
+          usedRooms={usedRooms}
+          // ✅ Thêm callback để handle room swap
+          onRoomSwapped={handleRoomSwapped}
         />
       ))}
 

@@ -107,11 +107,7 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
     const specialtyIds = selectedDept.sepicalties.map(
       (specialty) => specialty.id
     );
-    console.log(
-      "🔍 Existing specialty IDs for dept:",
-      formData.departmentHospitalId,
-      specialtyIds
-    );
+
     return new Set(specialtyIds);
   }, [existingExamDetails, formData.departmentHospitalId]);
 
@@ -199,8 +195,6 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
         departmentHospitalId: formData.departmentHospitalId,
         enable: formData.enable ?? true,
       };
-
-      console.log("🏥 Creating exam type specialty with payload:", payload);
 
       await dispatch(createExamTypeSpecialty(payload as any)).unwrap();
 
