@@ -360,20 +360,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
           };
         }
 
-        // ✅ Debug log danh sách clinic schedules
-        console.log(`📋 Clinic schedules for doctor check:`, {
-          totalSchedules: allCellClinicSchedules.length,
-          schedules: allCellClinicSchedules.map((s) => ({
-            id: s.id,
-            doctorId: s.doctorId,
-            doctorCode: s.doctorCode,
-            doctor_IdEmployee_Postgresql: s.doctor_IdEmployee_Postgresql,
-            doctorName: s.doctorName,
-            departmentHospitalId: s.departmentHospitalId,
-            roomName: s.roomName,
-          })),
-        });
-
         // Kiểm tra xem đây có phải là bác sĩ hiện tại đang được chọn không (chỉ so sánh mã bác sĩ)
         const doctorCode =
           doctor.doctor_IdEmployee_Postgresql || doctor.code || doctor.id;
@@ -390,23 +376,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
 
           // ✅ Debug log chi tiết
           const isMatch = scheduleCode === doctorCode;
-          if (scheduleCode || doctorCode) {
-            console.log(`🔍 Matching doctor codes:`, {
-              doctorName: doctor.name,
-              doctorCode,
-              scheduleCode,
-              scheduleDoctorName: schedule.doctorName,
-              isMatch,
-              schedule: {
-                id: schedule.id,
-                doctorId: schedule.doctorId,
-                doctorCode: schedule.doctorCode,
-                doctor_IdEmployee_Postgresql:
-                  schedule.doctor_IdEmployee_Postgresql,
-                doctorName: schedule.doctorName,
-              },
-            });
-          }
 
           return isMatch;
         });
@@ -430,29 +399,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
         const otherDepConflicts = doctorSchedules.filter(
           (s) => s.departmentHospitalId?.toString() !== deptId
         );
-
-        // ✅ Debug log
-        console.log(`🩺 Doctor conflict check for ${doctor.name}:`, {
-          doctorCode,
-          doctorName: doctor.name,
-          doctorFullName: doctor.fullName,
-          isCurrentDoctor,
-          roomSelectedDoctor: room.selectedDoctor,
-          roomDoctor: room.doctor,
-          totalSchedules: doctorSchedules.length,
-          sameDepCount: sameDepConflicts.length,
-          otherDepCount: otherDepConflicts.length,
-          willBeDisabled: doctorSchedules.length > 0 && !isCurrentDoctor,
-          schedules: doctorSchedules.map((s) => ({
-            id: s.id,
-            deptId: s.departmentHospitalId,
-            deptName: s.departmentName,
-            roomName: s.roomName,
-            doctorCode:
-              s.doctor_IdEmployee_Postgresql || s.doctorCode || s.doctorId,
-            doctorName: s.doctorName,
-          })),
-        });
 
         return {
           hasConflict: doctorSchedules.length > 0,
@@ -646,30 +592,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       setIsOpen(false);
       return true; // Đóng modal thành công
     }, [validateRoomConfig]);
-
-    // ✅ Auto-close popup khi tất cả thông tin required đã được điền đủ
-    React.useEffect(() => {
-      // Chỉ auto-close nếu popup đang mở và có thay đổi
-      if (isOpen && hasChanges) {
-        const timer = setTimeout(() => {
-          const errors = validateRoomConfig();
-          if (errors.length === 0) {
-            // Tất cả thông tin đã hợp lệ, tự động đóng popup và đánh dấu đã lưu
-            setIsSavedSuccessfully(true);
-            setIsOpen(false);
-          }
-        }, 1000); // Đợi 1 giây sau khi user dừng nhập
-
-        return () => clearTimeout(timer);
-      }
-    }, [
-      room.selectedExamType,
-      room.selectedSpecialty,
-      room.selectedDoctor,
-      isOpen,
-      hasChanges,
-      validateRoomConfig,
-    ]);
 
     // ✅ Handle đổi phòng với animation, feedback và kiểm tra trùng phòng
     const handleRoomSwap = async (newRoomId: string) => {
@@ -1787,9 +1709,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                     handleUpdate("selectedDoctor", doctorName);
                                     setShowDoctorDropdown(false);
                                     setDoctorSearchQuery("");
-                                    console.log(
-                                      `✅ Selected doctor: ${doctorName}`
-                                    );
                                   }}
                                   disabled={isDisabled}
                                   style={{

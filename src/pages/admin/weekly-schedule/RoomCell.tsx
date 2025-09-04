@@ -102,31 +102,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     new Set()
   );
 
-  // ✅ Sync local used rooms với prop
-  React.useEffect(() => {
-    if (usedRooms) {
-      setLocalUsedRooms(new Set(usedRooms));
-      console.log("🔄 RoomCell syncing localUsedRooms:", {
-        deptId,
-        slotId,
-        usedRoomsSize: usedRooms.size,
-        usedRoomsArray: Array.from(usedRooms),
-      });
-    }
-  }, [usedRooms, deptId, slotId]);
-
-  // ✅ Debug hook để monitor local state changes
-  React.useEffect(() => {
-    console.log("🏠 RoomCell localUsedRooms changed:", {
-      deptId,
-      slotId,
-      localUsedRoomsSize: localUsedRooms.size,
-      localUsedRoomsArray: Array.from(localUsedRooms),
-      usedRoomsSize: usedRooms?.size || 0,
-      roomsInSlot: rooms?.length || 0,
-    });
-  }, [localUsedRooms, deptId, slotId, usedRooms, rooms]);
-
   // ✅ Helper function để chuẩn hóa room ID (giống với RoomConfigPopover)
   const normalizeRoomId = (roomData: any): string => {
     const id =
@@ -151,25 +126,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
   // ✅ Handle room swap notification từ RoomConfigPopover
   const handleRoomSwapped = (oldRoomId: string, newRoomId: string) => {
-    console.log("🔄 RoomCell received room swap notification:", {
-      oldRoomId,
-      newRoomId,
-      deptId,
-      slotId,
-    });
-
     // ✅ Cập nhật local used rooms ngay lập tức
     setLocalUsedRooms((prev) => {
       const newSet = new Set(prev);
       newSet.delete(oldRoomId); // Bỏ phòng cũ
       newSet.add(newRoomId); // Thêm phòng mới
-
-      console.log("✅ RoomCell localUsedRooms updated:", {
-        before: Array.from(prev),
-        after: Array.from(newSet),
-        removed: oldRoomId,
-        added: newRoomId,
-      });
 
       return newSet;
     });
@@ -261,28 +222,39 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       return schedule.departmentHospitalId?.toString() === deptId;
     });
 
-    console.log("📋 Filtering clinic schedules for CURRENT DEPARTMENT:", {
-      total: allCellClinicSchedules.length,
-      cellKey: `${deptId}-${slotId}`,
-      currentDeptId: deptId,
-      filtered: currentDeptSchedules.length,
-      allSchedules: allCellClinicSchedules.map((s) => ({
-        id: s.id,
-        deptId: s.departmentHospitalId,
-        deptName: s.departmentName,
-        doctor: s.doctorName,
-        room: s.roomName,
-      })),
-      currentDeptSchedules: currentDeptSchedules.map((s) => ({
-        id: s.id,
-        doctor: s.doctorName,
-        room: s.roomName,
-        specialty: s.specialtyName,
-      })),
-    });
-
     return currentDeptSchedules;
   }, [allCellClinicSchedules, deptId, slotId]);
+
+  // ✅ Lấy thông tin slot và thời gian từ timeSlots
+  const currentSlotInfo = React.useMemo(() => {
+    if (!timeSlots || timeSlots.length === 0) {
+      return null;
+    }
+
+    // Parse slotId để lấy examination ID
+    let targetExaminationId = "";
+    if (slotId.includes("-")) {
+      const parts = slotId.split("-");
+      if (parts.length >= 4) {
+        targetExaminationId = parts[3];
+      }
+    }
+
+    // Tìm slot tương ứng
+    const currentSlot = timeSlots.find((slot) => slot.id === slotId);
+    if (!currentSlot) {
+      return null;
+    }
+
+    return {
+      slotName: currentSlot.periodName || currentSlot.period || "Ca khám",
+      workSession: currentSlot.workSession || "",
+      startTime: currentSlot.startTime?.slice(0, 5) || "",
+      endTime: currentSlot.endTime?.slice(0, 5) || "",
+      examinationId: targetExaminationId,
+      fullSlot: currentSlot,
+    };
+  }, [timeSlots, slotId]);
 
   const clinicScheduleStats = React.useMemo(() => {
     if (
@@ -918,11 +890,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         setLocalUsedRooms((prev) => {
                           const newSet = new Set(prev);
                           newSet.add(roomId);
-                          console.log("✅ Added room to localUsedRooms:", {
-                            roomId,
-                            newSize: newSet.size,
-                            rooms: Array.from(newSet),
-                          });
+
                           return newSet;
                         });
                       } catch (error) {
@@ -1198,21 +1166,36 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className=" h-auto p-2 text-xs justify-start relative bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300 cursor-pointer"
+                      className={`h-auto p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer ${
+                        schedule.examTypeId &&
+                        roomClassifications[`exam_${schedule.examTypeId}`]
+                          ? roomClassifications[`exam_${schedule.examTypeId}`]
+                              .color ||
+                            "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+                          : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+                      }`}
                       title="Click để xem chi tiết lịch khám"
                     >
                       <div className="flex flex-col items-start gap-1 w-full">
-                        {/* Schedule header với hiển thị khoa */}
+                        {/* Schedule header với exam type và time */}
                         <div className="flex items-center gap-1 w-full">
                           <div
                             className={`w-2 h-2 rounded-full ${
                               schedule.departmentHospitalId?.toString() ===
                               deptId
-                                ? "bg-blue-500"
+                                ? "bg-current opacity-80"
                                 : "bg-orange-500"
                             }`}
                           />
-                          <span className="font-medium truncate text-blue-700">
+
+                          {/* Exam Type name */}
+                          {schedule.examTypeName && (
+                            <span className="font-medium text-[10px] px-1.5 py-0.5 rounded bg-current/10 text-current">
+                              {schedule.examTypeName}
+                            </span>
+                          )}
+
+                          <span className="font-medium truncate text-current">
                             {schedule.roomName}
                           </span>
 
@@ -1229,11 +1212,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                           )}
 
                           <div className="ml-auto">
-                            <Info className="w-3 h-3 text-blue-400 ml-1" />
+                            <Info className="w-3 h-3 text-current/60 ml-1" />
                           </div>
                         </div>
-                        {/* Quick info */}
-                        <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                        {/* Doctor info */}
+                        <div className="flex items-center gap-2 text-[10px] text-current/80">
                           <div className="flex items-center gap-1">
                             <Stethoscope className="w-2.5 h-2.5" />
                             <span className="truncate max-w-[150px]">
@@ -1241,12 +1224,23 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                             </span>
                           </div>
                         </div>
-                        {/* Quick info */}
-                        <div className="flex items-center gap-2 text-[10px] text-gray-500">
+
+                        {/* Time and patient info */}
+                        <div className="flex items-center gap-2 text-[10px] text-current/80">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span className="font-medium">
+                              {schedule.timeStart?.slice(0, 5) ||
+                                currentSlotInfo?.startTime}{" "}
+                              -{" "}
+                              {schedule.timeEnd?.slice(0, 5) ||
+                                currentSlotInfo?.endTime}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-1">
                             <Users className="w-2.5 h-2.5" />
                             <span className="font-medium">
-                              {schedule.total || 10}/30p
+                              {schedule.total || 0}
                             </span>
                             {schedule.holdSlot > 0 && (
                               <span className="text-amber-600 font-medium">
@@ -1254,29 +1248,13 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                               </span>
                             )}
                           </div>
-                          {schedule.appointmentSlots &&
-                            schedule.appointmentSlots.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5" />
-                                <span>
-                                  {schedule.appointmentSlots[0]?.startSlot?.slice(
-                                    0,
-                                    5
-                                  )}
-                                  -
-                                  {schedule.appointmentSlots[
-                                    schedule.appointmentSlots.length - 1
-                                  ]?.endSlot?.slice(0, 5)}
-                                </span>
-                              </div>
-                            )}
                         </div>
 
                         {/* Specialty badge */}
                         {schedule.specialtyName && (
                           <Badge
                             variant="secondary"
-                            className="text-[10px] px-1 py-0 h-4 max-w-full bg-purple-50 text-purple-600"
+                            className="text-[10px] px-1 py-0 h-4 max-w-full bg-current/10 text-current"
                           >
                             <span className="truncate">
                               🔬 {schedule.specialtyName}
@@ -1305,74 +1283,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       {/* Add room button - when rooms exist */}
       {rooms && rooms.length > 0 && (
         <div className="space-y-1">
-          {/* ✅ CHỈ hiển thị clinic schedules khi có dữ liệu thực sự phù hợp */}
-          {clinicScheduleStats && (
-            <div className="flex flex-col gap-1">
-              {cellClinicSchedules.map((schedule, idx) => (
-                <ClinicScheduleDetailPopover
-                  key={schedule.id || idx}
-                  schedule={schedule}
-                  trigger={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-auto text-xs justify-start relative bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300 cursor-pointer"
-                      title="Click để xem chi tiết lịch khám"
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        {/* Status dot */}
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            schedule.departmentHospitalId?.toString() === deptId
-                              ? "bg-blue-500"
-                              : "bg-orange-500"
-                          }`}
-                        />
-
-                        {/* Main info - single line */}
-                        <div className="flex items-center gap-1 flex-1 min-w-0">
-                          <span className="font-medium truncate text-blue-700 text-[11px]">
-                            {schedule.roomName}
-                          </span>
-                          <span className="text-gray-400 text-[10px]">•</span>
-                          <Stethoscope className="w-2 h-2 text-purple-500 flex-shrink-0" />
-                          <span className="truncate text-purple-600 text-[10px] max-w-[80px]">
-                            {schedule.doctorName}
-                          </span>
-                        </div>
-
-                        {/* Right side info */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {/* Patient count */}
-                          <div className="flex items-center gap-0.5">
-                            <Users className="w-2 h-2 text-gray-400" />
-                            <span className="text-[9px] font-medium text-gray-600">
-                              {schedule.total || 0}
-                            </span>
-                          </div>
-
-                          {/* Cross-department badge */}
-                          {schedule.departmentHospitalId?.toString() !==
-                            deptId && (
-                            <Badge
-                              variant="outline"
-                              className="text-[8px] px-1 py-0 h-3 bg-orange-50 text-orange-600 border-orange-300"
-                            >
-                              {schedule.departmentName?.slice(0, 6) ||
-                                `K${schedule.departmentHospitalId}`}
-                            </Badge>
-                          )}
-
-                          <Info className="w-2.5 h-2.5 text-blue-400" />
-                        </div>
-                      </div>
-                    </Button>
-                  }
-                />
-              ))}
-            </div>
-          )}
-
+          {/* Nút thêm phòng trước */}
           <Button
             variant="ghost"
             size="sm"
@@ -1382,6 +1293,123 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             <Plus className="w-3 h-3 mr-1" />
             Thêm phòng mới
           </Button>
+
+          {/* ✅ CHỈ hiển thị clinic schedules sau nút thêm phòng */}
+          {clinicScheduleStats && (
+            <div className="flex flex-col gap-1 mt-2">
+              {cellClinicSchedules.map((schedule, idx) => (
+                <ClinicScheduleDetailPopover
+                  key={schedule.id || idx}
+                  schedule={schedule}
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`w-full h-auto min-h-[85px] p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer ${
+                        schedule.examTypeId &&
+                        roomClassifications[`exam_${schedule.examTypeId}`]
+                          ? roomClassifications[`exam_${schedule.examTypeId}`]
+                              .color ||
+                            "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+                          : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+                      }`}
+                      title="Click để xem chi tiết lịch khám"
+                    >
+                      <div className="flex flex-col gap-1 w-full">
+                        {/* Header row with exam type and time */}
+                        <div className="flex items-center gap-2 w-full">
+                          {/* Status dot */}
+                          <div
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              schedule.departmentHospitalId?.toString() ===
+                              deptId
+                                ? "bg-current opacity-80"
+                                : "bg-orange-500"
+                            }`}
+                          />
+
+                          {/* Exam Type and time info */}
+                          <div className="flex items-center gap-1 flex-1">
+                            {schedule.examTypeName && (
+                              <>
+                                <span className="font-medium text-[10px] px-1.5 py-0.5 rounded bg-current/10 text-current">
+                                  {schedule.examTypeName}
+                                </span>
+                                <span className="text-current/60 text-[10px]">
+                                  •
+                                </span>
+                              </>
+                            )}
+                            <Clock className="w-3 h-3 text-current/70" />
+                            <span className="text-current/80 text-[10px] font-medium">
+                              {schedule.timeStart?.slice(0, 5) ||
+                                currentSlotInfo?.startTime}{" "}
+                              -{" "}
+                              {schedule.timeEnd?.slice(0, 5) ||
+                                currentSlotInfo?.endTime}
+                            </span>
+                          </div>
+
+                          {/* Patient count */}
+                          <div className="flex items-center gap-1">
+                            <Users className="w-3 h-3 text-current/70" />
+                            <span className="text-xs font-medium text-current">
+                              {schedule.total || 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Room row */}
+                        <div className="flex items-center gap-2 w-full">
+                          <MapPin className="w-3 h-3 text-current/70 flex-shrink-0" />
+                          <span className="font-semibold text-current text-xs">
+                            {schedule.roomName}
+                          </span>
+
+                          {/* Cross-department badge */}
+                          {schedule.departmentHospitalId?.toString() !==
+                            deptId && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1.5 py-0.5 h-4 bg-orange-50 text-orange-600 border-orange-300 ml-auto"
+                            >
+                              {schedule.departmentName ||
+                                `Khoa ${schedule.departmentHospitalId}`}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Doctor row */}
+                        <div className="flex items-center gap-2 w-full">
+                          <Stethoscope className="w-3 h-3 text-current/70 flex-shrink-0" />
+                          <span className="text-current font-medium text-xs">
+                            {schedule.doctorName}
+                          </span>
+                        </div>
+
+                        {/* Specialty row (if available) */}
+                        {schedule.specialtyName && (
+                          <div className="flex items-center gap-2 w-full">
+                            <div className="w-3 h-3 flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 bg-current/60 rounded-full"></div>
+                            </div>
+                            <span className="text-current/80 text-xs">
+                              {schedule.specialtyName}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Info icon in bottom right */}
+                        <div className="absolute bottom-1 right-1">
+                          <Info className="w-2.5 h-2.5 text-current/60" />
+                        </div>
+                      </div>
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

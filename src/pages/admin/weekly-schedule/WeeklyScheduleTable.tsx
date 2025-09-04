@@ -73,18 +73,6 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   // ✅ Nhận clinic schedules
   clinicSchedules = [],
 }) => {
-  // ✅ Debug clinic schedules
-  React.useEffect(() => {
-    if (clinicSchedules && clinicSchedules.length > 0) {
-      console.log("📋 WeeklyScheduleTable received clinic schedules:", {
-        count: clinicSchedules.length,
-        data: clinicSchedules.slice(0, 3), // Log first 3 for debugging
-      });
-    } else {
-      console.log("⚠️ WeeklyScheduleTable: No clinic schedules received");
-    }
-  }, [clinicSchedules]);
-
   const getWeekDateRange = (weekString: string) => {
     try {
       const [year, weekStr] = weekString.split("-W");

@@ -205,10 +205,6 @@ const clinicScheduleSlice = createSlice({
           state.loading = false;
           // ✅ Không cần thêm vào state.list vì sẽ fetch lại toàn bộ data
           // Chỉ log success để debug
-          console.log(
-            "✅ Clinic schedules added successfully:",
-            action.payload
-          );
         }
       )
       .addCase(addClinicSchedules.rejected, (state, action) => {
@@ -229,10 +225,6 @@ const clinicScheduleSlice = createSlice({
           state.loading = false;
           // ✅ Cập nhật list với data đã refresh
           state.list = action.payload.refreshed || [];
-          console.log(
-            "✅ Clinic schedules added and refreshed successfully:",
-            action.payload
-          );
         }
       )
       .addCase(addClinicSchedulesAndRefresh.rejected, (state, action) => {
