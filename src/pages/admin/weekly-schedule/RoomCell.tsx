@@ -1,7 +1,24 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X, Search, Clock, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Plus,
+  X,
+  Search,
+  Clock,
+  Users,
+  Stethoscope,
+  Info,
+  Calendar,
+  MapPin,
+  AlertTriangle,
+} from "lucide-react";
 import { RoomConfigPopover } from "./RoomConfigPopover";
 
 interface RoomCellProps {
@@ -41,6 +58,9 @@ interface RoomCellProps {
   selectedZone?: string; // Zone hiện tại
   // ✅ Thêm callback để nhận thông tin room swap từ RoomConfigPopover
   onRoomSwapped?: (oldRoomId: string, newRoomId: string) => void;
+  // ✅ Thêm props cho clinic schedules
+  clinicSchedules?: any[];
+  selectedWeek?: string;
 }
 
 export const RoomCell: React.FC<RoomCellProps> = ({
@@ -71,6 +91,9 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   selectedZone,
   // ✅ Nhận callback cho room swap
   onRoomSwapped,
+  // ✅ Nhận clinic schedules data
+  clinicSchedules = [],
+  selectedWeek,
 }) => {
   const cellKey = `${deptId}-${slotId}`;
 
@@ -201,6 +224,552 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     }
   }, [departmentsByZone, selectedZone, deptId]);
 
+  // ✅ Lấy ALL clinic schedules cho conflict detection (tất cả khoa)
+  const allCellClinicSchedules = React.useMemo(() => {
+    if (!clinicSchedules || clinicSchedules.length === 0) {
+      return [];
+    }
+
+    // Parse slotId để lấy thông tin ngày và examination
+    let targetDate = "";
+    let targetExaminationId = "";
+
+    if (slotId.includes("-")) {
+      const parts = slotId.split("-");
+      if (parts.length >= 4) {
+        targetDate = `${parts[0]}-${parts[1]}-${parts[2]}`;
+        targetExaminationId = parts[3];
+      }
+    }
+
+    // Filter theo ngày và ca khám TRÊN TẤT CẢ CÁC KHOA (cho conflict detection)
+    const allRelevantSchedules = clinicSchedules.filter((schedule) => {
+      const scheduleDate = schedule.dateInWeek?.slice(0, 10);
+      const dateMatch = scheduleDate === targetDate;
+      const examinationMatch =
+        schedule.examinationId?.toString() === targetExaminationId;
+      return dateMatch && examinationMatch;
+    });
+
+    return allRelevantSchedules;
+  }, [clinicSchedules, slotId]);
+
+  // ✅ Lấy clinic schedules CHỈ CỦA KHOA HIỆN TẠI (cho hiển thị UI)
+  const cellClinicSchedules = React.useMemo(() => {
+    // Lọc từ allCellClinicSchedules để chỉ lấy khoa hiện tại
+    const currentDeptSchedules = allCellClinicSchedules.filter((schedule) => {
+      return schedule.departmentHospitalId?.toString() === deptId;
+    });
+
+    console.log("📋 Filtering clinic schedules for CURRENT DEPARTMENT:", {
+      total: allCellClinicSchedules.length,
+      cellKey: `${deptId}-${slotId}`,
+      currentDeptId: deptId,
+      filtered: currentDeptSchedules.length,
+      allSchedules: allCellClinicSchedules.map((s) => ({
+        id: s.id,
+        deptId: s.departmentHospitalId,
+        deptName: s.departmentName,
+        doctor: s.doctorName,
+        room: s.roomName,
+      })),
+      currentDeptSchedules: currentDeptSchedules.map((s) => ({
+        id: s.id,
+        doctor: s.doctorName,
+        room: s.roomName,
+        specialty: s.specialtyName,
+      })),
+    });
+
+    return currentDeptSchedules;
+  }, [allCellClinicSchedules, deptId, slotId]);
+
+  const clinicScheduleStats = React.useMemo(() => {
+    if (
+      cellClinicSchedules.length === 0 &&
+      allCellClinicSchedules.length === 0
+    ) {
+      return null;
+    }
+
+    const totalSchedules = cellClinicSchedules.length;
+    const uniqueRooms = new Set(cellClinicSchedules.map((s) => s.roomId)).size;
+    const uniqueDoctors = new Set(cellClinicSchedules.map((s) => s.doctorId))
+      .size;
+    const uniqueSpecialties = new Set(
+      cellClinicSchedules.map((s) => s.specialtyName)
+    ).size;
+
+    // ✅ Phân loại theo khoa sử dụng allCellClinicSchedules
+    const sameDepSchedules = allCellClinicSchedules.filter(
+      (s) => s.departmentHospitalId?.toString() === deptId
+    );
+    const otherDepSchedules = allCellClinicSchedules.filter(
+      (s) => s.departmentHospitalId?.toString() !== deptId
+    );
+
+    // ✅ Lấy danh sách các khoa khác
+    const otherDepartments = [
+      ...new Set(
+        otherDepSchedules.map((s) => ({
+          id: s.departmentHospitalId,
+          name: s.departmentName || `Khoa ${s.departmentHospitalId}`,
+        }))
+      ),
+    ];
+
+    const totalAppointments = cellClinicSchedules.reduce((total, schedule) => {
+      if (
+        schedule.appointmentSlots &&
+        Array.isArray(schedule.appointmentSlots)
+      ) {
+        return (
+          total + schedule.appointmentSlots.filter((slot) => slot.enable).length
+        );
+      }
+      return total + (schedule.total || 0);
+    }, 0);
+
+    return {
+      totalSchedules,
+      uniqueRooms,
+      uniqueDoctors,
+      uniqueSpecialties,
+      totalAppointments,
+      schedules: cellClinicSchedules, // Hiển thị chỉ khoa hiện tại
+      // ✅ Thống kê theo khoa dựa trên tất cả khoa
+      sameDepSchedules,
+      otherDepSchedules,
+      otherDepartments,
+      hasCrossDepartmentConflicts: otherDepSchedules.length > 0,
+    };
+  }, [cellClinicSchedules, allCellClinicSchedules, deptId]);
+
+  // ✅ Component hiển thị chi tiết clinic schedule
+  const ClinicScheduleDetailPopover: React.FC<{
+    schedule: any;
+    trigger: React.ReactNode;
+  }> = ({ schedule, trigger }) => {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent className="w-96 p-0" align="start">
+          <div className="flex flex-col max-h-[500px]">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">
+                    Chi tiết lịch khám
+                  </h4>
+                  <p className="text-xs text-gray-500">
+                    {schedule.roomName} - {schedule.examinationName}
+                  </p>
+                </div>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                ID: {schedule.id}
+              </Badge>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Thông tin cơ bản */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">
+                      Phòng khám
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <MapPin className="w-4 h-4 text-blue-500" />
+                      <span className="text-sm font-medium">
+                        {schedule.roomName}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">
+                      Ca khám
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Calendar className="w-4 h-4 text-green-500" />
+                      <span className="text-sm font-medium">
+                        {schedule.examinationName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">
+                      Bác sĩ
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Stethoscope className="w-4 h-4 text-purple-500" />
+                      <span className="text-sm font-medium">
+                        {schedule.doctorName}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">
+                      Chuyên khoa
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-4 h-4 bg-purple-500 rounded text-white flex items-center justify-center text-[8px]">
+                        🔬
+                      </div>
+                      <span className="text-sm font-medium">
+                        {schedule.specialtyName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông tin thời gian */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <h5 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Thông tin thời gian
+                </h5>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-500">Ngày:</span>
+                    <span className="ml-2 font-medium">
+                      {schedule.dateInWeek?.slice(0, 10)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Thứ:</span>
+                    <span className="ml-2 font-medium">
+                      {schedule.dayInWeek}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Tuần:</span>
+                    <span className="ml-2 font-medium">
+                      Tuần {schedule.week}/{schedule.year}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Khoảng cách:</span>
+                    <span className="ml-2 font-medium">
+                      {schedule.spaceMinutes} phút
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông tin lượt khám */}
+              <div className="bg-blue-50 rounded-lg p-3">
+                <h5 className="font-medium text-blue-700 mb-2 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Thông tin lượt khám
+                </h5>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-blue-600">Tổng lượt:</span>
+                    <span className="ml-2 font-medium">{schedule.total}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600">Giữ chỗ:</span>
+                    <span className="ml-2 font-medium text-amber-600">
+                      {schedule.holdSlot || 0}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600">Khả dụng:</span>
+                    <span className="ml-2 font-medium text-green-600">
+                      {(schedule.total || 0) - (schedule.holdSlot || 0)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600">Trạng thái:</span>
+                    <Badge
+                      variant={schedule.status ? "default" : "destructive"}
+                      className="ml-2 text-xs"
+                    >
+                      {schedule.status ? "Hoạt động" : "Tạm dừng"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Khung giờ khám */}
+              {schedule.appointmentSlots &&
+                schedule.appointmentSlots.length > 0 && (
+                  <div className="space-y-3">
+                    <h5 className="font-medium text-gray-700 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Khung giờ khám ({schedule.appointmentSlots.length} slot)
+                    </h5>
+                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                      {schedule.appointmentSlots.map((slot, idx) => (
+                        <div
+                          key={slot.id || idx}
+                          className={`p-2 rounded border text-xs ${
+                            slot.enable
+                              ? "bg-green-50 border-green-200 text-green-700"
+                              : "bg-gray-50 border-gray-200 text-gray-500"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">
+                              {slot.startSlot?.slice(0, 5)} -{" "}
+                              {slot.endSlot?.slice(0, 5)}
+                            </span>
+                            <Badge
+                              variant={slot.enable ? "default" : "secondary"}
+                              className="text-[10px] px-1"
+                            >
+                              {slot.totalSlot}
+                            </Badge>
+                          </div>
+                          <div className="text-[10px] mt-1 text-gray-500">
+                            {slot.enable ? "Hoạt động" : "Tạm dừng"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Thông tin khoa phòng */}
+              <div className="bg-purple-50 rounded-lg p-3">
+                <h5 className="font-medium text-purple-700 mb-2">
+                  Thông tin khoa phòng
+                </h5>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-purple-600">Khoa:</span>
+                    <span className="ml-2 font-medium">
+                      {schedule.departmentHospitalName}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-purple-600">Mã khoa:</span>
+                    <span className="ml-2 font-medium">
+                      {schedule.departmentHospitalId}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-purple-600">Mã phòng:</span>
+                    <span className="ml-2 font-medium">{schedule.roomId}</span>
+                  </div>
+                  <div>
+                    <span className="text-purple-600">Mã bác sĩ:</span>
+                    <span className="ml-2 font-medium">
+                      {schedule.doctorId}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t bg-gray-50/50 p-3">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>ID lịch khám: {schedule.id}</span>
+                <span>Ngày tạo: {schedule.dateInWeek?.slice(0, 10)}</span>
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  // ✅ Helper function để kiểm tra conflicts cho từng phòng (tránh hook trong loop)
+  const getConflictInfo = React.useCallback(
+    (room: any, roomId: string) => {
+      // ✅ Safe doctors retrieval
+      let roomDoctors: any[] = [];
+      try {
+        if (getDoctorsByDepartment && room?.departmentId) {
+          roomDoctors =
+            getDoctorsByDepartment(room.departmentId.toString()) || [];
+        }
+      } catch (error) {
+        console.warn("Error getting room doctors:", error);
+        roomDoctors = [];
+      }
+
+      // ✅ Kiểm tra xung đột bác sĩ trong clinic schedules (TRÊN TẤT CẢ CÁC KHOA)
+      const doctorConflictInfo = (() => {
+        if (!allCellClinicSchedules || allCellClinicSchedules.length === 0) {
+          return { hasConflict: false, conflictDetails: [] };
+        }
+
+        const conflictDetails: any[] = [];
+
+        // Kiểm tra xem có bác sĩ nào trong phòng này đã có lịch khám không (chỉ so sánh mã bác sĩ)
+        roomDoctors.forEach((doctor) => {
+          const doctorCode =
+            doctor.doctor_IdEmployee_Postgresql || doctor.code || doctor.id;
+          const doctorSchedules = allCellClinicSchedules.filter((schedule) => {
+            const scheduleCode =
+              schedule.doctor_IdEmployee_Postgresql ||
+              schedule.doctorCode ||
+              schedule.doctorId;
+            return scheduleCode === doctorCode;
+          });
+
+          if (doctorSchedules.length > 0) {
+            // Phân loại conflicts theo khoa
+            const sameDepConflicts = doctorSchedules.filter(
+              (s) => s.departmentHospitalId?.toString() === deptId
+            );
+            const otherDepConflicts = doctorSchedules.filter(
+              (s) => s.departmentHospitalId?.toString() !== deptId
+            );
+
+            conflictDetails.push({
+              doctor,
+              sameDepConflicts,
+              otherDepConflicts,
+              totalConflicts: doctorSchedules.length,
+            });
+          }
+        });
+
+        return {
+          hasConflict: conflictDetails.length > 0,
+          conflictDetails,
+        };
+      })();
+
+      // ✅ Kiểm tra xung đột phòng trong clinic schedules (TRÊN TẤT CẢ CÁC KHOA)
+      const roomConflictInfo = (() => {
+        if (!allCellClinicSchedules || allCellClinicSchedules.length === 0) {
+          return {
+            hasConflict: false,
+            conflictDetails: {
+              sameDepConflicts: [],
+              otherDepConflicts: [],
+              totalConflicts: 0,
+            },
+          };
+        }
+
+        const roomSchedules = allCellClinicSchedules.filter((schedule) => {
+          return schedule.roomId?.toString() === roomId;
+        });
+
+        if (roomSchedules.length === 0) {
+          return {
+            hasConflict: false,
+            conflictDetails: {
+              sameDepConflicts: [],
+              otherDepConflicts: [],
+              totalConflicts: 0,
+            },
+          };
+        }
+
+        // Phân loại conflicts theo khoa
+        const sameDepConflicts = roomSchedules.filter(
+          (s) => s.departmentHospitalId?.toString() === deptId
+        );
+        const otherDepConflicts = roomSchedules.filter(
+          (s) => s.departmentHospitalId?.toString() !== deptId
+        );
+
+        return {
+          hasConflict: true,
+          conflictDetails: {
+            sameDepConflicts,
+            otherDepConflicts,
+            totalConflicts: roomSchedules.length,
+          },
+        };
+      })();
+
+      // ✅ Tạo thông báo tooltip chi tiết với phân loại conflict
+      const getDisabledReason = () => {
+        const reasons = [];
+        const isUsed = isRoomUsed(room);
+
+        if (isUsed) {
+          reasons.push("Phòng đã được sử dụng trong ca này");
+        }
+
+        if (roomConflictInfo.hasConflict) {
+          const { sameDepConflicts, otherDepConflicts } =
+            roomConflictInfo.conflictDetails;
+
+          if (sameDepConflicts.length > 0) {
+            reasons.push(
+              `Phòng đã có lịch khám trong khoa này (${sameDepConflicts.length} lịch)`
+            );
+          }
+
+          if (otherDepConflicts.length > 0) {
+            const deptNames = [
+              ...new Set(
+                otherDepConflicts.map(
+                  (s) => s.departmentName || `Khoa ${s.departmentHospitalId}`
+                )
+              ),
+            ];
+            reasons.push(
+              `Phòng đã có lịch khám ở khoa khác: ${deptNames.join(", ")} (${
+                otherDepConflicts.length
+              } lịch)`
+            );
+          }
+        }
+
+        if (doctorConflictInfo.hasConflict) {
+          doctorConflictInfo.conflictDetails.forEach(
+            ({ doctor, sameDepConflicts, otherDepConflicts }) => {
+              if (sameDepConflicts.length > 0) {
+                reasons.push(
+                  `BS ${doctor.name} đã có lịch khám trong khoa này (${sameDepConflicts.length} lịch)`
+                );
+              }
+
+              if (otherDepConflicts.length > 0) {
+                const deptNames = [
+                  ...new Set(
+                    otherDepConflicts.map(
+                      (s) =>
+                        s.departmentName || `Khoa ${s.departmentHospitalId}`
+                    )
+                  ),
+                ];
+                reasons.push(
+                  `BS ${
+                    doctor.name
+                  } đã có lịch khám ở khoa khác: ${deptNames.join(", ")} (${
+                    otherDepConflicts.length
+                  } lịch)`
+                );
+              }
+            }
+          );
+        }
+
+        return reasons.join(" • ");
+      };
+
+      return {
+        roomDoctors,
+        hasDoctorConflict: doctorConflictInfo.hasConflict,
+        hasRoomConflict: roomConflictInfo.hasConflict,
+        doctorConflictInfo,
+        roomConflictInfo,
+        getDisabledReason,
+      };
+    },
+    [allCellClinicSchedules, getDoctorsByDepartment, isRoomUsed]
+  );
+
   // ✅ Enhanced search logic với tốt hơn performance
   const searchableRooms = React.useMemo(() => {
     // Ưu tiên sử dụng filteredRooms (đã filter theo zone), fallback về allRooms
@@ -292,7 +861,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   // ✅ Rendering logic cho editing mode
   if (isEditing) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 ">
         {/* Search Input */}
         <div className="relative">
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
@@ -320,17 +889,17 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 room?.roomNumber ||
                 `Room-${roomId}`;
 
-              // ✅ Safe doctors retrieval
-              let roomDoctors: any[] = [];
-              try {
-                if (getDoctorsByDepartment && room?.departmentId) {
-                  roomDoctors =
-                    getDoctorsByDepartment(room.departmentId.toString()) || [];
-                }
-              } catch (error) {
-                console.warn("Error getting room doctors:", error);
-                roomDoctors = [];
-              }
+              // ✅ Sử dụng helper function để tránh hooks trong loop
+              const conflictInfo = getConflictInfo(room, roomId);
+              const {
+                roomDoctors,
+                hasDoctorConflict,
+                hasRoomConflict,
+                getDisabledReason,
+              } = conflictInfo;
+
+              // ✅ Tổng hợp các lý do disable
+              const isDisabled = isUsed || hasDoctorConflict || hasRoomConflict;
 
               return (
                 <button
@@ -339,16 +908,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     e.preventDefault();
                     e.stopPropagation();
 
-                    if (!isUsed && roomId && addRoomToShift) {
+                    if (!isDisabled && roomId && addRoomToShift) {
                       try {
-                        console.log("➕ Adding room to shift:", {
-                          roomId,
-                          roomCode: room?.code,
-                          deptId,
-                          slotId,
-                          currentUsedRooms: Array.from(localUsedRooms),
-                        });
-
                         addRoomToShift(deptId, slotId, roomId);
                         setEditingCell(null);
                         setRoomSearchTerm("");
@@ -370,26 +931,37 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     } else {
                       console.warn("⚠️ Cannot add room:", {
                         isUsed,
+                        hasDoctorConflict,
+                        hasRoomConflict,
+                        isDisabled,
                         roomId,
                         hasFunction: !!addRoomToShift,
-                        inUsedRooms: usedRooms?.has(roomId),
-                        inLocalUsedRooms: localUsedRooms.has(roomId),
+                        reason: getDisabledReason(),
                       });
                     }
                   }}
-                  disabled={isUsed}
-                  className={`w-full text-left p-2 text-xs rounded border transition-colors ${
-                    isUsed
+                  disabled={isDisabled}
+                  className={`flex flex-col gap-1 text-left p-2 text-xs rounded border transition-colors ${
+                    isDisabled
                       ? "bg-red-50 border-red-200 text-red-500 cursor-not-allowed opacity-60"
                       : "bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
                   }`}
+                  title={
+                    isDisabled
+                      ? getDisabledReason()
+                      : `Thêm phòng ${roomIdentifier}`
+                  }
                 >
                   {/* Room Header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          isUsed ? "bg-red-400" : "bg-green-400"
+                          isDisabled
+                            ? hasRoomConflict || hasDoctorConflict
+                              ? "bg-red-500"
+                              : "bg-orange-400"
+                            : "bg-green-400"
                         }`}
                       />
                       <span className="font-medium">{roomIdentifier}</span>
@@ -397,11 +969,25 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         <span className="text-gray-400">({room.name})</span>
                       )}
                     </div>
-                    {isUsed && (
-                      <span className="text-xs bg-red-100 text-red-600 px-1 rounded">
-                        Đã dùng
-                      </span>
-                    )}
+
+                    {/* ✅ Visual indicators cho các loại xung đột */}
+                    <div className="flex items-center gap-1">
+                      {isUsed && !hasRoomConflict && !hasDoctorConflict && (
+                        <span className="text-xs bg-orange-100 text-orange-600 px-1 rounded">
+                          Đã dùng
+                        </span>
+                      )}
+                      {hasRoomConflict && (
+                        <span className="text-xs bg-red-100 text-red-600 px-1 rounded">
+                          Phòng trùng
+                        </span>
+                      )}
+                      {hasDoctorConflict && (
+                        <span className="text-xs bg-red-100 text-red-700 px-1 rounded">
+                          BS trùng
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Room Details */}
@@ -590,36 +1176,213 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           usedRooms={usedRooms}
           // ✅ Thêm callback để handle room swap
           onRoomSwapped={handleRoomSwapped}
+          // ✅ Thêm clinic schedules để check doctor conflicts
+          allCellClinicSchedules={allCellClinicSchedules}
+          cellClinicSchedules={cellClinicSchedules}
         />
       ))}
 
       {/* Add room button - empty state */}
       {(!rooms || rooms.length === 0) && (
-        <div
-          className="w-full h-8 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 cursor-pointer flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors"
-          onClick={() => setEditingCell(cellKey)}
-        >
-          <Plus className="w-3 h-3 mr-1" />
-          <span className="text-xs">Thêm phòng</span>
+        <div className="space-y-2">
+          {/* ✅ Cross-department conflict warning */}
+
+          {/* ✅ CHỈ hiển thị clinic schedules khi có dữ liệu thực sự phù hợp */}
+          {clinicScheduleStats && (
+            <div className="flex flex-col gap-1">
+              {cellClinicSchedules.map((schedule, idx) => (
+                <ClinicScheduleDetailPopover
+                  key={schedule.id || idx}
+                  schedule={schedule}
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className=" h-auto p-2 text-xs justify-start relative bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300 cursor-pointer"
+                      title="Click để xem chi tiết lịch khám"
+                    >
+                      <div className="flex flex-col items-start gap-1 w-full">
+                        {/* Schedule header với hiển thị khoa */}
+                        <div className="flex items-center gap-1 w-full">
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              schedule.departmentHospitalId?.toString() ===
+                              deptId
+                                ? "bg-blue-500"
+                                : "bg-orange-500"
+                            }`}
+                          />
+                          <span className="font-medium truncate text-blue-700">
+                            {schedule.roomName}
+                          </span>
+
+                          {/* ✅ Badge hiển thị khoa nếu khác khoa hiện tại */}
+                          {schedule.departmentHospitalId?.toString() !==
+                            deptId && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1 py-0 h-3 bg-orange-50 text-orange-600 border-orange-300"
+                            >
+                              {schedule.departmentName ||
+                                `Khoa ${schedule.departmentHospitalId}`}
+                            </Badge>
+                          )}
+
+                          <div className="ml-auto">
+                            <Info className="w-3 h-3 text-blue-400 ml-1" />
+                          </div>
+                        </div>
+                        {/* Quick info */}
+                        <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <Stethoscope className="w-2.5 h-2.5" />
+                            <span className="truncate max-w-[150px]">
+                              {schedule.doctorName}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Quick info */}
+                        <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <Users className="w-2.5 h-2.5" />
+                            <span className="font-medium">
+                              {schedule.total || 10}/30p
+                            </span>
+                            {schedule.holdSlot > 0 && (
+                              <span className="text-amber-600 font-medium">
+                                +{schedule.holdSlot}🔒
+                              </span>
+                            )}
+                          </div>
+                          {schedule.appointmentSlots &&
+                            schedule.appointmentSlots.length > 0 && (
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5" />
+                                <span>
+                                  {schedule.appointmentSlots[0]?.startSlot?.slice(
+                                    0,
+                                    5
+                                  )}
+                                  -
+                                  {schedule.appointmentSlots[
+                                    schedule.appointmentSlots.length - 1
+                                  ]?.endSlot?.slice(0, 5)}
+                                </span>
+                              </div>
+                            )}
+                        </div>
+
+                        {/* Specialty badge */}
+                        {schedule.specialtyName && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1 py-0 h-4 max-w-full bg-purple-50 text-purple-600"
+                          >
+                            <span className="truncate">
+                              🔬 {schedule.specialtyName}
+                            </span>
+                          </Badge>
+                        )}
+                      </div>
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Nút thêm phòng */}
+          <div
+            className="w-full h-8 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 cursor-pointer flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors"
+            onClick={() => setEditingCell(cellKey)}
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            <span className="text-xs">Thêm mới</span>
+          </div>
         </div>
       )}
 
       {/* Add room button - when rooms exist */}
       {rooms && rooms.length > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
-          onClick={() => setEditingCell(cellKey)}
-        >
-          <Plus className="w-3 h-3 mr-1" />
-          Thêm phòng
-        </Button>
-      )}
+        <div className="space-y-1">
+          {/* ✅ CHỈ hiển thị clinic schedules khi có dữ liệu thực sự phù hợp */}
+          {clinicScheduleStats && (
+            <div className="flex flex-col gap-1">
+              {cellClinicSchedules.map((schedule, idx) => (
+                <ClinicScheduleDetailPopover
+                  key={schedule.id || idx}
+                  schedule={schedule}
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-auto text-xs justify-start relative bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300 cursor-pointer"
+                      title="Click để xem chi tiết lịch khám"
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        {/* Status dot */}
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            schedule.departmentHospitalId?.toString() === deptId
+                              ? "bg-blue-500"
+                              : "bg-orange-500"
+                          }`}
+                        />
 
-      {/* Changes indicator */}
-      {hasChanges && (
-        <div className="w-2 h-2 bg-blue-500 rounded-full absolute top-1 right-1"></div>
+                        {/* Main info - single line */}
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                          <span className="font-medium truncate text-blue-700 text-[11px]">
+                            {schedule.roomName}
+                          </span>
+                          <span className="text-gray-400 text-[10px]">•</span>
+                          <Stethoscope className="w-2 h-2 text-purple-500 flex-shrink-0" />
+                          <span className="truncate text-purple-600 text-[10px] max-w-[80px]">
+                            {schedule.doctorName}
+                          </span>
+                        </div>
+
+                        {/* Right side info */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* Patient count */}
+                          <div className="flex items-center gap-0.5">
+                            <Users className="w-2 h-2 text-gray-400" />
+                            <span className="text-[9px] font-medium text-gray-600">
+                              {schedule.total || 0}
+                            </span>
+                          </div>
+
+                          {/* Cross-department badge */}
+                          {schedule.departmentHospitalId?.toString() !==
+                            deptId && (
+                            <Badge
+                              variant="outline"
+                              className="text-[8px] px-1 py-0 h-3 bg-orange-50 text-orange-600 border-orange-300"
+                            >
+                              {schedule.departmentName?.slice(0, 6) ||
+                                `K${schedule.departmentHospitalId}`}
+                            </Badge>
+                          )}
+
+                          <Info className="w-2.5 h-2.5 text-blue-400" />
+                        </div>
+                      </div>
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
+            onClick={() => setEditingCell(cellKey)}
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            Thêm phòng mới
+          </Button>
+        </div>
       )}
     </div>
   );

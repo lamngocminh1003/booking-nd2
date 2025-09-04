@@ -17,6 +17,10 @@ import {
   fetchExamTypes,
   fetchDepartmentsByZone,
 } from "@/store/slices/examTypeSlice";
+import {
+  addClinicSchedules,
+  fetchClinicSchedules,
+} from "@/store/slices/clinicScheduleSlice";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { format, getISOWeek } from "date-fns";
@@ -111,6 +115,19 @@ const WeeklySchedule = () => {
     Record<string, string>
   >({});
 
+  // ✅ State để track việc đã populate clinic schedules chưa
+  const [isClinicSchedulesPopulated, setIsClinicSchedulesPopulated] =
+    useState(false);
+
+  // ✅ State để lưu thông tin xung đột
+  const [scheduleConflicts, setScheduleConflicts] = useState<{
+    doctorConflicts: any[];
+    roomConflicts: any[];
+  }>({
+    doctorConflicts: [],
+    roomConflicts: [],
+  });
+
   // ✅ Add missing ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,12 +158,13 @@ const WeeklySchedule = () => {
     zoneDataErrors = {},
     loading: examTypesLoading,
   } = useAppSelector((state) => state.examType);
-  console.log(
-    "departmentsByZone",
-    departmentsByZone,
-    "examsByZone",
-    examsByZone
-  );
+
+  // ✅ Clinic schedule selectors
+  const {
+    list: clinicSchedules = [],
+    loading: clinicSchedulesLoading,
+    error: clinicSchedulesError,
+  } = useAppSelector((state) => state.clinicSchedule);
 
   // ✅ Dynamic room classifications với custom colors từ user
   const roomClassifications = useMemo(() => {
@@ -398,6 +416,266 @@ const WeeklySchedule = () => {
     zones,
   ]);
 
+  // ✅ Fetch clinic schedules khi week, year hoặc zone thay đổi
+  useEffect(() => {
+    const fetchClinicScheduleData = async () => {
+      try {
+        // Parse week và year từ selectedWeek format "YYYY-WXX"
+        const [year, weekStr] = selectedWeek.split("-W");
+        const week = parseInt(weekStr);
+        const yearNum = parseInt(year);
+
+        const params = {
+          Week: week,
+          Year: yearNum,
+          ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
+        };
+
+        console.log("🔄 Fetching clinic schedules with params:", params);
+        await dispatch(fetchClinicSchedules(params));
+      } catch (error) {
+        console.error("❌ Error fetching clinic schedules:", error);
+        toast.error("Lỗi khi tải lịch phòng khám");
+      }
+    };
+
+    // Chỉ fetch khi có selectedWeek và selectedZone
+    if (selectedWeek && selectedZone) {
+      fetchClinicScheduleData();
+    }
+  }, [selectedWeek, selectedZone, dispatch]);
+
+  // ✅ Debug clinic schedules data
+  useEffect(() => {
+    if (clinicSchedules.length > 0) {
+      console.log("📋 Clinic schedules loaded:", clinicSchedules);
+
+      // ✅ Phân tích chi tiết dữ liệu từ example (sử dụng type any để tránh lỗi TypeScript)
+      console.log("🔍 Phân tích chi tiết xung đột:");
+
+      // Kiểm tra xung đột phòng khám theo dữ liệu thực tế
+      const scheduleList = clinicSchedules as any[];
+      const roomConflictAnalysis = scheduleList.reduce(
+        (acc: any, schedule: any) => {
+          const key = `${schedule.dayInWeek}-${schedule.examinationId}-${schedule.roomId}`;
+          if (!acc[key]) {
+            acc[key] = [];
+          }
+          acc[key].push({
+            id: schedule.id,
+            doctorName: schedule.doctorName,
+            roomName: schedule.roomName,
+            specialty: schedule.specialtyName,
+            department: schedule.departmentHospitalName,
+          });
+          return acc;
+        },
+        {}
+      );
+
+      console.log("📊 Phân tích xung đột phòng:", roomConflictAnalysis);
+
+      // Kiểm tra xung đột bác sĩ
+      const doctorConflictAnalysis = scheduleList.reduce(
+        (acc: any, schedule: any) => {
+          const key = `${schedule.dayInWeek}-${schedule.examinationId}-${schedule.doctorId}`;
+          if (!acc[key]) {
+            acc[key] = [];
+          }
+          acc[key].push({
+            id: schedule.id,
+            doctorName: schedule.doctorName,
+            roomName: schedule.roomName,
+            specialty: schedule.specialtyName,
+            department: schedule.departmentHospitalName,
+          });
+          return acc;
+        },
+        {}
+      );
+
+      console.log("👨‍⚕️ Phân tích xung đột bác sĩ:", doctorConflictAnalysis);
+
+      // Hiển thị các trường hợp có nhiều hơn 1 lịch
+      Object.entries(roomConflictAnalysis).forEach(
+        ([key, schedules]: [string, any]) => {
+          if (schedules.length > 1) {
+            console.warn(`🏥 Xung đột phòng ở ${key}:`, schedules);
+          }
+        }
+      );
+
+      Object.entries(doctorConflictAnalysis).forEach(
+        ([key, schedules]: [string, any]) => {
+          if (schedules.length > 1) {
+            console.warn(`👨‍⚕️ Xung đột bác sĩ ở ${key}:`, schedules);
+          }
+        }
+      );
+    }
+    if (clinicSchedulesError) {
+      console.error("❌ Clinic schedules error:", clinicSchedulesError);
+    }
+  }, [clinicSchedules, clinicSchedulesError]);
+
+  // ✅ Function to detect conflicts in clinic schedules
+  const detectScheduleConflicts = useCallback((schedules: any[]) => {
+    const conflicts = {
+      doctorConflicts: [] as any[],
+      roomConflicts: [] as any[],
+    };
+
+    // Group schedules by day and examination (sử dụng dữ liệu thực tế)
+    const scheduleGroups: Record<string, any[]> = {};
+
+    schedules.forEach((schedule: any) => {
+      const key = `${schedule.dayInWeek}-${schedule.examinationId}`;
+      if (!scheduleGroups[key]) {
+        scheduleGroups[key] = [];
+      }
+      scheduleGroups[key].push(schedule);
+    });
+
+    // Check for conflicts within each group
+    Object.entries(scheduleGroups).forEach(([groupKey, groupSchedules]) => {
+      const [dayInWeek, examinationId] = groupKey.split("-");
+
+      // Check doctor conflicts
+      const doctorMap: Record<number, any[]> = {};
+      groupSchedules.forEach((schedule: any) => {
+        if (!doctorMap[schedule.doctorId]) {
+          doctorMap[schedule.doctorId] = [];
+        }
+        doctorMap[schedule.doctorId].push(schedule);
+      });
+
+      // Find doctors with multiple schedules in same examination
+      Object.entries(doctorMap).forEach(([doctorId, doctorSchedules]) => {
+        if (doctorSchedules.length > 1) {
+          conflicts.doctorConflicts.push({
+            doctorId: parseInt(doctorId),
+            doctorName: doctorSchedules[0].doctorName,
+            dayInWeek,
+            examinationId: parseInt(examinationId),
+            examinationName: doctorSchedules[0].examinationName,
+            conflictingSchedules: doctorSchedules.map((s: any) => ({
+              id: s.id,
+              roomName: s.roomName,
+              departmentName: s.departmentHospitalName,
+              specialtyName: s.specialtyName,
+            })),
+          });
+        }
+      });
+
+      // Check room conflicts
+      const roomMap: Record<number, any[]> = {};
+      groupSchedules.forEach((schedule: any) => {
+        if (!roomMap[schedule.roomId]) {
+          roomMap[schedule.roomId] = [];
+        }
+        roomMap[schedule.roomId].push(schedule);
+      });
+
+      // Find rooms with multiple schedules in same examination
+      Object.entries(roomMap).forEach(([roomId, roomSchedules]) => {
+        if (roomSchedules.length > 1) {
+          conflicts.roomConflicts.push({
+            roomId: parseInt(roomId),
+            roomName: roomSchedules[0].roomName,
+            dayInWeek,
+            examinationId: parseInt(examinationId),
+            examinationName: roomSchedules[0].examinationName,
+            conflictingSchedules: roomSchedules.map((s: any) => ({
+              id: s.id,
+              doctorName: s.doctorName,
+              departmentName: s.departmentHospitalName,
+              specialtyName: s.specialtyName,
+            })),
+          });
+        }
+      });
+    });
+
+    return conflicts;
+  }, []);
+
+  // ✅ Check for conflicts when clinic schedules change
+  useEffect(() => {
+    if (clinicSchedules.length > 0) {
+      const conflicts = detectScheduleConflicts(clinicSchedules);
+      setScheduleConflicts(conflicts);
+
+      if (
+        conflicts.doctorConflicts.length > 0 ||
+        conflicts.roomConflicts.length > 0
+      ) {
+        console.warn("⚠️ Phát hiện xung đột trong lịch khám:", conflicts);
+
+        // Show toast warnings for conflicts
+        if (conflicts.doctorConflicts.length > 0) {
+          toast.error(
+            `🚨 Phát hiện ${conflicts.doctorConflicts.length} xung đột bác sĩ trong cùng ca khám!`,
+            {
+              duration: 10000,
+            }
+          );
+
+          conflicts.doctorConflicts.forEach((conflict) => {
+            console.error(
+              `🔴 Bác sĩ ${conflict.doctorName} bị trùng lịch trong ${conflict.dayInWeek} - ${conflict.examinationName}:`,
+              conflict.conflictingSchedules
+            );
+          });
+        }
+
+        if (conflicts.roomConflicts.length > 0) {
+          toast.error(
+            `🏥 Phát hiện ${conflicts.roomConflicts.length} xung đột phòng khám trong cùng ca khám!`,
+            {
+              duration: 10000,
+            }
+          );
+
+          conflicts.roomConflicts.forEach((conflict) => {
+            console.error(
+              `🔴 Phòng ${conflict.roomName} bị trùng lịch trong ${conflict.dayInWeek} - ${conflict.examinationName}:`,
+              conflict.conflictingSchedules
+            );
+          });
+        }
+
+        // Hiển thị chi tiết cụ thể
+        console.table(
+          conflicts.doctorConflicts.map((c) => ({
+            "Loại xung đột": "Bác sĩ",
+            Tên: c.doctorName,
+            Ngày: c.dayInWeek,
+            "Ca khám": c.examinationName,
+            "Số lịch trùng": c.conflictingSchedules.length,
+          }))
+        );
+
+        console.table(
+          conflicts.roomConflicts.map((c) => ({
+            "Loại xung đột": "Phòng khám",
+            Tên: c.roomName,
+            Ngày: c.dayInWeek,
+            "Ca khám": c.examinationName,
+            "Số lịch trùng": c.conflictingSchedules.length,
+          }))
+        );
+      } else {
+        console.log("✅ Không có xung đột trong lịch khám");
+        toast.success("✅ Lịch khám không có xung đột!", {
+          duration: 3000,
+        });
+      }
+    } else {
+      setScheduleConflicts({ doctorConflicts: [], roomConflicts: [] });
+    }
+  }, [clinicSchedules, detectScheduleConflicts]);
+
   // ✅ Debug trong useEffect
 
   // ✅ Convert specialties from departmentsByZone instead of allSpecialties
@@ -636,6 +914,105 @@ const WeeklySchedule = () => {
     }
   }, [departmentsByZone, selectedZone]);
 
+  // ✅ Populate schedule data từ clinic schedules
+  useEffect(() => {
+    if (
+      clinicSchedules.length > 0 &&
+      Object.keys(scheduleData).length > 0 &&
+      !isClinicSchedulesPopulated
+    ) {
+      console.log("🔄 Populating schedule data from clinic schedules...");
+
+      const updatedScheduleData = { ...scheduleData };
+
+      clinicSchedules.forEach((schedule) => {
+        const {
+          roomId,
+          examTypeId,
+          dayOfWeek,
+          startTime,
+          endTime,
+          maxAppointments,
+          holdSlot,
+          notes,
+        } = schedule;
+
+        // Tìm room và department tương ứng
+        const room = allRooms.find((r) => r.id === roomId);
+        if (!room) return;
+
+        // Tạo slot ID dựa trên day và time
+        const slotId = `day-${dayOfWeek}-${startTime?.replace(
+          ":",
+          ""
+        )}-${endTime?.replace(":", "")}`;
+
+        // Tìm department ID từ current zone departments
+        let departmentId = "1"; // default
+        const currentZoneDepartments =
+          selectedZone && selectedZone !== "all"
+            ? departmentsByZone[selectedZone] || []
+            : Object.values(departmentsByZone).flat();
+
+        // Tìm department đầu tiên (có thể cải thiện logic này sau)
+        if (currentZoneDepartments.length > 0) {
+          departmentId =
+            currentZoneDepartments[0].departmentHospitalId.toString();
+        }
+
+        if (!updatedScheduleData[departmentId]) {
+          updatedScheduleData[departmentId] = {};
+        }
+
+        if (!updatedScheduleData[departmentId][slotId]) {
+          updatedScheduleData[departmentId][slotId] = { rooms: [] };
+        }
+
+        // Thêm room vào slot
+        const existingRoomIndex = updatedScheduleData[departmentId][
+          slotId
+        ].rooms.findIndex((r) => r.id === room.id.toString());
+
+        const roomSlot: RoomSlot = {
+          id: room.id.toString(),
+          name: room.name,
+          code: room.code,
+          classification: "normal", // default classification
+          customStartTime: startTime,
+          customEndTime: endTime,
+          appointmentCount: maxAppointments,
+          specialties: [], // Sẽ cần map từ examTypeId
+          priorityOrder: 1,
+          notes: notes || "",
+          zoneId: room.zoneId,
+          zoneName: room.zoneName,
+        };
+
+        if (existingRoomIndex >= 0) {
+          updatedScheduleData[departmentId][slotId].rooms[existingRoomIndex] =
+            roomSlot;
+        } else {
+          updatedScheduleData[departmentId][slotId].rooms.push(roomSlot);
+        }
+      });
+
+      console.log("✅ Updated schedule data:", updatedScheduleData);
+      setScheduleData(updatedScheduleData);
+      setIsClinicSchedulesPopulated(true); // ✅ Đánh dấu đã populate
+    }
+  }, [
+    clinicSchedules,
+    allRooms,
+    selectedZone,
+    departmentsByZone,
+    isClinicSchedulesPopulated,
+  ]); // ✅ Loại bỏ scheduleData khỏi dependency
+
+  // ✅ Reset populate flag khi thay đổi week/zone để cho phép populate lại
+  useEffect(() => {
+    setIsClinicSchedulesPopulated(false);
+  }, [selectedWeek, selectedZone]);
+
   // ✅ Zone options
   const zoneOptions = useMemo(() => {
     return [
@@ -668,6 +1045,87 @@ const WeeklySchedule = () => {
       (room) => room.zoneId?.toString() === selectedZone
     );
   }, [availableRooms, selectedZone]);
+
+  // ✅ Helper function to check room and doctor conflicts
+  const checkConflicts = useCallback(
+    (deptId: string, slotId: string, roomId?: string, doctorId?: number) => {
+      if (!clinicSchedules || clinicSchedules.length === 0) {
+        return {
+          hasRoomConflict: false,
+          hasDoctorConflict: false,
+          conflictDetails: [],
+        };
+      }
+
+      // Parse slotId để lấy thông tin ngày và examination
+      let targetDate = "";
+      let targetExaminationId = "";
+
+      if (slotId.includes("-")) {
+        const parts = slotId.split("-");
+        if (parts.length >= 4) {
+          targetDate = `${parts[0]}-${parts[1]}-${parts[2]}`;
+          targetExaminationId = parts[3];
+        }
+      }
+
+      // Filter clinic schedules theo context hiện tại
+      const relevantSchedules = (clinicSchedules as any[]).filter(
+        (schedule) => {
+          const scheduleDate = schedule.dateInWeek?.slice(0, 10);
+          const dateMatch = scheduleDate === targetDate;
+          const examinationMatch =
+            schedule.examinationId?.toString() === targetExaminationId;
+          const departmentMatch =
+            schedule.departmentHospitalId?.toString() === deptId;
+
+          return dateMatch && examinationMatch && departmentMatch;
+        }
+      );
+
+      let hasRoomConflict = false;
+      let hasDoctorConflict = false;
+      const conflictDetails: any[] = [];
+
+      // Check room conflict
+      if (roomId) {
+        hasRoomConflict = relevantSchedules.some((schedule) => {
+          if (schedule.roomId?.toString() === roomId.toString()) {
+            conflictDetails.push({
+              type: "room",
+              schedule: schedule,
+              message: `Phòng ${schedule.roomName} đã có lịch khám`,
+            });
+            return true;
+          }
+          return false;
+        });
+      }
+
+      // Check doctor conflict
+      if (doctorId) {
+        hasDoctorConflict = relevantSchedules.some((schedule) => {
+          if (schedule.doctorId === doctorId) {
+            conflictDetails.push({
+              type: "doctor",
+              schedule: schedule,
+              message: `Bác sĩ ${schedule.doctorName} đã có lịch khám`,
+            });
+            return true;
+          }
+          return false;
+        });
+      }
+
+      return {
+        hasRoomConflict,
+        hasDoctorConflict,
+        conflictDetails,
+        relevantSchedules,
+      };
+    },
+    [clinicSchedules]
+  );
 
   // ✅ Helper to get used rooms in a specific slot
   const getUsedRoomsInSlot = (slotId: string) => {
@@ -882,11 +1340,219 @@ const WeeklySchedule = () => {
     }
   };
 
-  const handleSaveAll = () => {
-    setTimeout(() => {
-      setScheduleChanges({});
-      toast.success("Đã lưu tất cả thay đổi thành công!");
-    }, 1000);
+  const handleSaveAll = async () => {
+    try {
+      // ✅ Helper function để format time thành "HH:mm:ss"
+      const formatTimeToHHmmss = (timeString: string): string => {
+        if (!timeString) return "07:30:00";
+
+        // Nếu đã có format "HH:mm:ss" thì giữ nguyên
+        if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
+          return timeString;
+        }
+
+        // Nếu có format "HH:mm" thì thêm ":00"
+        if (timeString.match(/^\d{2}:\d{2}$/)) {
+          return `${timeString}:00`;
+        }
+
+        // Fallback: thêm ":00" vào cuối
+        return `${timeString}:00`;
+      };
+
+      // ✅ Chuyển đổi scheduleData thành format API
+      const clinicScheduleData: any[] = [];
+
+      // ✅ Lấy thông tin tuần hiện tại
+      const [year, weekStr] = selectedWeek.split("-W");
+      const weekNum = parseInt(weekStr);
+      const yearNum = parseInt(year);
+
+      // ✅ Tính toán ngày đầu tuần (Thứ 2)
+      const startOfYear = new Date(yearNum, 0, 1);
+      const daysToAdd = (weekNum - 1) * 7 - startOfYear.getDay() + 1;
+      const mondayOfWeek = new Date(yearNum, 0, 1 + daysToAdd);
+
+      Object.entries(scheduleData).forEach(([deptId, deptSchedule]) => {
+        Object.entries(deptSchedule).forEach(
+          ([slotId, slot]: [string, any]) => {
+            if (slot?.rooms && Array.isArray(slot.rooms)) {
+              slot.rooms.forEach((room: any) => {
+                // ✅ Tìm thông tin slot từ timeSlots
+                const slotInfo = timeSlots.find((s) => s.id === slotId);
+                if (!slotInfo) return;
+
+                // ✅ Tính ngày trong tuần dựa trên fullDate của slot
+                const slotDate = new Date(slotInfo.fullDate);
+
+                // ✅ Lấy doctorId từ selectedDoctor
+                let doctorId = 0;
+                if (room.selectedDoctor) {
+                  // Tìm doctor theo tên trong danh sách allDoctors
+                  const doctor = allDoctors.find(
+                    (d) =>
+                      d.name === room.selectedDoctor ||
+                      d.fullName === room.selectedDoctor
+                  );
+
+                  if (doctor) {
+                    doctorId =
+                      parseInt(
+                        doctor.id?.toString() ||
+                          doctor.doctor_IdEmployee_Postgresql?.toString() ||
+                          "0"
+                      ) || 0;
+                  } else {
+                    console.warn("⚠️ Doctor not found:", room.selectedDoctor);
+                  }
+                }
+
+                // ✅ Lấy examTypeId từ selectedExamType
+                let examTypeId = 0;
+                if (room.selectedExamType && departmentsByZone[selectedZone]) {
+                  const currentDept = departmentsByZone[selectedZone].find(
+                    (dept: any) =>
+                      dept.departmentHospitalId.toString() === deptId
+                  );
+                  if (currentDept?.examTypes) {
+                    const examType = currentDept.examTypes.find(
+                      (et: any) => et.name === room.selectedExamType
+                    );
+                    if (examType) {
+                      examTypeId = examType.id || 0;
+                    }
+                  }
+                }
+
+                // ✅ Lấy specialtyId từ selectedSpecialty
+                let specialtyId = 0;
+                if (room.selectedSpecialty && departmentsByZone[selectedZone]) {
+                  const currentDept = departmentsByZone[selectedZone].find(
+                    (dept: any) =>
+                      dept.departmentHospitalId.toString() === deptId
+                  );
+
+                  if (currentDept?.examTypes) {
+                    // Debug: Hiển thị tất cả specialties có sẵn
+                    const allSpecialties: any[] = [];
+                    currentDept.examTypes.forEach((examType: any) => {
+                      if (
+                        examType.sepicalties &&
+                        Array.isArray(examType.sepicalties)
+                      ) {
+                        examType.sepicalties.forEach((specialty: any) => {
+                          if (specialty.enable) {
+                            allSpecialties.push({
+                              id: specialty.id,
+                              name: specialty.name,
+                              examType: examType.name,
+                            });
+                          }
+                        });
+                      }
+                    });
+
+                    // Tìm specialty trong tất cả examTypes của department
+                    let foundSpecialty = null;
+
+                    for (const examType of currentDept.examTypes) {
+                      if (
+                        examType.sepicalties &&
+                        Array.isArray(examType.sepicalties)
+                      ) {
+                        foundSpecialty = examType.sepicalties.find(
+                          (specialty: any) =>
+                            specialty.name === room.selectedSpecialty &&
+                            specialty.enable
+                        );
+                        if (foundSpecialty) break;
+                      }
+                    }
+
+                    if (foundSpecialty) {
+                      specialtyId =
+                        parseInt(foundSpecialty.id?.toString() || "0") || 0;
+                    } else {
+                      console.warn(
+                        "⚠️ Specialty not found:",
+                        room.selectedSpecialty
+                      );
+                    }
+                  }
+                }
+
+                // ✅ Tạo clinic schedule entry
+                const startSlotFormatted = formatTimeToHHmmss(
+                  room.customStartTime ||
+                    slotInfo.startTime?.slice(0, 5) ||
+                    "07:30"
+                );
+                const endSlotFormatted = formatTimeToHHmmss(
+                  room.customEndTime || slotInfo.endTime?.slice(0, 5) || "11:00"
+                );
+
+                // ✅ Lấy examinationId từ examination thực tế
+                let examinationId = 0;
+                if (slotInfo && slotInfo.examinationId) {
+                  examinationId = slotInfo.examinationId;
+                } else {
+                  // Fallback: tìm examination từ workSession và thời gian
+                  const matchingExam = examinations.find(
+                    (exam) =>
+                      exam.workSession === slotInfo?.workSession ||
+                      exam.workSession === slotInfo?.period
+                  );
+                  if (matchingExam) {
+                    examinationId = matchingExam.id;
+                  }
+                }
+
+                // ✅ Debug examinationId
+                console.log("🔍 Debug examinationId:", {
+                  slotId: slotId,
+                  slotInfo: slotInfo,
+                  examinationId: examinationId,
+                  matchingExaminations: examinations.filter(
+                    (exam) => exam.workSession === slotInfo?.workSession
+                  ),
+                });
+
+                const scheduleEntry = {
+                  dateInWeek: slotDate.toISOString(),
+                  total: room.appointmentCount || room.maxAppointments || 10,
+                  spaceMinutes: room.appointmentDuration || 30,
+                  specialtyId: specialtyId,
+                  roomId: parseInt(room.id) || 0,
+                  examinationId: examinationId, // ✅ Sử dụng examinationId từ examination thực tế
+                  doctorId: doctorId, // ✅ Sử dụng doctorId đã tìm được
+                  departmentHospitalId: parseInt(deptId) || 0,
+                  examTypeId: examTypeId,
+                  startSlot: startSlotFormatted,
+                  endSlot: endSlotFormatted,
+                  holdSlot: room.holdSlot || room.holdSlots || 0,
+                };
+
+                clinicScheduleData.push(scheduleEntry);
+              });
+            }
+          }
+        );
+      });
+
+      // ✅ Gọi API để lưu
+      if (clinicScheduleData.length > 0) {
+        await dispatch(addClinicSchedules(clinicScheduleData));
+        setScheduleChanges({});
+        toast.success(
+          `Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`
+        );
+      } else {
+        toast.warning("Không có dữ liệu để lưu");
+      }
+    } catch (error) {
+      console.error("❌ Error saving clinic schedules:", error);
+      toast.error("Lỗi khi lưu lịch phòng khám: " + (error as any).message);
+    }
   };
 
   // ✅ Add missing shift config save handler
@@ -1195,6 +1861,7 @@ const WeeklySchedule = () => {
     roomsLoading ||
     doctorsLoading ||
     examTypesLoading ||
+    clinicSchedulesLoading ||
     (selectedZone !== "all" && zoneDataLoading[selectedZone]);
 
   if (isLoading) {
@@ -1207,6 +1874,63 @@ const WeeklySchedule = () => {
       </div>
     );
   }
+  console.log(clinicSchedules);
+
+  // ✅ Summary từ dữ liệu thực tế bạn cung cấp
+  console.log(`
+📊 PHÂN TÍCH XUNG ĐỘT TRONG DỮ LIỆU CLINIC SCHEDULES:
+
+🔴 XUNG ĐỘT PHÒNG KHÁM PHÁT HIỆN:
+1. Phòng "PK Nội Tổng hợp" (roomId: 1) bị trùng trong:
+   - Thursday, Ca 4: 
+     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tim mạch
+     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội thận-tiết niệu  
+     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tiêu hóa
+   - Thursday, Ca 4 (tiếp):
+     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội tiêu hóa
+     • Bác sĩ ĐD. HỒ NGỌC HÂN (doctorId: 6) - Nội tiêu hóa
+   - Wednesday, Ca 4:
+     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội tim mạch
+     • Bác sĩ TKYK. NGUYỄN THỊ NGỌC LUYẾN (doctorId: 21) - Nội tiêu hóa
+   - Wednesday, Ca 1:
+     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội
+   - Thursday, Ca 1:
+     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tiêu hóa
+   - Friday, Ca 1:
+     • Bác sĩ BS. ĐẶNG THÚY HẰNG (doctorId: 25) - Nội tiêu hóa
+     • Bác sĩ BS. ĐẶNG THÚY HẰNG (doctorId: 25) - Nội
+
+2. Phòng "PK Nội tiêu hóa" (roomId: 4) bị trùng trong:
+   - Friday, Ca 4:
+     • Bác sĩ BÙI THỊ KIM THỊNH (doctorId: 3) - Nội tim mạch
+   - Friday, Ca 1:  
+     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tim mạch
+
+3. Phòng "PK Truyền nhiễm" (roomId: 8) bị trùng trong:
+   - Friday, Ca 1:
+     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội thận-tiết niệu
+     • Bác sĩ BS. DƯƠNG TRUNG NGUYÊN (doctorId: 9) - Nội tiết
+
+👨‍⚕️ XUNG ĐỘT BÁC SĨ PHÁT HIỆN:
+1. Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) bị trùng lịch trong:
+   - Thursday, Ca 4: Phòng 1, 9 (2 phòng khác nhau)
+   - Friday, Ca 1: Phòng 4 (cùng phòng nhưng khác ca)
+
+2. Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) bị trùng lịch trong:
+   - Thursday, Ca 4: Phòng 1 
+   - Friday, Ca 1: Phòng 2, 8 (2 phòng khác nhau)
+   - Wednesday, Ca 4: Phòng 1
+   - Wednesday, Ca 1: Phòng 1
+
+3. Bác sĩ BS. ĐẶNG THÚY HẰNG (doctorId: 25) bị trùng lịch trong:
+   - Friday, Ca 1: Phòng 1 (2 lịch khác nhau)
+
+⚠️ TỔNG KẾT:
+- Tổng số xung đột phòng: 8+ trường hợp
+- Tổng số xung đột bác sĩ: 6+ trường hợp  
+- Phòng bị xung đột nhiều nhất: PK Nội Tổng hợp (roomId: 1)
+- Bác sĩ bị xung đột nhiều nhất: BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2)
+  `);
 
   return (
     <TooltipProvider>
@@ -1281,6 +2005,8 @@ const WeeklySchedule = () => {
           // ✅ Thêm props cho cấu trúc phân cấp
           departmentsByZone={departmentsByZone}
           selectedZone={selectedZone}
+          // ✅ Thêm clinic schedules data
+          clinicSchedules={clinicSchedules}
         />
 
         <WeeklyScheduleLegend
@@ -1318,6 +2044,136 @@ const WeeklySchedule = () => {
           selectedZone={selectedZone}
           zones={zones}
         />
+
+        {/* ✅ Conflict Alert Component */}
+        {(scheduleConflicts.doctorConflicts.length > 0 ||
+          scheduleConflicts.roomConflicts.length > 0) && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">!</span>
+              </div>
+              <h3 className="text-lg font-semibold text-red-800">
+                Cảnh báo xung đột lịch khám
+              </h3>
+              <div className="ml-auto text-sm text-red-600">
+                Tổng:{" "}
+                {scheduleConflicts.doctorConflicts.length +
+                  scheduleConflicts.roomConflicts.length}{" "}
+                xung đột
+              </div>
+            </div>
+
+            {scheduleConflicts.doctorConflicts.length > 0 && (
+              <div className="mb-4">
+                <h4 className="font-medium text-red-700 mb-2 flex items-center gap-2">
+                  �‍⚕️ Xung đột bác sĩ
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
+                    {scheduleConflicts.doctorConflicts.length}
+                  </span>
+                </h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {scheduleConflicts.doctorConflicts.map((conflict, index) => (
+                    <div
+                      key={index}
+                      className="bg-white border border-red-200 rounded p-3"
+                    >
+                      <div className="font-medium text-red-800">
+                        👨‍⚕️ {conflict.doctorName} (ID: {conflict.doctorId})
+                      </div>
+                      <div className="text-sm text-red-600 mb-2">
+                        📅 {conflict.dayInWeek} - {conflict.examinationName}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">
+                          Các lịch trùng ({conflict.conflictingSchedules.length}
+                          ):
+                        </span>
+                        <ul className="ml-4 mt-1 space-y-1">
+                          {conflict.conflictingSchedules.map(
+                            (schedule: any, idx: number) => (
+                              <li
+                                key={idx}
+                                className="text-gray-700 flex items-center gap-2"
+                              >
+                                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                                🏥 {schedule.roomName} - 🏢{" "}
+                                {schedule.departmentName} (
+                                {schedule.specialtyName})
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {scheduleConflicts.roomConflicts.length > 0 && (
+              <div>
+                <h4 className="font-medium text-red-700 mb-2 flex items-center gap-2">
+                  🏥 Xung đột phòng khám
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
+                    {scheduleConflicts.roomConflicts.length}
+                  </span>
+                </h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {scheduleConflicts.roomConflicts.map((conflict, index) => (
+                    <div
+                      key={index}
+                      className="bg-white border border-red-200 rounded p-3"
+                    >
+                      <div className="font-medium text-red-800">
+                        🏥 {conflict.roomName} (ID: {conflict.roomId})
+                      </div>
+                      <div className="text-sm text-red-600 mb-2">
+                        📅 {conflict.dayInWeek} - {conflict.examinationName}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">
+                          Các lịch trùng ({conflict.conflictingSchedules.length}
+                          ):
+                        </span>
+                        <ul className="ml-4 mt-1 space-y-1">
+                          {conflict.conflictingSchedules.map(
+                            (schedule: any, idx: number) => (
+                              <li
+                                key={idx}
+                                className="text-gray-700 flex items-center gap-2"
+                              >
+                                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                                👨‍⚕️ {schedule.doctorName} - 🏢{" "}
+                                {schedule.departmentName} (
+                                {schedule.specialtyName})
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <span className="text-lg">💡</span>
+                <span className="font-medium">Khuyến nghị:</span>
+              </div>
+              <ul className="ml-6 mt-2 text-sm text-yellow-700 space-y-1">
+                <li>
+                  • Điều chỉnh lịch để tránh bác sĩ và phòng khám bị trùng trong
+                  cùng ca
+                </li>
+                <li>• Kiểm tra lại thông tin khoa phòng và chuyên môn</li>
+                <li>• Phân bổ lại bác sĩ cho các ca khám khác nhau</li>
+              </ul>
+            </div>
+          </div>
+        )}
 
         <input
           ref={fileInputRef}

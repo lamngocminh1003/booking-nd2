@@ -39,6 +39,8 @@ interface WeeklyScheduleTableProps {
   // ✅ Thêm props mới cho cấu trúc phân cấp
   departmentsByZone?: any;
   selectedZone?: string;
+  // ✅ Thêm clinic schedules props
+  clinicSchedules?: any[];
 }
 
 export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
@@ -68,7 +70,21 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   // ✅ Nhận props mới
   departmentsByZone,
   selectedZone,
+  // ✅ Nhận clinic schedules
+  clinicSchedules = [],
 }) => {
+  // ✅ Debug clinic schedules
+  React.useEffect(() => {
+    if (clinicSchedules && clinicSchedules.length > 0) {
+      console.log("📋 WeeklyScheduleTable received clinic schedules:", {
+        count: clinicSchedules.length,
+        data: clinicSchedules.slice(0, 3), // Log first 3 for debugging
+      });
+    } else {
+      console.log("⚠️ WeeklyScheduleTable: No clinic schedules received");
+    }
+  }, [clinicSchedules]);
+
   const getWeekDateRange = (weekString: string) => {
     try {
       const [year, weekStr] = weekString.split("-W");
@@ -191,12 +207,6 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
       console.error("Error getting used rooms:", error);
     }
 
-    console.log("🔍 Getting used rooms for slot:", {
-      slotId,
-      usedRoomIds: Array.from(usedRoomIds),
-      usedRoomCount: usedRoomIds.size,
-    });
-
     return usedRoomIds;
   };
 
@@ -220,16 +230,6 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
       ? searchFilteredDepartments
       : [];
   }, [searchFilteredDepartments]);
-
-  // ✅ Debug hook để monitor schedule data changes
-  React.useEffect(() => {
-    console.log("📊 WeeklyScheduleTable schedule data changed:", {
-      hasScheduleData: !!scheduleData,
-      scheduleDataKeys: scheduleData ? Object.keys(scheduleData) : [],
-      safeDepartmentsCount: safeDepartments.length,
-      displayedSlotsCount: displayedSlots.length,
-    });
-  }, [scheduleData, safeDepartments.length, displayedSlots.length]);
 
   return (
     <Card className="shadow-md">
@@ -363,18 +363,11 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           // ✅ Thêm props mới cho cấu trúc phân cấp
                           departmentsByZone={departmentsByZone}
                           selectedZone={selectedZone}
+                          // ✅ Thêm clinic schedules data
+                          clinicSchedules={clinicSchedules}
+                          selectedWeek={selectedWeek}
                           // ✅ Thêm callback để handle room swap
                           onRoomSwapped={(oldRoomId, newRoomId) => {
-                            console.log(
-                              "🔄 Room swapped in WeeklyScheduleTable:",
-                              {
-                                oldRoomId,
-                                newRoomId,
-                                deptId,
-                                slotId,
-                                affectedSlot: `${deptId}-${slotId}`,
-                              }
-                            );
                             // Data sẽ được cập nhật tự động thông qua updateRoomConfig
                             // usedRooms sẽ được recalculate trong getUsedRoomsInSlot
                           }}
