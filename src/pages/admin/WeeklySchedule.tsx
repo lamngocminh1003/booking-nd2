@@ -431,7 +431,6 @@ const WeeklySchedule = () => {
           ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
         };
 
-        console.log("🔄 Fetching clinic schedules with params:", params);
         await dispatch(fetchClinicSchedules(params));
       } catch (error) {
         console.error("❌ Error fetching clinic schedules:", error);
@@ -448,10 +447,7 @@ const WeeklySchedule = () => {
   // ✅ Debug clinic schedules data
   useEffect(() => {
     if (clinicSchedules.length > 0) {
-      console.log("📋 Clinic schedules loaded:", clinicSchedules);
-
       // ✅ Phân tích chi tiết dữ liệu từ example (sử dụng type any để tránh lỗi TypeScript)
-      console.log("🔍 Phân tích chi tiết xung đột:");
 
       // Kiểm tra xung đột phòng khám theo dữ liệu thực tế
       const scheduleList = clinicSchedules as any[];
@@ -473,8 +469,6 @@ const WeeklySchedule = () => {
         {}
       );
 
-      console.log("📊 Phân tích xung đột phòng:", roomConflictAnalysis);
-
       // Kiểm tra xung đột bác sĩ
       const doctorConflictAnalysis = scheduleList.reduce(
         (acc: any, schedule: any) => {
@@ -493,8 +487,6 @@ const WeeklySchedule = () => {
         },
         {}
       );
-
-      console.log("👨‍⚕️ Phân tích xung đột bác sĩ:", doctorConflictAnalysis);
 
       // Hiển thị các trường hợp có nhiều hơn 1 lịch
       Object.entries(roomConflictAnalysis).forEach(
@@ -666,7 +658,6 @@ const WeeklySchedule = () => {
           }))
         );
       } else {
-        console.log("✅ Không có xung đột trong lịch khám");
         toast.success("✅ Lịch khám không có xung đột!", {
           duration: 3000,
         });
@@ -921,8 +912,6 @@ const WeeklySchedule = () => {
       Object.keys(scheduleData).length > 0 &&
       !isClinicSchedulesPopulated
     ) {
-      console.log("🔄 Populating schedule data from clinic schedules...");
-
       const updatedScheduleData = { ...scheduleData };
 
       clinicSchedules.forEach((schedule) => {
@@ -996,7 +985,6 @@ const WeeklySchedule = () => {
         }
       });
 
-      console.log("✅ Updated schedule data:", updatedScheduleData);
       setScheduleData(updatedScheduleData);
       setIsClinicSchedulesPopulated(true); // ✅ Đánh dấu đã populate
     }
@@ -1507,16 +1495,6 @@ const WeeklySchedule = () => {
                   }
                 }
 
-                // ✅ Debug examinationId
-                console.log("🔍 Debug examinationId:", {
-                  slotId: slotId,
-                  slotInfo: slotInfo,
-                  examinationId: examinationId,
-                  matchingExaminations: examinations.filter(
-                    (exam) => exam.workSession === slotInfo?.workSession
-                  ),
-                });
-
                 const scheduleEntry = {
                   dateInWeek: slotDate.toISOString(),
                   total: room.appointmentCount || room.maxAppointments || 10,
@@ -1875,62 +1853,6 @@ const WeeklySchedule = () => {
     );
   }
   console.log(clinicSchedules);
-
-  // ✅ Summary từ dữ liệu thực tế bạn cung cấp
-  console.log(`
-📊 PHÂN TÍCH XUNG ĐỘT TRONG DỮ LIỆU CLINIC SCHEDULES:
-
-🔴 XUNG ĐỘT PHÒNG KHÁM PHÁT HIỆN:
-1. Phòng "PK Nội Tổng hợp" (roomId: 1) bị trùng trong:
-   - Thursday, Ca 4: 
-     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tim mạch
-     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội thận-tiết niệu  
-     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tiêu hóa
-   - Thursday, Ca 4 (tiếp):
-     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội tiêu hóa
-     • Bác sĩ ĐD. HỒ NGỌC HÂN (doctorId: 6) - Nội tiêu hóa
-   - Wednesday, Ca 4:
-     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội tim mạch
-     • Bác sĩ TKYK. NGUYỄN THỊ NGỌC LUYẾN (doctorId: 21) - Nội tiêu hóa
-   - Wednesday, Ca 1:
-     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội
-   - Thursday, Ca 1:
-     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tiêu hóa
-   - Friday, Ca 1:
-     • Bác sĩ BS. ĐẶNG THÚY HẰNG (doctorId: 25) - Nội tiêu hóa
-     • Bác sĩ BS. ĐẶNG THÚY HẰNG (doctorId: 25) - Nội
-
-2. Phòng "PK Nội tiêu hóa" (roomId: 4) bị trùng trong:
-   - Friday, Ca 4:
-     • Bác sĩ BÙI THỊ KIM THỊNH (doctorId: 3) - Nội tim mạch
-   - Friday, Ca 1:  
-     • Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) - Nội tim mạch
-
-3. Phòng "PK Truyền nhiễm" (roomId: 8) bị trùng trong:
-   - Friday, Ca 1:
-     • Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) - Nội thận-tiết niệu
-     • Bác sĩ BS. DƯƠNG TRUNG NGUYÊN (doctorId: 9) - Nội tiết
-
-👨‍⚕️ XUNG ĐỘT BÁC SĨ PHÁT HIỆN:
-1. Bác sĩ LÊ NGUYỄN YÊN (doctorId: 1) bị trùng lịch trong:
-   - Thursday, Ca 4: Phòng 1, 9 (2 phòng khác nhau)
-   - Friday, Ca 1: Phòng 4 (cùng phòng nhưng khác ca)
-
-2. Bác sĩ BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2) bị trùng lịch trong:
-   - Thursday, Ca 4: Phòng 1 
-   - Friday, Ca 1: Phòng 2, 8 (2 phòng khác nhau)
-   - Wednesday, Ca 4: Phòng 1
-   - Wednesday, Ca 1: Phòng 1
-
-3. Bác sĩ BS. ĐẶNG THÚY HẰNG (doctorId: 25) bị trùng lịch trong:
-   - Friday, Ca 1: Phòng 1 (2 lịch khác nhau)
-
-⚠️ TỔNG KẾT:
-- Tổng số xung đột phòng: 8+ trường hợp
-- Tổng số xung đột bác sĩ: 6+ trường hợp  
-- Phòng bị xung đột nhiều nhất: PK Nội Tổng hợp (roomId: 1)
-- Bác sĩ bị xung đột nhiều nhất: BS.CK2. HUỲNH THỊ MỸ HIỀN (doctorId: 2)
-  `);
 
   return (
     <TooltipProvider>
