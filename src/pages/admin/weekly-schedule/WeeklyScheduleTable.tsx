@@ -41,6 +41,15 @@ interface WeeklyScheduleTableProps {
   selectedZone?: string;
   // ✅ Thêm clinic schedules props
   clinicSchedules?: any[];
+  // ✅ Thêm props cho chức năng clone rooms
+  onCloneRooms?: (
+    rooms: any[],
+    targetSlots?: string[],
+    targetDepartmentIds?: string[],
+    cloneOptions?: any
+  ) => void;
+  allTimeSlots?: any[]; // Danh sách tất cả slots để chọn target clone
+  allDepartments?: Array<{ id: string; name: string }>; // Danh sách tất cả departments
 }
 
 export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
@@ -72,6 +81,10 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   selectedZone,
   // ✅ Nhận clinic schedules
   clinicSchedules = [],
+  // ✅ Nhận props cho chức năng clone rooms
+  onCloneRooms,
+  allTimeSlots,
+  allDepartments,
 }) => {
   const getWeekDateRange = (weekString: string) => {
     try {
@@ -319,6 +332,7 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                     return (
                       <td
                         key={slotId || Math.random()}
+                        data-slot-id={slotId}
                         className={`border border-gray-300 p-1 align-top min-w-[120px] relative ${
                           displayTime.isCustom
                             ? "bg-orange-50 border-orange-200"
@@ -354,6 +368,10 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           // ✅ Thêm clinic schedules data
                           clinicSchedules={clinicSchedules}
                           selectedWeek={selectedWeek}
+                          // ✅ Thêm props cho chức năng clone rooms
+                          onCloneRooms={onCloneRooms}
+                          allTimeSlots={allTimeSlots || timeSlots}
+                          allDepartments={allDepartments || safeDepartments}
                           // ✅ Thêm callback để handle room swap
                           onRoomSwapped={(oldRoomId, newRoomId) => {
                             // Data sẽ được cập nhật tự động thông qua updateRoomConfig

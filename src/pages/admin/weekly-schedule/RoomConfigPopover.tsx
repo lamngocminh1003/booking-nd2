@@ -197,20 +197,49 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     const isCustomTime = useMemo(() => {
       if (!slotInfo) return false;
 
-      const roomStartTime = room.customStartTime || room.startTime;
-      const roomEndTime = room.customEndTime || room.endTime;
-      const roomMaxAppointments = room.appointmentCount || room.maxAppointments;
+      // ✅ Debug log để kiểm tra
+      console.log("🔍 Debug isCustomTime:", {
+        room: {
+          customStartTime: room.customStartTime,
+          customEndTime: room.customEndTime,
+          startTime: room.startTime,
+          endTime: room.endTime,
+          appointmentCount: room.appointmentCount,
+          maxAppointments: room.maxAppointments,
+        },
+        slotInfo: {
+          defaultStartTime: slotInfo.defaultStartTime,
+          defaultEndTime: slotInfo.defaultEndTime,
+          defaultMaxAppointments: slotInfo.defaultMaxAppointments,
+        },
+      });
 
-      // ✅ So sánh với giờ hiện tại từ shiftDefaults (không phải giờ gốc)
-      const currentDefaultStart = slotInfo.defaultStartTime; // Đã được tính từ shiftDefaults
-      const currentDefaultEnd = slotInfo.defaultEndTime;
-      const currentDefaultMax = slotInfo.defaultMaxAppointments;
+      // ✅ CHỈ kiểm tra customStartTime/customEndTime có giá trị thực sự
+      const hasCustomStart =
+        room.customStartTime &&
+        room.customStartTime !== "" &&
+        room.customStartTime !== slotInfo.defaultStartTime;
+      const hasCustomEnd =
+        room.customEndTime &&
+        room.customEndTime !== "" &&
+        room.customEndTime !== slotInfo.defaultEndTime;
+      const hasCustomMax =
+        room.appointmentCount &&
+        room.appointmentCount !== slotInfo.defaultMaxAppointments;
 
-      return (
-        (roomStartTime && roomStartTime !== currentDefaultStart) ||
-        (roomEndTime && roomEndTime !== currentDefaultEnd) ||
-        (roomMaxAppointments && roomMaxAppointments !== currentDefaultMax)
-      );
+      const result = hasCustomStart || hasCustomEnd || hasCustomMax;
+
+      console.log("🔍 isCustomTime debug:", {
+        room: {
+          customStartTime: room.customStartTime,
+          customEndTime: room.customEndTime,
+          appointmentCount: room.appointmentCount,
+        },
+        checks: { hasCustomStart, hasCustomEnd, hasCustomMax },
+        result,
+      });
+
+      return result;
     }, [room, slotInfo]);
 
     const handleUpdate = useCallback(
@@ -234,33 +263,52 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     }, [removeRoomFromShift, deptId, slotId, roomIndex]);
 
     // ✅ Reset về giờ mặc định từ shiftDefaults
-    const handleResetToDefault = () => {
+    const handleResetToDefault = useCallback(() => {
       if (slotInfo) {
         handleUpdate("customStartTime", slotInfo.defaultStartTime);
         handleUpdate("customEndTime", slotInfo.defaultEndTime);
         handleUpdate("appointmentCount", slotInfo.defaultMaxAppointments);
       }
-    };
+    }, [slotInfo, handleUpdate]);
 
-    // ✅ Lấy giờ hiện tại của room
+    // ✅ Lấy giờ hiện tại của room (ưu tiên custom → ca đích → fallback)
     const getCurrentTime = () => {
-      return {
-        startTime:
-          room.customStartTime ||
-          room.startTime ||
-          slotInfo?.defaultStartTime ||
-          "07:30",
-        endTime:
-          room.customEndTime ||
-          room.endTime ||
-          slotInfo?.defaultEndTime ||
-          "11:00",
-        maxAppointments:
-          room.appointmentCount ||
-          room.maxAppointments ||
-          slotInfo?.defaultMaxAppointments ||
-          10,
-      };
+      const startTime =
+        room.customStartTime && room.customStartTime !== ""
+          ? room.customStartTime
+          : slotInfo?.defaultStartTime || "07:30";
+
+      const endTime =
+        room.customEndTime && room.customEndTime !== ""
+          ? room.customEndTime
+          : slotInfo?.defaultEndTime || "11:00";
+
+      const maxAppointments =
+        room.appointmentCount ||
+        room.maxAppointments ||
+        slotInfo?.defaultMaxAppointments ||
+        10;
+
+      console.log("🕐 getCurrentTime:", {
+        room: {
+          customStartTime: room.customStartTime,
+          customEndTime: room.customEndTime,
+          startTime: room.startTime,
+          endTime: room.endTime,
+          appointmentCount: room.appointmentCount,
+          maxAppointments: room.maxAppointments,
+        },
+        slotInfo: slotInfo
+          ? {
+              defaultStartTime: slotInfo.defaultStartTime,
+              defaultEndTime: slotInfo.defaultEndTime,
+              defaultMaxAppointments: slotInfo.defaultMaxAppointments,
+            }
+          : null,
+        result: { startTime, endTime, maxAppointments },
+      });
+
+      return { startTime, endTime, maxAppointments };
     };
 
     const currentTime = getCurrentTime();
@@ -281,6 +329,98 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
         handleUpdate("selectedExamType", singleExamType.name);
       }
     }, [departmentData?.examTypes, room.selectedExamType, room.examType]);
+
+    // ✅ Auto-reset time CHỈ cho room được clone từ ca khác (TẠMTHỜI DISABLE ĐỂ DEBUG)
+    React.useEffect(() => {
+      if (!slotInfo) return;
+
+      // ✅ DISABLE AUTO-RESET TEMPORARILY FOR DEBUGGING
+      console.log("🚫 AUTO-RESET DISABLED FOR DEBUGGING:", {
+        room: {
+          startTime: room.startTime,
+          endTime: room.endTime,
+          customStartTime: room.customStartTime,
+          customEndTime: room.customEndTime,
+        },
+        slotInfo: {
+          defaultStartTime: slotInfo.defaultStartTime,
+          defaultEndTime: slotInfo.defaultEndTime,
+        },
+        message:
+          "Auto-reset is temporarily disabled to debug clone same-shift issue",
+      });
+
+      return; // ✅ EARLY RETURN - DISABLE AUTO-RESET
+
+      // ✅ Kiểm tra xem có phải clone từ ca khác thật sự không
+      const hasCustomTime = room.customStartTime && room.customEndTime;
+      const customTimeMatchesSlotDefault =
+        hasCustomTime &&
+        room.customStartTime === slotInfo.defaultStartTime &&
+        room.customEndTime === slotInfo.defaultEndTime; // ✅ CHỈ reset khi:
+      // 1. Room có startTime/endTime (đã được clone)
+      // 2. startTime/endTime KHÁC với default của ca đích
+      // 3. KHÔNG có customTime hoặc customTime không phù hợp với ca đích
+      // 4. QUAN TRỌNG: Đảm bảo không phải cùng ca (có customTime trùng với slot default)
+      const isClonedFromOtherShift =
+        room.startTime &&
+        room.endTime &&
+        // Room có thời gian khác với ca đích
+        (room.startTime !== slotInfo.defaultStartTime ||
+          room.endTime !== slotInfo.defaultEndTime) &&
+        // Chưa có customTime phù hợp HOẶC không phải cùng ca
+        (!hasCustomTime ||
+          (!customTimeMatchesSlotDefault &&
+            room.customStartTime !== slotInfo.defaultStartTime &&
+            room.customEndTime !== slotInfo.defaultEndTime));
+
+      if (isClonedFromOtherShift) {
+        console.log("🔄 Auto-reset CLONED room to slot default time:", {
+          room: {
+            startTime: room.startTime,
+            endTime: room.endTime,
+            customStartTime: room.customStartTime,
+            customEndTime: room.customEndTime,
+          },
+          slotInfo: {
+            defaultStartTime: slotInfo.defaultStartTime,
+            defaultEndTime: slotInfo.defaultEndTime,
+          },
+          isClonedFromOtherShift,
+          action: "calling handleResetToDefault",
+        });
+
+        // Delay nhỏ để đảm bảo component đã render xong
+        setTimeout(() => {
+          handleResetToDefault();
+        }, 100);
+      } else {
+        console.log(
+          "🚫 NOT resetting - room has valid custom time or same shift:",
+          {
+            room: {
+              startTime: room.startTime,
+              endTime: room.endTime,
+              customStartTime: room.customStartTime,
+              customEndTime: room.customEndTime,
+            },
+            slotInfo: {
+              defaultStartTime: slotInfo.defaultStartTime,
+              defaultEndTime: slotInfo.defaultEndTime,
+            },
+            isClonedFromOtherShift,
+          }
+        );
+      }
+    }, [
+      room.startTime,
+      room.endTime,
+      room.customStartTime,
+      room.customEndTime,
+      slotInfo?.defaultStartTime,
+      slotInfo?.defaultEndTime,
+      handleResetToDefault,
+    ]);
 
     // ✅ Lấy specialties của examType được chọn
     const availableSpecialtiesForSelectedExamType = useMemo(() => {
@@ -777,7 +917,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                   <Users className="w-2.5 h-2.5" />
                   <span className="font-medium">
                     {currentTime.maxAppointments}/
-                    {room.appointmentDuration || 30}p
+                    {room.appointmentDuration || 60}p
                   </span>
                 </div>
                 {isCustomTime && (
@@ -861,7 +1001,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                       <Users className="w-2.5 h-2.5" />
                       <span className="font-medium">
                         {currentTime.maxAppointments}/
-                        {room.appointmentDuration || 30}p
+                        {room.appointmentDuration || 60}p
                       </span>
                       {getHoldSlots(room) > 0 && (
                         <span className="text-amber-600 font-medium">
@@ -979,17 +1119,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                             {slotInfo.periodName} - {slotInfo.workSession}
                           </span>
                         </div>
-                        {isCustomTime && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-3 text-xs text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded-lg font-medium"
-                            onClick={handleResetToDefault}
-                          >
-                            <RotateCcw className="w-3 h-3 mr-1" />
-                            Reset
-                          </Button>
-                        )}
                       </div>
 
                       <div className="space-y-2 text-sm">
@@ -1003,7 +1132,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                             </strong>
                           </span>
                           <Badge variant="secondary" className="text-xs">
-                            {slotInfo.defaultMaxAppointments}/30p
+                            {slotInfo.defaultMaxAppointments}/60p
                           </Badge>
                         </div>
 
@@ -1021,7 +1150,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                               className="text-xs border-orange-300"
                             >
                               {currentTime.maxAppointments}/
-                              {room.appointmentDuration || 30}p
+                              {room.appointmentDuration || 60}p
                             </Badge>
                           </div>
                         )}
@@ -1091,7 +1220,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                 <Users className="w-3 h-3" />
                                 <span>
                                   {currentTime.maxAppointments}/
-                                  {room.appointmentDuration || 30}p
+                                  {room.appointmentDuration || 60}p
                                 </span>
                               </div>
                               <div className="flex items-center gap-1 bg-white/60 px-2 py-1 rounded-lg">
@@ -2187,17 +2316,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           </Badge>
                         )}
                       </Label>
-                      {isCustomTime && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-3 text-xs text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded-lg font-medium"
-                          onClick={handleResetToDefault}
-                        >
-                          <RotateCcw className="w-3 h-3 mr-1" />
-                          Reset
-                        </Button>
-                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -2314,11 +2432,11 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                               type="number"
                               min="5"
                               max="120"
-                              value={room.appointmentDuration || 30}
+                              value={room.appointmentDuration || 60}
                               onChange={(e) =>
                                 handleUpdate(
                                   "appointmentDuration",
-                                  parseInt(e.target.value) || 30
+                                  parseInt(e.target.value) || 60
                                 )
                               }
                               className={`h-10 pr-12 ${
@@ -2350,7 +2468,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           ></div>
                           <span className="font-medium">
                             📅 {currentTime.maxAppointments} lượt trong{" "}
-                            {room.appointmentDuration || 30} phút
+                            {room.appointmentDuration || 60} phút
                           </span>
                         </div>
 
@@ -2372,7 +2490,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           <span>
                             Trung bình{" "}
                             {Math.round(
-                              (room.appointmentDuration || 30) /
+                              (room.appointmentDuration || 60) /
                                 currentTime.maxAppointments
                             )}{" "}
                             phút/lượt khám
@@ -2391,7 +2509,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                       {slotInfo && (
                         <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border">
                           💡 Mặc định cho ca này:{" "}
-                          <strong>{slotInfo.defaultMaxAppointments}/30p</strong>
+                          <strong>{slotInfo.defaultMaxAppointments}/60p</strong>
                           {" • "}
                           <span>Giữ chỗ: {getHoldSlots(room)} slot</span>
                         </div>
