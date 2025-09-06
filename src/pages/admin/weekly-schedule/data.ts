@@ -293,5 +293,5 @@ export const defaultShiftConfig = {
     maxAppointments: 12,
   },
   breakTime: "12:00",
-  appointmentDuration: 15, // minutes
+  appointmentDuration: 10, // minutes
 };

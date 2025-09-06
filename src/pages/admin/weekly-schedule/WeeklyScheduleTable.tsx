@@ -50,6 +50,8 @@ interface WeeklyScheduleTableProps {
   ) => void;
   allTimeSlots?: any[]; // Danh sách tất cả slots để chọn target clone
   allDepartments?: Array<{ id: string; name: string }>; // Danh sách tất cả departments
+  // ✅ Thêm callback để refresh data sau khi copy từ DB
+  onDataUpdated?: () => void;
 }
 
 export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
@@ -85,6 +87,8 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   onCloneRooms,
   allTimeSlots,
   allDepartments,
+  // ✅ Nhận callback để refresh data
+  onDataUpdated,
 }) => {
   const getWeekDateRange = (weekString: string) => {
     try {
@@ -372,6 +376,8 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           onCloneRooms={onCloneRooms}
                           allTimeSlots={allTimeSlots || timeSlots}
                           allDepartments={allDepartments || safeDepartments}
+                          // ✅ Thêm callback để refresh data sau khi copy từ DB
+                          onDataUpdated={onDataUpdated}
                           // ✅ Thêm callback để handle room swap
                           onRoomSwapped={(oldRoomId, newRoomId) => {
                             // Data sẽ được cập nhật tự động thông qua updateRoomConfig

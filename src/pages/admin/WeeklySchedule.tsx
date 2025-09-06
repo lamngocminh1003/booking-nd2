@@ -326,7 +326,7 @@ const WeeklySchedule = () => {
           newDefaults[englishKey] = {
             startTime: exam.startTime?.slice(0, 5) || "07:00",
             endTime: exam.endTime?.slice(0, 5) || "17:00",
-            maxAppointments: 15,
+            maxAppointments: 10,
             name: exam.name,
             examinationId: exam.id,
             workSession: exam.workSession,
@@ -457,6 +457,27 @@ const WeeklySchedule = () => {
     const timeoutId = setTimeout(fetchZoneData, 300);
     return () => clearTimeout(timeoutId);
   }, [selectedZone, zones, dispatch]);
+
+  // ✅ Callback để refresh data sau khi copy phòng từ DB
+  const handleDataUpdated = useCallback(() => {
+    console.log("🔄 WeeklySchedule: Data updated, refreshing...");
+    // Force re-render bằng cách update state
+    setScheduleData({ ...scheduleData });
+
+    // Re-fetch clinic schedules để có data mới nhất
+    if (selectedWeek) {
+      const [year, weekStr] = selectedWeek.split("-W");
+      const week = parseInt(weekStr);
+      const yearNum = parseInt(year);
+      dispatch(
+        fetchClinicSchedules({
+          Week: week,
+          Year: yearNum,
+          ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
+        })
+      );
+    }
+  }, [scheduleData, selectedWeek, selectedZone, dispatch]);
 
   useEffect(() => {
     if (selectedZone && selectedZone !== "all") {
@@ -1465,7 +1486,7 @@ const WeeklySchedule = () => {
                     ? {
                         startTime: finalExamination.startTime?.slice(0, 5),
                         endTime: finalExamination.endTime?.slice(0, 5),
-                        maxAppointments: 15,
+                        maxAppointments: 10,
                       }
                     : null;
 
@@ -1604,7 +1625,7 @@ const WeeklySchedule = () => {
                       clonedRoom.endTime = defaultEndTime;
                       clonedRoom.appointmentCount = defaultMaxAppointments;
                       clonedRoom.maxAppointments = defaultMaxAppointments;
-                      clonedRoom.appointmentDuration = 15;
+                      clonedRoom.appointmentDuration = 10;
 
                       console.log("🎯 DIFFERENT SHIFT - reset to default:", {
                         sourceWorkSession,
@@ -1687,7 +1708,7 @@ const WeeklySchedule = () => {
 
                     clonedRoom.maxAppointments = clonedRoom.appointmentCount;
                     clonedRoom.appointmentDuration =
-                      room.appointmentDuration || 15;
+                      room.appointmentDuration || 10;
                   }
 
                   if (!cloneOptions?.includeNotes) {
@@ -2511,6 +2532,8 @@ const WeeklySchedule = () => {
           onCloneRooms={handleCloneRooms}
           allTimeSlots={timeSlots}
           allDepartments={searchFilteredDepartments}
+          // ✅ Thêm callback để refresh data
+          onDataUpdated={handleDataUpdated}
         />
 
         <WeeklyScheduleLegend
