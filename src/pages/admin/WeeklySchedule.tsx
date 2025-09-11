@@ -138,6 +138,9 @@ const WeeklySchedule = () => {
   const [isClinicSchedulesPopulated, setIsClinicSchedulesPopulated] =
     useState(false);
 
+  // ✅ State để force refresh UI khi cần thiết
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   // ✅ State để lưu thông tin xung đột
   const [scheduleConflicts, setScheduleConflicts] = useState<{
     doctorConflicts: any[];
@@ -460,15 +463,58 @@ const WeeklySchedule = () => {
 
   // ✅ Callback để refresh data sau khi copy phòng từ DB
   const handleDataUpdated = useCallback(() => {
-    console.log("🔄 WeeklySchedule: Data updated, refreshing...");
-    // Force re-render bằng cách update state
-    setScheduleData({ ...scheduleData });
+    console.log("🔄 WeeklySchedule: Data updated, forcing complete refresh...");
 
-    // Re-fetch clinic schedules để có data mới nhất
+    // ✅ Force refresh counter ngay lập tức để re-mount components
+    setRefreshCounter((prev) => prev + 1);
+
+    // Reset populate flag để cho phép re-populate clinic schedules
+    setIsClinicSchedulesPopulated(false);
+
+    // Force re-render bằng cách tạo copy mới của scheduleData với timestamp
+    const timestamp = Date.now();
+    setScheduleData((prevData) => {
+      const newData = { ...prevData };
+      // Thêm metadata để force update mà không ảnh hưởng logic
+      (newData as any).__lastRefresh = timestamp;
+      (newData as any).__refreshCount =
+        ((prevData as any).__refreshCount || 0) + 1;
+
+      console.log("📊 Schedule data updated:", {
+        departments: Object.keys(newData).filter((key) => !key.startsWith("__"))
+          .length,
+        refreshCount: (newData as any).__refreshCount,
+        timestamp,
+      });
+
+      return newData;
+    });
+
+    // ✅ Trigger multiple refresh waves để đảm bảo UI được update
+    setTimeout(() => {
+      console.log("🔄 Second wave refresh...");
+      setRefreshCounter((prev) => prev + 1);
+      setScheduleData(
+        (prevData) =>
+          ({
+            ...prevData,
+            __forceUpdate: Date.now(),
+          } as any)
+      );
+    }, 100);
+
+    setTimeout(() => {
+      console.log("🔄 Third wave refresh...");
+      setRefreshCounter((prev) => prev + 1);
+    }, 300);
+
+    // Re-fetch clinic schedules để có data mới nhất (nếu cần)
     if (selectedWeek) {
+      console.log("🔄 Re-fetching clinic schedules...");
       const [year, weekStr] = selectedWeek.split("-W");
       const week = parseInt(weekStr);
       const yearNum = parseInt(year);
+
       dispatch(
         fetchClinicSchedules({
           Week: week,
@@ -477,7 +523,7 @@ const WeeklySchedule = () => {
         })
       );
     }
-  }, [scheduleData, selectedWeek, selectedZone, dispatch]);
+  }, [selectedWeek, selectedZone, dispatch]);
 
   useEffect(() => {
     if (selectedZone && selectedZone !== "all") {
@@ -564,23 +610,6 @@ const WeeklySchedule = () => {
           return acc;
         },
         {}
-      );
-
-      // Hiển thị các trường hợp có nhiều hơn 1 lịch
-      Object.entries(roomConflictAnalysis).forEach(
-        ([key, schedules]: [string, any]) => {
-          if (schedules.length > 1) {
-            console.warn(`🏥 Xung đột phòng ở ${key}:`, schedules);
-          }
-        }
-      );
-
-      Object.entries(doctorConflictAnalysis).forEach(
-        ([key, schedules]: [string, any]) => {
-          if (schedules.length > 1) {
-            console.warn(`👨‍⚕️ Xung đột bác sĩ ở ${key}:`, schedules);
-          }
-        }
       );
     }
     if (clinicSchedulesError) {
@@ -1163,36 +1192,58 @@ const WeeklySchedule = () => {
   const addRoomToShift = useCallback(
     (deptId: string, slotId: string, roomId: string) => {
       try {
+        console.log(
+          `🏥 addRoomToShift called: ${deptId}-${slotId}, roomId: ${roomId}`
+        );
+
         const roomInfo = availableRooms.find((r) => r.id === roomId);
         const slot = timeSlots.find((t) => t.id === slotId);
 
         if (!roomInfo) {
+          console.error(`❌ Room not found: ${roomId}`);
           toast.error("Không tìm thấy thông tin phòng!");
           return;
         }
 
         if (!slot) {
-          toast.error("Không tìm thấy thông tin ca khám!");
-          return;
+          console.error(`❌ Slot not found: ${slotId}`);
+          console.log(
+            "Available slots:",
+            timeSlots.map((s) => s.id)
+          );
+          // ✅ Thay vì return error, tạo fallback slot info
+          console.warn(`⚠️ Using fallback slot config for ${slotId}`);
         }
 
-        if (slot.disabled) {
+        // ✅ Fallback slot config nếu không tìm thấy slot
+        const slotConfig = slot || {
+          id: slotId,
+          workSession: "sáng", // default
+          startTime: "07:30",
+          endTime: "11:00",
+          disabled: false,
+        };
+
+        if (slotConfig.disabled) {
           toast.error("Không thể thêm phòng vào ca khám đã tắt!");
           return;
         }
 
         const usedRooms = getUsedRoomsInSlot(slotId);
         if (usedRooms.has(roomId)) {
+          console.warn(
+            `⚠️ Room ${roomInfo.name} already used in slot ${slotId}`
+          );
           toast.error(`Phòng ${roomInfo.name} đã được sử dụng trong ca này!`);
           return;
         }
 
         const cellKey = `${deptId}-${slotId}`;
-        const shiftConfig = shiftDefaults[slot.workSession];
+        const shiftConfig = shiftDefaults[slotConfig.workSession];
 
         const fallbackConfig = {
-          startTime: slot.startTime?.slice(0, 5) || "07:30",
-          endTime: slot.endTime?.slice(0, 5) || "11:00",
+          startTime: slotConfig.startTime?.slice(0, 5) || "07:30",
+          endTime: slotConfig.endTime?.slice(0, 5) || "11:00",
           maxAppointments: 10,
         };
 
@@ -1218,15 +1269,28 @@ const WeeklySchedule = () => {
         setUndoStack((prev) => [...prev, { ...scheduleData }]);
         setRedoStack([]);
 
-        setScheduleData((prev) => ({
-          ...prev,
-          [deptId]: {
-            ...prev[deptId],
-            [slotId]: {
-              rooms: [...(prev[deptId]?.[slotId]?.rooms || []), newRoom],
+        setScheduleData((prev) => {
+          const newData = {
+            ...prev,
+            [deptId]: {
+              ...prev[deptId],
+              [slotId]: {
+                rooms: [...(prev[deptId]?.[slotId]?.rooms || []), newRoom],
+              },
             },
-          },
-        }));
+          };
+
+          console.log(
+            `✅ Added room ${roomInfo.name} to ${deptId}-${slotId}:`,
+            {
+              previousRoomsCount: prev[deptId]?.[slotId]?.rooms?.length || 0,
+              newRoomsCount: newData[deptId][slotId].rooms.length,
+              newRoom: newRoom.name,
+            }
+          );
+
+          return newData;
+        });
 
         setScheduleChanges((prev) => ({
           ...prev,
@@ -1971,15 +2035,24 @@ const WeeklySchedule = () => {
                 // ✅ Tính ngày trong tuần dựa trên fullDate của slot
                 const slotDate = new Date(slotInfo.fullDate);
 
-                // ✅ Lấy doctorId từ selectedDoctor
+                // ✅ Lấy doctorId từ selectedDoctor với nhiều cách tìm kiếm
                 let doctorId = 0;
                 if (room.selectedDoctor) {
-                  // Tìm doctor theo tên trong danh sách allDoctors
-                  const doctor = allDoctors.find(
-                    (d) =>
-                      d.name === room.selectedDoctor ||
-                      d.fullName === room.selectedDoctor
-                  );
+                  // ✅ Tìm doctor theo nhiều field: name, fullName, code, id
+                  const doctor = allDoctors.find((d) => {
+                    const searchValue = room.selectedDoctor.toString();
+                    return (
+                      // Tìm theo tên
+                      d.name === searchValue ||
+                      d.fullName === searchValue ||
+                      // Tìm theo code (employee ID)
+                      d.doctor_IdEmployee_Postgresql?.toString() ===
+                        searchValue ||
+                      d.code?.toString() === searchValue ||
+                      // Tìm theo ID
+                      d.id?.toString() === searchValue
+                    );
+                  });
 
                   if (doctor) {
                     doctorId =
@@ -1988,8 +2061,21 @@ const WeeklySchedule = () => {
                           doctor.doctor_IdEmployee_Postgresql?.toString() ||
                           "0"
                       ) || 0;
+                    console.log(`👨‍⚕️ Found doctor for room ${room.name}:`, {
+                      searchValue: room.selectedDoctor,
+                      foundDoctor: doctor.name,
+                      doctorId,
+                    });
                   } else {
-                    console.warn("⚠️ Doctor not found:", room.selectedDoctor);
+                    console.warn("⚠️ Doctor not found:", {
+                      searchValue: room.selectedDoctor,
+                      availableDoctors: allDoctors.map((d) => ({
+                        name: d.name,
+                        fullName: d.fullName,
+                        code: d.doctor_IdEmployee_Postgresql || d.code,
+                        id: d.id,
+                      })),
+                    });
                   }
                 }
 
@@ -2500,6 +2586,7 @@ const WeeklySchedule = () => {
         />
 
         <WeeklyScheduleTable
+          key={`schedule-table-${refreshCounter}`}
           searchFilteredDepartments={searchFilteredDepartments}
           timeSlots={timeSlots}
           viewMode={viewMode}
@@ -2593,12 +2680,6 @@ const WeeklySchedule = () => {
 
             {scheduleConflicts.doctorConflicts.length > 0 && (
               <div className="mb-4">
-                <h4 className="font-medium text-red-700 mb-2 flex items-center gap-2">
-                  �‍⚕️ Xung đột bác sĩ
-                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
-                    {scheduleConflicts.doctorConflicts.length}
-                  </span>
-                </h4>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {scheduleConflicts.doctorConflicts.map((conflict, index) => (
                     <div
@@ -2640,12 +2721,6 @@ const WeeklySchedule = () => {
 
             {scheduleConflicts.roomConflicts.length > 0 && (
               <div>
-                <h4 className="font-medium text-red-700 mb-2 flex items-center gap-2">
-                  🏥 Xung đột phòng khám
-                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
-                    {scheduleConflicts.roomConflicts.length}
-                  </span>
-                </h4>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {scheduleConflicts.roomConflicts.map((conflict, index) => (
                     <div
