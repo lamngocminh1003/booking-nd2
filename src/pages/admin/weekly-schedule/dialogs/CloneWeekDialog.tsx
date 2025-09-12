@@ -27,6 +27,8 @@ interface CloneWeekDialogProps {
   weeks: Array<any>;
   scheduleData: Record<string, Record<string, any>>;
   onClone: (targetWeeks: string[], options: CloneOptions) => void;
+  // ✅ Thêm callback để hiển thị week clone indicators
+  onWeekCloned?: (targetWeeks: string[], sourceWeek: string, roomCount: number) => void;
 }
 
 export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
@@ -36,6 +38,8 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
   weeks,
   scheduleData,
   onClone,
+  // ✅ Nhận callback cho week clone indicators
+  onWeekCloned,
 }) => {
   const [selectedWeeks, setSelectedWeeks] = useState<string[]>([]);
   const [cloneOptions, setCloneOptions] = useState<CloneOptions>({
@@ -91,7 +95,15 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
     if (selectedWeeks.length === 0) {
       return;
     }
+    
+    // ✅ Gọi onClone để thực hiện nhân bản
     onClone(selectedWeeks, cloneOptions);
+    
+    // ✅ Gọi callback để hiển thị week clone indicators
+    if (onWeekCloned) {
+      onWeekCloned(selectedWeeks, currentWeek, currentWeekRoomCount);
+    }
+    
     setIsOpen(false);
     setSelectedWeeks([]);
   };

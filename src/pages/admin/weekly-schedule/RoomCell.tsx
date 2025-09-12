@@ -847,16 +847,44 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
         // ✅ Gọi addRoomToShift để thêm phòng
         if (addRoomToShift) {
+          // ✅ CRITICAL FIX: Lưu index TRƯỚC khi thêm room để tránh race condition
+          const currentRooms = rooms || [];
+          const expectedNewRoomIndex = currentRooms.length;
+
+          console.log("🔍 Room index calculation:", {
+            roomName: schedule.roomName,
+            doctorName: schedule.doctorName,
+            currentRoomsLength: currentRooms.length,
+            expectedNewRoomIndex,
+            roomData: newRoomFromDB,
+          });
+
           addRoomToShift(deptId, slotId, roomInfo.id.toString());
 
-          // ✅ Sau khi thêm, update config với data từ DB
+          // ✅ Sau khi thêm, update config với data từ DB - SỬ DỤNG INDEX ĐÃ TÍNH TRƯỚC
           setTimeout(() => {
             if (updateRoomConfig) {
-              // Tìm index của room vừa thêm (sẽ là room cuối cùng)
-              const currentRooms = rooms || [];
-              const newRoomIndex = currentRooms.length; // Room mới sẽ có index này
+              console.log(
+                "🔧 Updating room config for index:",
+                expectedNewRoomIndex,
+                {
+                  roomName: schedule.roomName,
+                  doctorName: schedule.doctorName,
+                  selectedDoctor: newRoomFromDB.selectedDoctor,
+                  configData: {
+                    customStartTime: newRoomFromDB.customStartTime,
+                    customEndTime: newRoomFromDB.customEndTime,
+                    appointmentCount: newRoomFromDB.appointmentCount,
+                    maxAppointments: newRoomFromDB.maxAppointments,
+                    holdSlot: newRoomFromDB.holdSlot,
+                    selectedSpecialty: newRoomFromDB.selectedSpecialty,
+                    selectedDoctor: newRoomFromDB.selectedDoctor,
+                    notes: newRoomFromDB.notes,
+                  },
+                }
+              );
 
-              updateRoomConfig(deptId, slotId, newRoomIndex, {
+              updateRoomConfig(deptId, slotId, expectedNewRoomIndex, {
                 customStartTime: newRoomFromDB.customStartTime,
                 customEndTime: newRoomFromDB.customEndTime,
                 appointmentCount: newRoomFromDB.appointmentCount,
@@ -867,7 +895,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 notes: newRoomFromDB.notes,
               });
             }
-          }, 100); // Delay nhỏ để đảm bảo room đã được thêm
+          }, 150); // ✅ Tăng delay để đảm bảo room đã được thêm hoàn toàn
         }
 
         // ✅ Hiển thị thông báo thành công
@@ -932,9 +960,9 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
   // ✅ Function để bulk copy nhiều clinic schedules sang target slots
   const handleBulkCopyClinicSchedules = React.useCallback(
-    (targetSlots: string[], cloneOptions?: any) => {
+    async (targetSlots: string[], cloneOptions?: any) => {
       try {
-        console.log("🚀 Bulk copy clinic schedules:", {
+        console.log("🚀 Bulk copy clinic schedules (SIMPLIFIED):", {
           selectedCount: selectedClinicSchedules.size,
           targetSlots,
           cloneOptions,
@@ -979,33 +1007,28 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         let errorCount = 0;
         const errors: string[] = [];
 
-        // ✅ Copy từng schedule đến từng target slot
-        targetSlots.forEach((targetSlotId) => {
-          schedulesToCopy.forEach((schedule) => {
-            try {
-              console.log(`📅 Processing schedule:`, {
-                id: schedule.id,
-                doctorData: {
-                  doctorId: schedule.doctorId,
-                  doctorCode: schedule.doctorCode,
-                  doctorName: schedule.doctorName,
-                  doctorFullName: schedule.doctorFullName,
-                  type: typeof schedule.doctorId,
-                },
-                specialtyData: {
-                  specialtyName: schedule.specialtyName,
-                  specialtyId: schedule.specialtyId,
-                },
-                roomData: {
-                  roomName: schedule.roomName,
-                  roomId: schedule.roomId,
-                },
-                fullSchedule: schedule, // Debug: Log toàn bộ schedule object
-                fullScheduleKeys: Object.keys(schedule),
-              });
+        // ✅ Sequential copy để tránh race condition (NO TIMEOUT)
+        for (const targetSlotId of targetSlots) {
+          console.log(
+            `🎯 Processing target slot: ${targetSlotId} (${
+              targetSlots.indexOf(targetSlotId) + 1
+            }/${targetSlots.length})`
+          );
 
+          // ✅ CRITICAL FIX: Đếm số room đã thêm trong mỗi slot để tính index đúng
+          let roomIndexInSlot = 0;
+
+          for (const schedule of schedulesToCopy) {
+            try {
               console.log(
-                `🔄 Processing copy: ${schedule.roomName} to slot ${targetSlotId}`
+                `📅 Processing schedule ${
+                  schedulesToCopy.indexOf(schedule) + 1
+                }/${schedulesToCopy.length}: ${schedule.roomName} (Doctor: ${
+                  schedule.doctorName ||
+                  schedule.doctorCode ||
+                  schedule.doctorId ||
+                  "N/A"
+                }) to slot ${targetSlotId} [Room Index: ${roomIndexInSlot}]`
               );
 
               // ✅ Parse target slot để lấy thông tin
@@ -1015,27 +1038,13 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               // ✅ Kiểm tra format của targetSlotId
               if (targetSlotId.includes("-")) {
                 const parts = targetSlotId.split("-");
-                console.log(
-                  `📋 Parsing slot ID: ${targetSlotId}, parts:`,
-                  parts
-                );
-
-                // Format có thể là: "deptId-date-time-examId" hoặc chỉ "date-time-examId"
-                if (parts.length >= 4) {
-                  // Nếu có deptId trong slot ID
-                  if (
-                    parts[0] &&
-                    !parts[0].includes("2024") &&
-                    !parts[0].includes("2025")
-                  ) {
-                    targetDeptId = parts[0];
-                    actualTargetSlotId = `${parts[1]}-${parts[2]}-${parts[3]}-${parts[4]}`;
-                  } else {
-                    // Slot ID không chứa deptId, chỉ có date-time-examId
-                    actualTargetSlotId = targetSlotId;
-                  }
-                } else {
-                  actualTargetSlotId = targetSlotId;
+                if (
+                  parts.length >= 4 &&
+                  parts[0] &&
+                  !parts[0].includes("202")
+                ) {
+                  targetDeptId = parts[0];
+                  actualTargetSlotId = `${parts[1]}-${parts[2]}-${parts[3]}-${parts[4]}`;
                 }
               }
 
@@ -1052,7 +1061,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 );
                 errors.push(`Phòng ${schedule.roomName} không tồn tại`);
                 errorCount++;
-                return;
+                continue;
               }
 
               // ✅ Gọi addRoomToShift cho target slot
@@ -1060,359 +1069,209 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 console.log(
                   `🏥 Adding room ${roomInfo.name} to ${targetDeptId}-${actualTargetSlotId}`
                 );
-
                 addRoomToShift(
                   targetDeptId,
                   actualTargetSlotId,
                   roomInfo.id.toString()
                 );
-                successCount++;
+
+                // ✅ Đợi một chút cho room được add xong
+                await new Promise((resolve) => setTimeout(resolve, 300));
+
+                // ✅ Chuẩn bị doctor data đơn giản - CLONE để tránh reference sharing
+                let selectedDoctorValue = "";
+
+                // ✅ QUAN TRỌNG: Sao chép dữ liệu doctor riêng biệt cho từng phòng
+                const currentSchedule = { ...schedule }; // Deep clone
+                const doctorData = {
+                  doctorName: currentSchedule.doctorName,
+                  doctorCode: currentSchedule.doctorCode,
+                  doctorId: currentSchedule.doctorId,
+                  roomName: currentSchedule.roomName,
+                };
 
                 console.log(
-                  `✅ Successfully added room ${roomInfo.name} to ${targetDeptId}-${actualTargetSlotId}`
+                  `🩺 Doctor data extraction for room ${doctorData.roomName}:`,
+                  {
+                    roomIndex: roomIndexInSlot,
+                    original: {
+                      doctorName: schedule.doctorName,
+                      doctorCode: schedule.doctorCode,
+                      doctorId: schedule.doctorId,
+                    },
+                    cloned: doctorData,
+                    isEqual: {
+                      doctorName: schedule.doctorName === doctorData.doctorName,
+                      doctorCode: schedule.doctorCode === doctorData.doctorCode,
+                      doctorId: schedule.doctorId === doctorData.doctorId,
+                    },
+                  }
                 );
 
-                // ✅ Copy các thông tin chi tiết từ clinic schedule sau khi add room
-                setTimeout(() => {
-                  if (updateRoomConfig) {
-                    console.log(
-                      `🔧 Updating room config for ${roomInfo.name} with clinic schedule data...`
-                    );
+                if (doctorData.doctorName && doctorData.doctorName.trim()) {
+                  selectedDoctorValue = doctorData.doctorName.trim();
+                  console.log(
+                    `✅ Using doctorName: "${selectedDoctorValue}" for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
+                  );
+                } else if (doctorData.doctorCode) {
+                  selectedDoctorValue = doctorData.doctorCode.toString();
+                  console.log(
+                    `✅ Using doctorCode: "${selectedDoctorValue}" for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
+                  );
+                } else if (doctorData.doctorId) {
+                  selectedDoctorValue = doctorData.doctorId.toString();
+                  console.log(
+                    `✅ Using doctorId: "${selectedDoctorValue}" for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
+                  );
+                } else {
+                  console.warn(
+                    `⚠️ No doctor data found for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
+                  );
+                }
 
-                    // ✅ Tìm target slot info để xử lý thời gian
-                    const targetSlot = allTimeSlots.find(
-                      (slot) => slot.id === actualTargetSlotId
-                    );
+                // ✅ Tìm target slot info cho thời gian
+                const targetSlot = allTimeSlots.find(
+                  (slot) => slot.id === actualTargetSlotId
+                );
 
-                    // ✅ Xử lý thời gian: giữ nguyên từ clinic schedule hoặc dùng thời gian target slot
-                    let finalStartTime = schedule.timeStart?.slice(0, 5);
-                    let finalEndTime = schedule.timeEnd?.slice(0, 5);
+                // ✅ LUÔN SỬ DỤNG GIỜ CỦA CA ĐÍCH (không copy giờ từ ca cũ)
+                // VD: Copy từ ca 1 (07:00-11:30) sang ca 3 (13:30-16:00)
+                // → Phải lấy giờ 13:30-16:00, không phải 07:00-11:30
+                const shouldUseTargetSlotTime = true; // Luôn dùng giờ ca đích
 
-                    // ✅ Nếu target slot khác workSession, dùng thời gian của target slot
-                    if (
-                      !cloneOptions?.includeTimeSettings ||
-                      (targetSlot &&
-                        targetSlot.workSession !== schedule.workSession)
-                    ) {
-                      finalStartTime = targetSlot?.startTime?.slice(0, 5);
-                      finalEndTime = targetSlot?.endTime?.slice(0, 5);
-                      console.log(
-                        `⏰ Using target slot time: ${finalStartTime}-${finalEndTime}`
-                      );
-                    } else {
-                      console.log(
-                        `⏰ Using clinic schedule time: ${finalStartTime}-${finalEndTime}`
-                      );
-                    }
+                // ✅ Tạo room config update đơn giản với dữ liệu riêng biệt
+                const roomConfigUpdate = {
+                  selectedExamType: currentSchedule.examinationName || "",
+                  selectedSpecialty: currentSchedule.specialtyName || "",
+                  selectedDoctor: selectedDoctorValue,
 
-                    // ✅ Update room config với tất cả thông tin từ clinic schedule
-                    const roomConfigUpdate = {
-                      // ✅ Thời gian
-                      customStartTime: finalStartTime,
-                      customEndTime: finalEndTime,
+                  // ✅ CRITICAL FIX: Thêm examTypeId và specialtyId trực tiếp từ clinic schedule
+                  // Điều này đảm bảo save API nhận đúng ID thay vì phải tìm từ name
+                  examTypeId: currentSchedule.examTypeId || 0,
+                  specialtyId: currentSchedule.specialtyId || 0,
 
-                      // ✅ Số lượt khám và giữ chỗ
-                      appointmentCount: cloneOptions?.includeAppointmentCounts
-                        ? schedule.total || 10
-                        : 10,
-                      maxAppointments: cloneOptions?.includeAppointmentCounts
-                        ? schedule.total || 10
-                        : 10,
-                      holdSlot: cloneOptions?.includeAppointmentCounts
-                        ? schedule.holdSlot || 0
-                        : 0,
+                  // ✅ Thêm appointment duration từ clinic schedule
+                  appointmentDuration: currentSchedule.spaceMinutes || 30,
 
-                      // ✅ Bác sĩ và chuyên khoa với format chuẩn
-                      selectedSpecialty: cloneOptions?.includeSpecialties
-                        ? schedule.specialtyName || ""
-                        : "",
-                      selectedDoctor: cloneOptions?.includeDoctors
-                        ? (() => {
-                            // ✅ Ưu tiên cao nhất: doctorId (để match với dropdown)
-                            if (schedule.doctorId) {
-                              console.log(
-                                `👨‍⚕️ Using doctorId from clinic schedule:`,
-                                {
-                                  roomName: schedule.roomName,
-                                  doctorName: schedule.doctorName,
-                                  doctorId: schedule.doctorId,
-                                  finalResult: schedule.doctorId.toString(),
-                                  availableDoctorsStructure: availableDoctors
-                                    ?.slice(0, 3)
-                                    .map((d) => ({
-                                      id: d.id,
-                                      name: d.name,
-                                      fullName: d.fullName,
-                                      code:
-                                        d.doctor_IdEmployee_Postgresql ||
-                                        d.code,
-                                      allKeys: Object.keys(d),
-                                    })),
-                                  reduxDoctorsStructure: reduxDoctors
-                                    ?.slice(0, 3)
-                                    .map((d) => ({
-                                      id: d.id,
-                                      name: d.name,
-                                      fullName: d.fullName,
-                                      code:
-                                        d.doctor_IdEmployee_Postgresql ||
-                                        d.code,
-                                      allKeys: Object.keys(d),
-                                    })),
-                                }
-                              );
-                              return schedule.doctorId.toString();
-                            }
+                  // ✅ KHÔNG copy customTime - để room tự động dùng giờ default của ca đích
+                  // Bỏ customStartTime và customEndTime để room dùng giờ mặc định của target slot
 
-                            // ✅ Fallback: doctorName
-                            if (schedule.doctorName) {
-                              console.log(
-                                `👨‍⚕️ Using doctorName from clinic schedule:`,
-                                {
-                                  roomName: schedule.roomName,
-                                  doctorName: schedule.doctorName,
-                                  doctorId: schedule.doctorId,
-                                  finalResult: schedule.doctorName,
-                                }
-                              );
-                              return schedule.doctorName;
-                            }
+                  ...(currentSchedule.total && {
+                    appointmentCount: parseInt(currentSchedule.total),
+                  }),
 
-                            console.log(
-                              `🔍 No doctorName in schedule, debugging for ${schedule.roomName}:`,
-                              {
-                                scheduleDoctor: {
-                                  doctorId: schedule.doctorId,
-                                  doctorCode: schedule.doctorCode,
-                                  doctorName: schedule.doctorName,
-                                  doctorFullName: schedule.doctorFullName,
-                                },
-                                availableDoctorsCount:
-                                  availableDoctors?.length || 0,
-                                availableDoctors:
-                                  availableDoctors?.map((d) => ({
-                                    id: d.id,
-                                    name: d.name,
-                                    fullName: d.fullName,
-                                    code:
-                                      d.doctor_IdEmployee_Postgresql || d.code,
-                                  })) || [],
-                              }
-                            );
+                  notes: `📋 Copy từ DB: ${
+                    currentSchedule.examinationName || "Lịch khám"
+                  } - ${currentSchedule.roomName}${
+                    currentSchedule.doctorName
+                      ? ` - BS: ${currentSchedule.doctorName}`
+                      : ""
+                  }${
+                    currentSchedule.specialtyName
+                      ? ` - CK: ${currentSchedule.specialtyName}`
+                      : ""
+                  }`,
 
-                            // ✅ Fallback: tìm trong Redux doctors nếu schedule không có doctor
-                            let doctorValue = ""; // ✅ Khai báo biến trước
+                  priorityOrder: 10,
+                };
 
-                            console.log(
-                              `🔍 No doctor in schedule, searching Redux doctors for ${schedule.roomName}:`,
-                              {
-                                scheduleDoctor: {
-                                  doctorId: schedule.doctorId,
-                                  doctorCode: schedule.doctorCode,
-                                  doctorName: schedule.doctorName,
-                                  doctorFullName: schedule.doctorFullName,
-                                },
-                                reduxDoctorsCount: reduxDoctors?.length || 0,
-                                reduxDoctors:
-                                  reduxDoctors?.map((d) => ({
-                                    id: d.id,
-                                    name: d.name,
-                                    fullName: d.fullName,
-                                    code:
-                                      d.doctor_IdEmployee_Postgresql || d.code,
-                                  })) || [],
-                                availableDoctorsCount:
-                                  availableDoctors?.length || 0,
-                              }
-                            );
+                console.log(`📋 Room config for ${roomInfo.name}:`, {
+                  room: roomInfo.name,
+                  doctor: {
+                    original: {
+                      doctorName: doctorData.doctorName,
+                      doctorCode: doctorData.doctorCode,
+                      doctorId: doctorData.doctorId,
+                    },
+                    selected: roomConfigUpdate.selectedDoctor,
+                  },
+                  targetDept: targetDeptId,
+                  targetSlot: actualTargetSlotId,
+                  examType: roomConfigUpdate.selectedExamType,
+                  specialty: roomConfigUpdate.selectedSpecialty,
+                  appointments: roomConfigUpdate.appointmentCount,
+                  useTargetSlotTime: true, // Luôn dùng giờ ca đích
+                  // ✅ CRITICAL DEBUG: IDs từ clinic schedule
+                  directIds: {
+                    examTypeId: roomConfigUpdate.examTypeId,
+                    specialtyId: roomConfigUpdate.specialtyId,
+                    appointmentDuration: roomConfigUpdate.appointmentDuration,
+                  },
+                  clinicScheduleSource: {
+                    examTypeId: currentSchedule.examTypeId,
+                    specialtyId: currentSchedule.specialtyId,
+                    spaceMinutes: currentSchedule.spaceMinutes,
+                    examinationName: currentSchedule.examinationName,
+                    specialtyName: currentSchedule.specialtyName,
+                  },
+                });
 
-                            // ✅ Tìm trong Redux doctors trước
-                            if (reduxDoctors && reduxDoctors.length > 0) {
-                              const foundDoctor = reduxDoctors.find((d) => {
-                                const match =
-                                  d.id?.toString() ===
-                                    schedule.doctorId?.toString() ||
-                                  d.doctor_IdEmployee_Postgresql?.toString() ===
-                                    schedule.doctorCode?.toString() ||
-                                  d.code?.toString() ===
-                                    schedule.doctorCode?.toString() ||
-                                  d.name === schedule.doctorName ||
-                                  d.fullName === schedule.doctorName;
-                                return match;
-                              });
+                // ✅ Update room config với unique identifier để tránh ghi đè
+                if (updateRoomConfig) {
+                  console.log(
+                    `🔧 Calling updateRoomConfig for ${roomInfo.name} (roomId: ${roomInfo.id})...`
+                  );
 
-                              if (foundDoctor) {
-                                doctorValue =
-                                  foundDoctor.name ||
-                                  foundDoctor.fullName ||
-                                  "";
-                                console.log(`👨‍⚕️ Found doctor in Redux:`, {
-                                  finalDoctorName: doctorValue,
-                                });
-                                return doctorValue;
-                              }
-                            }
+                  // ✅ GIẢI PHÁP: Thêm roomId vào config để đảm bảo unique identification
+                  const uniqueRoomConfigUpdate = {
+                    ...roomConfigUpdate,
+                    // ✅ Thêm các identifier để tránh ghi đè
+                    roomId: roomInfo.id,
+                    originalRoomName: roomInfo.name,
+                    originalScheduleId: currentSchedule.id,
+                    // ✅ Tạo unique key dựa trên room và schedule
+                    uniqueKey: `${roomInfo.id}_${
+                      currentSchedule.id
+                    }_${Date.now()}`,
+                    // ✅ Đảm bảo doctor data không bị ghi đè
+                    doctorDataSnapshot: {
+                      doctorName: doctorData.doctorName,
+                      doctorCode: doctorData.doctorCode,
+                      doctorId: doctorData.doctorId,
+                      selectedDoctor: selectedDoctorValue,
+                    },
+                  };
 
-                            // ✅ Fallback to availableDoctors
-                            if (
-                              availableDoctors &&
-                              availableDoctors.length > 0
-                            ) {
-                              const foundDoctor = availableDoctors.find((d) => {
-                                const match =
-                                  d.id?.toString() ===
-                                    schedule.doctorId?.toString() ||
-                                  d.doctor_IdEmployee_Postgresql?.toString() ===
-                                    schedule.doctorCode?.toString() ||
-                                  d.code?.toString() ===
-                                    schedule.doctorCode?.toString() ||
-                                  d.name === schedule.doctorName ||
-                                  d.fullName === schedule.doctorName;
-                                return match;
-                              });
+                  console.log(`📊 Unique room config for ${roomInfo.name}:`, {
+                    roomId: roomInfo.id,
+                    roomName: roomInfo.name,
+                    scheduleId: currentSchedule.id,
+                    doctorFromSchedule: doctorData.doctorName,
+                    finalSelectedDoctor: uniqueRoomConfigUpdate.selectedDoctor,
+                    uniqueKey: uniqueRoomConfigUpdate.uniqueKey,
+                    timestamp: new Date().toISOString(),
+                  });
 
-                              if (foundDoctor) {
-                                doctorValue =
-                                  foundDoctor.name ||
-                                  foundDoctor.fullName ||
-                                  "";
-                                console.log(
-                                  `👨‍⚕️ Found doctor in availableDoctors:`,
-                                  {
-                                    finalDoctorName: doctorValue,
-                                  }
-                                );
-                                return doctorValue;
-                              }
-                            }
+                  // ✅ CRITICAL FIX: Sử dụng roomIndexInSlot thay vì index cố định 0
+                  console.log(
+                    `🔧 Calling updateRoomConfig with room index: ${roomIndexInSlot} for ${roomInfo.name}`
+                  );
 
-                            // ✅ Fallback: tìm doctor value theo thứ tự ưu tiên
-                            // ✅ Sử dụng doctorValue đã khai báo ở trên
+                  updateRoomConfig(
+                    targetDeptId,
+                    actualTargetSlotId,
+                    roomIndexInSlot, // ✅ Sử dụng index chính xác thay vì 0
+                    uniqueRoomConfigUpdate
+                  );
 
-                            // ✅ Ưu tiên doctorName (để hiển thị)
-                            if (schedule.doctorName) {
-                              doctorValue = schedule.doctorName;
-                            }
-                            // ✅ Thứ hai là doctorCode (thường dùng để select)
-                            else if (schedule.doctorCode) {
-                              doctorValue = schedule.doctorCode.toString();
-                            }
-                            // ✅ Cuối cùng là doctorId
-                            else if (schedule.doctorId) {
-                              doctorValue = schedule.doctorId.toString();
-                            }
+                  // ✅ Tăng index cho room tiếp theo trong slot này
+                  roomIndexInSlot++;
 
-                            console.log(
-                              `👨‍⚕️ Doctor assignment for room ${schedule.roomName}:`,
-                              {
-                                doctorId: schedule.doctorId,
-                                doctorCode: schedule.doctorCode,
-                                doctorName: schedule.doctorName,
-                                doctorFullName: schedule.doctorFullName,
-                                finalValue: doctorValue,
-                                isEmpty: !doctorValue,
-                                hasAvailableDoctors: !!(
-                                  availableDoctors &&
-                                  availableDoctors.length > 0
-                                ),
-                              }
-                            );
+                  // ✅ Đợi lâu hơn cho update hoàn tất và room được apply đầy đủ
+                  await new Promise((resolve) => setTimeout(resolve, 300));
+                }
 
-                            if (!doctorValue) {
-                              console.warn(
-                                `⚠️ No doctor data found for schedule ${schedule.id}`
-                              );
-                            }
+                successCount++;
+                console.log(
+                  `✅ Successfully processed ${
+                    roomInfo.name
+                  } (Doctor: ${selectedDoctorValue}) to ${targetDeptId}-${actualTargetSlotId} [${successCount}/${
+                    schedulesToCopy.length * targetSlots.length
+                  }]`
+                );
 
-                            return doctorValue;
-                          })()
-                        : "",
-
-                      // ✅ Ghi chú với thông tin copy
-                      notes: `📋 Copy từ DB: ${
-                        schedule.examinationName || "Lịch khám"
-                      } - ${schedule.roomName}${
-                        schedule.doctorName
-                          ? ` - BS: ${schedule.doctorName}`
-                          : ""
-                      }${
-                        schedule.specialtyName
-                          ? ` - CK: ${schedule.specialtyName}`
-                          : ""
-                      }`,
-
-                      // ✅ Thông tin bổ sung
-                      appointmentDuration: 30, // Default 30 phút
-                      priorityOrder: 10,
-                    };
-
-                    console.log(`📋 Room config update:`, {
-                      ...roomConfigUpdate,
-                      doctorInfo: {
-                        selectedDoctor: roomConfigUpdate.selectedDoctor,
-                        hasDoctorData: !!roomConfigUpdate.selectedDoctor,
-                        doctorDataType: typeof roomConfigUpdate.selectedDoctor,
-                        availableDoctorsPreview: availableDoctors
-                          ?.slice(0, 2)
-                          .map((d) => ({
-                            id: d.id,
-                            name: d.name,
-                            fullName: d.fullName,
-                            matchesSelectedDoctor:
-                              d.id?.toString() ===
-                                roomConfigUpdate.selectedDoctor ||
-                              d.name === roomConfigUpdate.selectedDoctor,
-                          })),
-                        reduxDoctorsPreview: reduxDoctors
-                          ?.slice(0, 2)
-                          .map((d) => ({
-                            id: d.id,
-                            name: d.name,
-                            fullName: d.fullName,
-                            matchesSelectedDoctor:
-                              d.id?.toString() ===
-                                roomConfigUpdate.selectedDoctor ||
-                              d.name === roomConfigUpdate.selectedDoctor,
-                          })),
-                      },
-                    });
-
-                    // ✅ Tìm index chính xác của room vừa thêm
-                    // Room mới thường được thêm ở cuối danh sách
-                    // Nhưng để chắc chắn, ta sẽ tìm theo roomId
-                    setTimeout(() => {
-                      // Double check để tìm đúng index
-                      console.log(
-                        `🔍 Finding room index for ${roomInfo.name} in ${targetDeptId}-${actualTargetSlotId}`
-                      );
-
-                      // Thử với index 0 trước (room mới nhất)
-                      console.log(`🔧 Calling updateRoomConfig with doctor:`, {
-                        targetDept: targetDeptId,
-                        targetSlot: actualTargetSlotId,
-                        roomIndex: 0,
-                        selectedDoctor: roomConfigUpdate.selectedDoctor,
-                      });
-
-                      updateRoomConfig(
-                        targetDeptId,
-                        actualTargetSlotId,
-                        0,
-                        roomConfigUpdate
-                      );
-
-                      // Nếu có nhiều rooms, thử update room cuối cũng
-                      setTimeout(() => {
-                        updateRoomConfig(
-                          targetDeptId,
-                          actualTargetSlotId,
-                          -1,
-                          roomConfigUpdate
-                        );
-                      }, 50);
-                    }, 100);
-                  }
-                }, 200 * successCount); // Stagger updates để tránh conflict
+                // ✅ Delay lâu hơn giữa các phòng để tránh race condition
+                await new Promise((resolve) => setTimeout(resolve, 100));
               } else {
                 console.error("❌ addRoomToShift function not available");
                 errors.push(`Không thể thêm ${schedule.roomName}`);
@@ -1423,8 +1282,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               errors.push(`Lỗi copy ${schedule.roomName}: ${error.message}`);
               errorCount++;
             }
-          });
-        });
+          }
+        }
 
         // ✅ Hiển thị kết quả và log chi tiết
         console.log(
@@ -1527,39 +1386,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         clearClinicScheduleSelection();
         setShowClinicScheduleCloneDialog(false);
 
-        // ✅ Force immediate refresh sau khi clear selections
-        setTimeout(() => {
-          if (onDataUpdated) {
-            console.log("🔄 Final refresh after clearing selections...");
-            onDataUpdated();
-          }
-        }, 100);
-
-        // ✅ Highlight target slots để user thấy được chỗ đã copy
-        setTimeout(() => {
-          console.log("✨ Highlighting target slots...");
-          targetSlots.forEach((targetSlotId) => {
-            const targetSlotElement = document.querySelector(
-              `[data-slot-id="${targetSlotId}"]`
-            );
-            if (targetSlotElement) {
-              targetSlotElement.classList.add(
-                "animate-pulse",
-                "ring-2",
-                "ring-green-500",
-                "bg-green-50"
-              );
-              setTimeout(() => {
-                targetSlotElement.classList.remove(
-                  "animate-pulse",
-                  "ring-2",
-                  "ring-green-500",
-                  "bg-green-50"
-                );
-              }, 3000);
-            }
-          });
-        }, 500);
+        // ✅ Final refresh sau khi clear selections
+        if (onDataUpdated) {
+          console.log("🔄 Final refresh after clearing selections...");
+          setTimeout(() => onDataUpdated(), 100);
+        }
       } catch (error) {
         console.error("❌ Error in bulk copy:", error);
         toast({
@@ -1579,6 +1410,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       toast,
       deptId,
       onDataUpdated,
+      clearClinicScheduleSelection,
+      setShowClinicScheduleCloneDialog,
     ]
   );
 

@@ -141,6 +141,14 @@ const WeeklySchedule = () => {
   // ✅ State để force refresh UI khi cần thiết
   const [refreshCounter, setRefreshCounter] = useState(0);
 
+  // ✅ State để lưu thông tin week clone indicators
+  const [recentClonedWeeks, setRecentClonedWeeks] = useState<{
+    targetWeeks: string[];
+    sourceWeek: string;
+    roomCount: number;
+    timestamp: number;
+  } | null>(null);
+
   // ✅ State để lưu thông tin xung đột
   const [scheduleConflicts, setScheduleConflicts] = useState<{
     doctorConflicts: any[];
@@ -2079,9 +2087,21 @@ const WeeklySchedule = () => {
                   }
                 }
 
-                // ✅ Lấy examTypeId từ selectedExamType
+                // ✅ Lấy examTypeId từ selectedExamType HOẶC từ room.examTypeId (copy từ DB)
                 let examTypeId = 0;
-                if (room.selectedExamType && departmentsByZone[selectedZone]) {
+
+                // ✅ PRIORITY 1: Sử dụng examTypeId trực tiếp nếu có (từ copy DB)
+                if (room.examTypeId && room.examTypeId > 0) {
+                  examTypeId = room.examTypeId;
+                  console.log(
+                    `✅ Using direct examTypeId: ${examTypeId} for room ${room.name}`
+                  );
+                }
+                // ✅ PRIORITY 2: Tìm từ selectedExamType như bình thường
+                else if (
+                  room.selectedExamType &&
+                  departmentsByZone[selectedZone]
+                ) {
                   const currentDept = departmentsByZone[selectedZone].find(
                     (dept: any) =>
                       dept.departmentHospitalId.toString() === deptId
@@ -2092,13 +2112,36 @@ const WeeklySchedule = () => {
                     );
                     if (examType) {
                       examTypeId = examType.id || 0;
+                      console.log(
+                        `✅ Found examTypeId from name: ${examTypeId} for examType "${room.selectedExamType}"`
+                      );
+                    } else {
+                      console.warn(
+                        `⚠️ ExamType not found: "${room.selectedExamType}" in department ${deptId}`
+                      );
                     }
                   }
+                } else {
+                  console.warn(
+                    `⚠️ No examTypeId or selectedExamType found for room ${room.name}`
+                  );
                 }
 
-                // ✅ Lấy specialtyId từ selectedSpecialty
+                // ✅ Lấy specialtyId từ selectedSpecialty HOẶC từ room.specialtyId (copy từ DB)
                 let specialtyId = 0;
-                if (room.selectedSpecialty && departmentsByZone[selectedZone]) {
+
+                // ✅ PRIORITY 1: Sử dụng specialtyId trực tiếp nếu có (từ copy DB)
+                if (room.specialtyId && room.specialtyId > 0) {
+                  specialtyId = room.specialtyId;
+                  console.log(
+                    `✅ Using direct specialtyId: ${specialtyId} for room ${room.name}`
+                  );
+                }
+                // ✅ PRIORITY 2: Tìm từ selectedSpecialty như bình thường
+                else if (
+                  room.selectedSpecialty &&
+                  departmentsByZone[selectedZone]
+                ) {
                   const currentDept = departmentsByZone[selectedZone].find(
                     (dept: any) =>
                       dept.departmentHospitalId.toString() === deptId
@@ -2193,6 +2236,23 @@ const WeeklySchedule = () => {
                   endSlot: endSlotFormatted,
                   holdSlot: room.holdSlot || room.holdSlots || 0,
                 };
+
+                console.log(`📊 Schedule entry for room ${room.name}:`, {
+                  roomName: room.name,
+                  examTypeId: examTypeId,
+                  specialtyId: specialtyId,
+                  spaceMinutes: room.appointmentDuration || 60,
+                  doctorId: doctorId,
+                  scheduleEntry: scheduleEntry,
+                  roomData: {
+                    selectedExamType: room.selectedExamType,
+                    selectedSpecialty: room.selectedSpecialty,
+                    selectedDoctor: room.selectedDoctor,
+                    appointmentDuration: room.appointmentDuration,
+                    directExamTypeId: room.examTypeId,
+                    directSpecialtyId: room.specialtyId,
+                  },
+                });
 
                 clinicScheduleData.push(scheduleEntry);
               });

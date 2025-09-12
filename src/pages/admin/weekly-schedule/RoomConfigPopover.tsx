@@ -100,7 +100,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       (state) => state.doctor
     );
 
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
     const [isSavedSuccessfully, setIsSavedSuccessfully] = useState(false); // ✅ State để track đã lưu thành công
     const [showRoomSelector, setShowRoomSelector] = useState(false); // ✅ State cho việc đổi phòng
     const [justSwapped, setJustSwapped] = useState(false); // ✅ State để hiển thị thông báo đổi phòng thành công
@@ -244,6 +244,18 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
 
     const handleUpdate = useCallback(
       (field: string, value: any) => {
+        console.log("🔧 RoomConfigPopover handleUpdate called:", {
+          field,
+          value,
+          currentRoom: {
+            id: room.id,
+            name: room.name,
+            selectedDoctor: room.selectedDoctor,
+            doctor: room.doctor,
+          },
+          params: { deptId, slotId, roomIndex },
+        });
+
         updateRoomConfig(deptId, slotId, roomIndex, {
           [field]: value,
         });
@@ -254,7 +266,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
           setValidationErrors([]);
         }
       },
-      [updateRoomConfig, deptId, slotId, roomIndex, showValidationWarning]
+      [updateRoomConfig, deptId, slotId, roomIndex, showValidationWarning, room]
     );
 
     const handleRemove = useCallback(() => {
@@ -690,8 +702,58 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       }
 
       // Kiểm tra bác sĩ phụ trách (bắt buộc)
-      if (!room.selectedDoctor && !room.doctor) {
+      const selectedDoctorValue =
+        room.selectedDoctor && room.selectedDoctor.trim();
+      const doctorValue = room.doctor && room.doctor.trim();
+
+      console.log("🔍 Doctor validation debug (ENHANCED):", {
+        roomObject: {
+          selectedDoctor: room.selectedDoctor,
+          doctor: room.doctor,
+          // ✅ Kiểm tra thêm các field khác có thể chứa doctor data
+          doctorName: room.doctorName,
+          doctorCode: room.doctorCode,
+          doctorId: room.doctorId,
+        },
+        processedValues: {
+          selectedDoctorValue,
+          doctorValue,
+        },
+        validation: {
+          hasValidDoctor: !!(selectedDoctorValue || doctorValue),
+          validationWillFail: !selectedDoctorValue && !doctorValue,
+        },
+        allRoomFields: Object.keys(room),
+      });
+
+      // ✅ ENHANCED: Kiểm tra các field doctor khác có thể có từ DB copy
+      const doctorFromOtherFields =
+        room.doctorName || room.doctorCode || room.doctorId;
+
+      if (!selectedDoctorValue && !doctorValue && !doctorFromOtherFields) {
         errors.push("Vui lòng chọn bác sĩ phụ trách");
+      } else if (
+        doctorFromOtherFields &&
+        !selectedDoctorValue &&
+        !doctorValue
+      ) {
+        // ✅ Có doctor data nhưng không ở đúng field, cần auto-fix
+        console.warn("🔧 Doctor data found in other fields, auto-fixing...", {
+          doctorName: room.doctorName,
+          doctorCode: room.doctorCode,
+          doctorId: room.doctorId,
+        });
+
+        // Auto-fix: chuyển doctor data vào selectedDoctor field
+        setTimeout(() => {
+          if (room.doctorName) {
+            handleUpdate("selectedDoctor", room.doctorName);
+          } else if (room.doctorCode) {
+            handleUpdate("selectedDoctor", room.doctorCode);
+          } else if (room.doctorId) {
+            handleUpdate("selectedDoctor", room.doctorId.toString());
+          }
+        }, 100);
       }
 
       // Kiểm tra thời gian hợp lệ
@@ -990,7 +1052,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                       <div className="flex items-center gap-1">
                         <Stethoscope className="w-2.5 h-2.5" />
                         <span className="truncate max-w-[150px]">
-                          {room.selectedDoctor || room.doctor}
+                          {room.selectedDoctor || room.doctor || "Chưa chọn BS"}
                         </span>
                       </div>
                     )}
@@ -1759,8 +1821,50 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                 doctor.code;
                               const doctorSpecialty =
                                 doctor.specialtyName || doctor.departmentName;
-                              const isSelected =
-                                doctorName === room.selectedDoctor;
+
+                              // ✅ Enhanced selection logic với multiple criteria
+                              const isSelected = (() => {
+                                if (!room.selectedDoctor) return false;
+
+                                const selectedValue =
+                                  room.selectedDoctor.trim();
+                                const currentName = (doctorName || "").trim();
+                                const currentCode = (doctorCode || "").trim();
+                                const currentId = (doctor.id || "")
+                                  .toString()
+                                  .trim();
+
+                                // So sánh với nhiều tiêu chí
+                                const nameMatch = currentName === selectedValue;
+                                const codeMatch = currentCode === selectedValue;
+                                const idMatch = currentId === selectedValue;
+
+                                const result =
+                                  nameMatch || codeMatch || idMatch;
+
+                                // Debug logging cho first few doctors
+                                if (filteredDoctors.indexOf(doctor) < 3) {
+                                  console.log(
+                                    `🔍 Doctor selection debug for ${currentName}:`,
+                                    {
+                                      doctorData: {
+                                        name: currentName,
+                                        code: currentCode,
+                                        id: currentId,
+                                      },
+                                      roomSelectedDoctor: selectedValue,
+                                      matches: {
+                                        nameMatch,
+                                        codeMatch,
+                                        idMatch,
+                                        result,
+                                      },
+                                    }
+                                  );
+                                }
+
+                                return result;
+                              })();
 
                               // ✅ Kiểm tra conflict và disable logic
                               const conflictInfo = doctor.conflictInfo;
