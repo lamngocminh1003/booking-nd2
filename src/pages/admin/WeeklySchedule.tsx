@@ -23,7 +23,7 @@ import {
 } from "@/store/slices/clinicScheduleSlice";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { format, getISOWeek } from "date-fns";
+import { format, getISOWeek, startOfISOWeek, addDays } from "date-fns";
 
 // Import components
 import { WeeklyScheduleHeader } from "@/pages/admin/weekly-schedule/WeeklyScheduleHeader";
@@ -40,6 +40,22 @@ interface ShiftSlot {
   rooms: RoomSlot[];
 }
 
+interface ShiftConfig {
+  startTime: string;
+  endTime: string;
+  maxAppointments: number;
+  name?: string;
+  examinationId?: number;
+  workSession?: string;
+}
+
+interface ShiftDefaults {
+  [key: string]: ShiftConfig;
+  morning?: ShiftConfig;
+  afternoon?: ShiftConfig;
+  evening?: ShiftConfig;
+}
+
 interface RoomSlot {
   id: string;
   name: string;
@@ -48,6 +64,9 @@ interface RoomSlot {
   customStartTime?: string;
   customEndTime?: string;
   appointmentCount?: number;
+  maxAppointments?: number;
+  holdSlot?: number;
+  appointmentDuration?: number;
   specialties: string[];
   selectedSpecialty?: string;
   selectedDoctor?: string;
@@ -63,6 +82,10 @@ export interface CloneOptions {
   includeDoctors: boolean;
   includeTimeSettings: boolean;
   overwriteExisting: boolean;
+  // ✅ Thêm các property còn thiếu
+  includeNotes?: boolean;
+  includeExamTypes?: boolean;
+  includeAppointmentCounts?: boolean;
 }
 
 export interface CloneWeekAction {
@@ -101,7 +124,7 @@ const WeeklySchedule = () => {
   const [showShiftConfigDialog, setShowShiftConfigDialog] = useState(false);
   const [showRoomClassificationDialog, setShowRoomClassificationDialog] =
     useState(false);
-  const [shiftDefaults, setShiftDefaults] = useState({
+  const [shiftDefaults, setShiftDefaults] = useState<ShiftDefaults>({
     morning: { startTime: "07:30", endTime: "11:00", maxAppointments: 10 },
     afternoon: { startTime: "13:00", endTime: "17:00", maxAppointments: 10 },
     evening: { startTime: "17:30", endTime: "20:30", maxAppointments: 8 },
@@ -118,6 +141,17 @@ const WeeklySchedule = () => {
   // ✅ State để track việc đã populate clinic schedules chưa
   const [isClinicSchedulesPopulated, setIsClinicSchedulesPopulated] =
     useState(false);
+
+  // ✅ State để force refresh UI khi cần thiết
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  // ✅ State để lưu thông tin week clone indicators
+  const [recentClonedWeeks, setRecentClonedWeeks] = useState<{
+    targetWeeks: string[];
+    sourceWeek: string;
+    roomCount: number;
+    timestamp: number;
+  } | null>(null);
 
   // ✅ State để lưu thông tin xung đột
   const [scheduleConflicts, setScheduleConflicts] = useState<{
@@ -287,6 +321,42 @@ const WeeklySchedule = () => {
     }
   }, [selectedZone]);
 
+  // ✅ Sync shiftDefaults với examinations data
+  useEffect(() => {
+    if (examinations && examinations.length > 0) {
+      const newDefaults: any = {};
+
+      // ✅ Map workSession to English keys
+      const workSessionMap: Record<string, string> = {
+        sáng: "morning",
+        chiều: "afternoon",
+        tối: "evening",
+      };
+
+      examinations.forEach((exam) => {
+        const englishKey = workSessionMap[exam.workSession] || exam.workSession;
+
+        // ✅ Chỉ update nếu chưa có hoặc chưa được user override
+        if (!newDefaults[englishKey]) {
+          newDefaults[englishKey] = {
+            startTime: exam.startTime?.slice(0, 5) || "07:00",
+            endTime: exam.endTime?.slice(0, 5) || "17:00",
+            maxAppointments: 10,
+            name: exam.name,
+            examinationId: exam.id,
+            workSession: exam.workSession,
+          };
+        }
+      });
+
+      // ✅ Merge với defaults hiện tại thay vì replace hoàn toàn
+      setShiftDefaults((prev) => ({
+        ...prev,
+        ...newDefaults,
+      }));
+    }
+  }, [examinations]);
+
   // ✅ Utility functions cho color picker
   const hexToTailwind = useCallback((hex: string) => {
     // ✅ Simple mapping hex colors to tailwind classes
@@ -401,6 +471,58 @@ const WeeklySchedule = () => {
     return () => clearTimeout(timeoutId);
   }, [selectedZone, zones, dispatch]);
 
+  // ✅ Callback để refresh data sau khi copy phòng từ DB
+  const handleDataUpdated = useCallback(() => {
+    // ✅ Force refresh counter ngay lập tức để re-mount components
+    setRefreshCounter((prev) => prev + 1);
+
+    // Reset populate flag để cho phép re-populate clinic schedules
+    setIsClinicSchedulesPopulated(false);
+
+    // Force re-render bằng cách tạo copy mới của scheduleData với timestamp
+    const timestamp = Date.now();
+    setScheduleData((prevData) => {
+      const newData = { ...prevData };
+      // Thêm metadata để force update mà không ảnh hưởng logic
+      (newData as any).__lastRefresh = timestamp;
+      (newData as any).__refreshCount =
+        ((prevData as any).__refreshCount || 0) + 1;
+
+      return newData;
+    });
+
+    // ✅ Trigger multiple refresh waves để đảm bảo UI được update
+    setTimeout(() => {
+      setRefreshCounter((prev) => prev + 1);
+      setScheduleData(
+        (prevData) =>
+          ({
+            ...prevData,
+            __forceUpdate: Date.now(),
+          } as any)
+      );
+    }, 100);
+
+    setTimeout(() => {
+      setRefreshCounter((prev) => prev + 1);
+    }, 300);
+
+    // Re-fetch clinic schedules để có data mới nhất (nếu cần)
+    if (selectedWeek) {
+      const [year, weekStr] = selectedWeek.split("-W");
+      const week = parseInt(weekStr);
+      const yearNum = parseInt(year);
+
+      dispatch(
+        fetchClinicSchedules({
+          Week: week,
+          Year: yearNum,
+          ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
+        })
+      );
+    }
+  }, [selectedWeek, selectedZone, dispatch]);
+
   useEffect(() => {
     if (selectedZone && selectedZone !== "all") {
       const zoneDepartments = departmentsByZone[selectedZone] || [];
@@ -486,23 +608,6 @@ const WeeklySchedule = () => {
           return acc;
         },
         {}
-      );
-
-      // Hiển thị các trường hợp có nhiều hơn 1 lịch
-      Object.entries(roomConflictAnalysis).forEach(
-        ([key, schedules]: [string, any]) => {
-          if (schedules.length > 1) {
-            console.warn(`🏥 Xung đột phòng ở ${key}:`, schedules);
-          }
-        }
-      );
-
-      Object.entries(doctorConflictAnalysis).forEach(
-        ([key, schedules]: [string, any]) => {
-          if (schedules.length > 1) {
-            console.warn(`👨‍⚕️ Xung đột bác sĩ ở ${key}:`, schedules);
-          }
-        }
       );
     }
     if (clinicSchedulesError) {
@@ -591,81 +696,6 @@ const WeeklySchedule = () => {
 
     return conflicts;
   }, []);
-
-  // ✅ Check for conflicts when clinic schedules change
-  useEffect(() => {
-    if (clinicSchedules.length > 0) {
-      const conflicts = detectScheduleConflicts(clinicSchedules);
-      setScheduleConflicts(conflicts);
-
-      if (
-        conflicts.doctorConflicts.length > 0 ||
-        conflicts.roomConflicts.length > 0
-      ) {
-        console.warn("⚠️ Phát hiện xung đột trong lịch khám:", conflicts);
-
-        // Show toast warnings for conflicts
-        if (conflicts.doctorConflicts.length > 0) {
-          toast.error(
-            `🚨 Phát hiện ${conflicts.doctorConflicts.length} xung đột bác sĩ trong cùng ca khám!`,
-            {
-              duration: 10000,
-            }
-          );
-
-          conflicts.doctorConflicts.forEach((conflict) => {
-            console.error(
-              `🔴 Bác sĩ ${conflict.doctorName} bị trùng lịch trong ${conflict.dayInWeek} - ${conflict.examinationName}:`,
-              conflict.conflictingSchedules
-            );
-          });
-        }
-
-        if (conflicts.roomConflicts.length > 0) {
-          toast.error(
-            `🏥 Phát hiện ${conflicts.roomConflicts.length} xung đột phòng khám trong cùng ca khám!`,
-            {
-              duration: 10000,
-            }
-          );
-
-          conflicts.roomConflicts.forEach((conflict) => {
-            console.error(
-              `🔴 Phòng ${conflict.roomName} bị trùng lịch trong ${conflict.dayInWeek} - ${conflict.examinationName}:`,
-              conflict.conflictingSchedules
-            );
-          });
-        }
-
-        // Hiển thị chi tiết cụ thể
-        console.table(
-          conflicts.doctorConflicts.map((c) => ({
-            "Loại xung đột": "Bác sĩ",
-            Tên: c.doctorName,
-            Ngày: c.dayInWeek,
-            "Ca khám": c.examinationName,
-            "Số lịch trùng": c.conflictingSchedules.length,
-          }))
-        );
-
-        console.table(
-          conflicts.roomConflicts.map((c) => ({
-            "Loại xung đột": "Phòng khám",
-            Tên: c.roomName,
-            Ngày: c.dayInWeek,
-            "Ca khám": c.examinationName,
-            "Số lịch trùng": c.conflictingSchedules.length,
-          }))
-        );
-      } else {
-        toast.success("✅ Lịch khám không có xung đột!", {
-          duration: 3000,
-        });
-      }
-    } else {
-      setScheduleConflicts({ doctorConflicts: [], roomConflicts: [] });
-    }
-  }, [clinicSchedules, detectScheduleConflicts]);
 
   // ✅ Debug trong useEffect
 
@@ -823,18 +853,22 @@ const WeeklySchedule = () => {
     [availableDoctors]
   );
 
-  // ✅ Get week date range
+  // ✅ Get week date range - FIXED: Sử dụng date-fns để tính chính xác ISO week
   const getWeekDateRange = (weekString: string) => {
     const [year, weekStr] = weekString.split("-W");
     const weekNum = parseInt(weekStr);
     const yearNum = parseInt(year);
 
-    const startOfYear = new Date(yearNum, 0, 1);
-    const daysToAdd = (weekNum - 1) * 7 - startOfYear.getDay() + 1;
-    const mondayOfWeek = new Date(yearNum, 0, 1 + daysToAdd);
+    // ✅ Sử dụng date-fns để tính chính xác ISO week
+    // Tạo một ngày bất kỳ trong năm, sau đó tìm tuần ISO tương ứng
+    const tempDate = new Date(yearNum, 0, 4); // Ngày 4/1 luôn thuộc tuần 1 của năm
+    const startOfYear = startOfISOWeek(tempDate); // Thứ 2 của tuần 1
 
-    const fridayOfWeek = new Date(mondayOfWeek);
-    fridayOfWeek.setDate(mondayOfWeek.getDate() + 4);
+    // Tính thứ 2 của tuần cần tìm
+    const mondayOfWeek = addDays(startOfYear, (weekNum - 1) * 7);
+
+    // Tính thứ 6 của tuần (workdays từ thứ 2 đến thứ 6)
+    const fridayOfWeek = addDays(mondayOfWeek, 4);
 
     return {
       startDate: format(mondayOfWeek, "dd/MM"),
@@ -1164,32 +1198,47 @@ const WeeklySchedule = () => {
         const slot = timeSlots.find((t) => t.id === slotId);
 
         if (!roomInfo) {
+          console.error(`❌ Room not found: ${roomId}`);
           toast.error("Không tìm thấy thông tin phòng!");
           return;
         }
 
         if (!slot) {
-          toast.error("Không tìm thấy thông tin ca khám!");
-          return;
+          console.error(`❌ Slot not found: ${slotId}`);
+
+          // ✅ Thay vì return error, tạo fallback slot info
+          console.warn(`⚠️ Using fallback slot config for ${slotId}`);
         }
 
-        if (slot.disabled) {
+        // ✅ Fallback slot config nếu không tìm thấy slot
+        const slotConfig = slot || {
+          id: slotId,
+          workSession: "sáng", // default
+          startTime: "07:30",
+          endTime: "11:00",
+          disabled: false,
+        };
+
+        if (slotConfig.disabled) {
           toast.error("Không thể thêm phòng vào ca khám đã tắt!");
           return;
         }
 
         const usedRooms = getUsedRoomsInSlot(slotId);
         if (usedRooms.has(roomId)) {
+          console.warn(
+            `⚠️ Room ${roomInfo.name} already used in slot ${slotId}`
+          );
           toast.error(`Phòng ${roomInfo.name} đã được sử dụng trong ca này!`);
           return;
         }
 
         const cellKey = `${deptId}-${slotId}`;
-        const shiftConfig = shiftDefaults[slot.workSession];
+        const shiftConfig = shiftDefaults[slotConfig.workSession];
 
         const fallbackConfig = {
-          startTime: slot.startTime?.slice(0, 5) || "07:30",
-          endTime: slot.endTime?.slice(0, 5) || "11:00",
+          startTime: slotConfig.startTime?.slice(0, 5) || "07:30",
+          endTime: slotConfig.endTime?.slice(0, 5) || "11:00",
           maxAppointments: 10,
         };
 
@@ -1200,8 +1249,10 @@ const WeeklySchedule = () => {
           classification: roomInfo.classification,
           customStartTime: shiftConfig?.startTime || fallbackConfig.startTime,
           customEndTime: shiftConfig?.endTime || fallbackConfig.endTime,
-          appointmentCount:
-            shiftConfig?.maxAppointments || fallbackConfig.maxAppointments,
+          appointmentCount: 10, // ✅ Mặc định 10 lượt khám
+          maxAppointments: 10, // ✅ Mặc định 10 lượt khám
+          holdSlot: 0, // ✅ Mặc định 0 giữ chỗ
+          appointmentDuration: 60, // ✅ Mặc định 60 phút cho 1 tiếng (2 slot)
           specialties: [...(roomInfo.specialties || [])],
           selectedSpecialty: "", // ✅ Không set mặc định, để trống
           selectedDoctor: "", // ✅ Giữ nguyên - không set mặc định
@@ -1213,15 +1264,19 @@ const WeeklySchedule = () => {
         setUndoStack((prev) => [...prev, { ...scheduleData }]);
         setRedoStack([]);
 
-        setScheduleData((prev) => ({
-          ...prev,
-          [deptId]: {
-            ...prev[deptId],
-            [slotId]: {
-              rooms: [...(prev[deptId]?.[slotId]?.rooms || []), newRoom],
+        setScheduleData((prev) => {
+          const newData = {
+            ...prev,
+            [deptId]: {
+              ...prev[deptId],
+              [slotId]: {
+                rooms: [...(prev[deptId]?.[slotId]?.rooms || []), newRoom],
+              },
             },
-          },
-        }));
+          };
+
+          return newData;
+        });
 
         setScheduleChanges((prev) => ({
           ...prev,
@@ -1271,6 +1326,361 @@ const WeeklySchedule = () => {
 
     toast.success("Đã xóa phòng khỏi lịch khám");
   };
+
+  // ✅ Thêm hàm nhân bản phòng
+  const handleCloneRooms = useCallback(
+    (
+      rooms: any[],
+      targetSlots?: string[],
+      targetDepartmentIds?: string[],
+      cloneOptions?: any,
+      sourceSlotId?: string
+    ) => {
+      try {
+        if (!rooms || rooms.length === 0) {
+          toast.error("Không có phòng nào để nhân bản!");
+          return;
+        }
+
+        if (!targetSlots || targetSlots.length === 0) {
+          toast.error("Không có ca khám đích để nhân bản!");
+          return;
+        }
+
+        let totalCloned = 0;
+        let successfulSlots: string[] = [];
+        let failedSlots: string[] = [];
+
+        // ✅ Backup state để undo
+        setUndoStack((prev) => [...prev, { ...scheduleData }]);
+        setRedoStack([]);
+
+        // ✅ Clone từng phòng sang từng target slot
+        setScheduleData((prev) => {
+          const newData = { ...prev };
+
+          targetSlots.forEach((targetSlotId) => {
+            try {
+              // ✅ Đơn giản hóa: dùng department đầu tiên trong filtered list làm default
+              const defaultDeptId =
+                searchFilteredDepartments[0]?.id?.toString() || "1";
+              const targetDeptId = targetDepartmentIds?.[0] || defaultDeptId;
+              const actualSlotId = targetSlotId;
+
+              // ✅ Khởi tạo structure nếu chưa có
+              if (!newData[targetDeptId]) {
+                newData[targetDeptId] = {};
+              }
+              if (!newData[targetDeptId][actualSlotId]) {
+                newData[targetDeptId][actualSlotId] = { rooms: [] };
+              }
+
+              // ✅ Clone rooms với kiểm tra duplicate
+              const existingRoomIds = new Set(
+                newData[targetDeptId][actualSlotId].rooms.map((r: any) => r.id)
+              );
+
+              const newRooms = rooms
+                .filter((room) => !existingRoomIds.has(room.id))
+                .map((room) => {
+                  // ✅ Base room data
+                  const clonedRoom = { ...room };
+
+                  // ✅ Áp dụng clone options
+                  if (!cloneOptions?.includeDoctors) {
+                    clonedRoom.selectedDoctor = "";
+                    clonedRoom.doctor = "";
+                  } else {
+                    clonedRoom.selectedDoctor =
+                      room.selectedDoctor || room.doctor || "";
+                  }
+
+                  if (!cloneOptions?.includeSpecialties) {
+                    clonedRoom.selectedSpecialty = "";
+                    clonedRoom.specialty = "";
+                  } else {
+                    clonedRoom.selectedSpecialty =
+                      room.selectedSpecialty || room.specialty || "";
+                  }
+
+                  if (!cloneOptions?.includeExamTypes) {
+                    clonedRoom.selectedExamType = "";
+                    clonedRoom.examType = "";
+                  } else {
+                    clonedRoom.selectedExamType =
+                      room.selectedExamType || room.examType || "";
+                  }
+
+                  // ✅ Tìm sourceSlot với fallback
+                  let sourceSlot = null;
+                  if (sourceSlotId) {
+                    sourceSlot =
+                      timeSlots.find((slot) => slot.id === sourceSlotId) ||
+                      timeSlots.find((slot) => slot.slotId === sourceSlotId) ||
+                      timeSlots.find(
+                        (slot) =>
+                          `${slot.date}-${slot.workSession}` === sourceSlotId
+                      );
+                  }
+
+                  // ✅ Tìm targetSlot
+                  const targetSlot = timeSlots.find(
+                    (slot) =>
+                      slot.id === actualSlotId ||
+                      slot.slotId === actualSlotId ||
+                      `${slot.date}-${slot.workSession}` === actualSlotId
+                  );
+
+                  // ✅ Lấy thông tin workSession
+                  const targetWorkSession = targetSlot?.workSession;
+                  const sourceWorkSession = sourceSlot?.workSession;
+
+                  // ✅ Tìm examination theo workSession
+                  const targetExamination = examinations.find(
+                    (exam) =>
+                      exam.workSession === targetWorkSession && exam.enable
+                  );
+
+                  const fallbackExamination = examinations.find(
+                    (exam) => exam.workSession === targetWorkSession
+                  );
+
+                  const finalExamination =
+                    targetExamination || fallbackExamination;
+
+                  // ✅ Map workSession sang English keys
+                  const workSessionMap: Record<string, string> = {
+                    sáng: "morning",
+                    chiều: "afternoon",
+                    tối: "evening",
+                    morning: "morning",
+                    afternoon: "afternoon",
+                    evening: "evening",
+                  };
+
+                  const shiftKey = targetWorkSession
+                    ? workSessionMap[targetWorkSession]
+                    : null;
+
+                  // ✅ Lấy thông tin thời gian
+                  const examTime = finalExamination
+                    ? {
+                        startTime: finalExamination.startTime?.slice(0, 5),
+                        endTime: finalExamination.endTime?.slice(0, 5),
+                        maxAppointments: 10,
+                      }
+                    : null;
+
+                  const shiftConfig = shiftKey
+                    ? shiftDefaults[shiftKey as keyof typeof shiftDefaults]
+                    : null;
+
+                  // ✅ Kiểm tra cùng ca hay khác ca
+                  let isSameShift = sourceWorkSession === targetWorkSession;
+
+                  // ✅ Fallback logic cho việc xác định same shift
+                  if (
+                    !sourceSlot &&
+                    sourceSlotId &&
+                    sourceSlotId.includes("-")
+                  ) {
+                    const parts = sourceSlotId.split("-");
+                    if (parts.length >= 4) {
+                      const sourceDate = `${parts[0]}-${parts[1]}-${parts[2]}`;
+                      const targetDate = targetSlot?.date;
+                      if (sourceDate === targetDate) {
+                        isSameShift = true;
+                      }
+                    }
+                  }
+
+                  // ✅ Nếu sourceSlotId === actualSlotId thì chắc chắn cùng ca
+                  if (sourceSlotId === actualSlotId) {
+                    isSameShift = true;
+                  }
+
+                  // ✅ Xử lý thời gian dựa trên options và same shift
+                  if (!cloneOptions?.includeTimeSettings) {
+                    if (isSameShift) {
+                      // ✅ CÙNG CA: Giữ giờ tùy chỉnh
+                      const startTime =
+                        room.customStartTime || room.startTime || "";
+                      const endTime = room.customEndTime || room.endTime || "";
+                      const maxAppointments =
+                        room.appointmentCount || room.maxAppointments || 10;
+
+                      clonedRoom.customStartTime = startTime;
+                      clonedRoom.customEndTime = endTime;
+                      clonedRoom.appointmentCount = maxAppointments;
+                      clonedRoom.startTime = startTime;
+                      clonedRoom.endTime = endTime;
+                      clonedRoom.maxAppointments = maxAppointments;
+                    } else {
+                      // ✅ KHÁC CA: Reset về giờ mặc định
+                      const defaultStartTime =
+                        examTime?.startTime || shiftConfig?.startTime || "";
+                      const defaultEndTime =
+                        examTime?.endTime || shiftConfig?.endTime || "";
+                      const defaultMaxAppointments =
+                        examTime?.maxAppointments ||
+                        shiftConfig?.maxAppointments ||
+                        10;
+
+                      delete clonedRoom.customStartTime;
+                      delete clonedRoom.customEndTime;
+                      delete clonedRoom.appointmentCount;
+                      delete clonedRoom.maxAppointments;
+                      delete clonedRoom.appointmentDuration;
+
+                      clonedRoom.startTime = defaultStartTime;
+                      clonedRoom.endTime = defaultEndTime;
+                      clonedRoom.appointmentCount = defaultMaxAppointments;
+                      clonedRoom.maxAppointments = defaultMaxAppointments;
+                    }
+                  } else {
+                    // ✅ Copy time settings
+                    if (isSameShift) {
+                      const startTime =
+                        room.customStartTime || room.startTime || "";
+                      const endTime = room.customEndTime || room.endTime || "";
+                      const maxAppointments =
+                        room.appointmentCount || room.maxAppointments || 10;
+
+                      clonedRoom.customStartTime = startTime;
+                      clonedRoom.customEndTime = endTime;
+                      clonedRoom.appointmentCount = maxAppointments;
+                      clonedRoom.startTime = startTime;
+                      clonedRoom.endTime = endTime;
+                      clonedRoom.maxAppointments = maxAppointments;
+                    } else {
+                      const defaultStartTime =
+                        examTime?.startTime || shiftConfig?.startTime || "";
+                      const defaultEndTime =
+                        examTime?.endTime || shiftConfig?.endTime || "";
+                      const defaultMaxAppointments =
+                        examTime?.maxAppointments ||
+                        shiftConfig?.maxAppointments ||
+                        10;
+
+                      delete clonedRoom.customStartTime;
+                      delete clonedRoom.customEndTime;
+
+                      clonedRoom.startTime = defaultStartTime;
+                      clonedRoom.endTime = defaultEndTime;
+                      clonedRoom.appointmentCount = defaultMaxAppointments;
+                      clonedRoom.maxAppointments = defaultMaxAppointments;
+                    }
+
+                    clonedRoom.appointmentDuration =
+                      room.appointmentDuration || 60;
+                  }
+
+                  // ✅ Xử lý notes
+                  if (!cloneOptions?.includeNotes) {
+                    clonedRoom.notes = "";
+                  } else {
+                    clonedRoom.notes = room.notes || "";
+                  }
+
+                  // ✅ Giữ lại thông tin cơ bản
+                  clonedRoom.holdSlot = room.holdSlot || room.holdSlots || 0;
+                  clonedRoom.priorityOrder = room.priorityOrder || 10;
+
+                  // ✅ Copy số lượt khám nếu được bật
+                  if (cloneOptions?.includeAppointmentCounts) {
+                    clonedRoom.appointmentCount =
+                      room.appointmentCount || room.maxAppointments || 10;
+                    clonedRoom.maxAppointments =
+                      room.maxAppointments || room.appointmentCount || 10;
+                    clonedRoom.holdSlot = room.holdSlot || room.holdSlots || 0;
+                    clonedRoom.appointmentDuration =
+                      room.appointmentDuration || 60;
+                  } else {
+                    // Không copy, dùng mặc định
+                    if (
+                      !clonedRoom.appointmentCount &&
+                      !clonedRoom.maxAppointments
+                    ) {
+                      clonedRoom.appointmentCount = 10;
+                      clonedRoom.maxAppointments = 10;
+                      clonedRoom.holdSlot = 0;
+                      clonedRoom.appointmentDuration = 60;
+                    }
+                  }
+
+                  // ✅ Fallback: Luôn có appointmentDuration
+                  if (!clonedRoom.appointmentDuration) {
+                    clonedRoom.appointmentDuration =
+                      room.appointmentDuration || 60;
+                  }
+
+                  // ✅ Metadata cho tracking
+                  clonedRoom.isCloned = true;
+                  clonedRoom.clonedFrom = `${room.deptId || "unknown"}-${
+                    room.slotId || "unknown"
+                  }`;
+                  clonedRoom.clonedAt = Date.now();
+                  clonedRoom.clonedOptions = cloneOptions;
+
+                  return clonedRoom;
+                });
+
+              if (newRooms.length > 0) {
+                newData[targetDeptId][actualSlotId].rooms = [
+                  ...newData[targetDeptId][actualSlotId].rooms,
+                  ...newRooms,
+                ];
+                totalCloned += newRooms.length;
+                successfulSlots.push(targetSlotId);
+              }
+            } catch (error) {
+              console.error("Error cloning to slot:", targetSlotId, error);
+              failedSlots.push(targetSlotId);
+            }
+          });
+
+          return newData;
+        });
+
+        // ✅ Update schedule changes
+        const changeKey = `clone-${Date.now()}`;
+        setScheduleChanges((prev) => ({
+          ...prev,
+          [changeKey]: {
+            action: "clone_rooms",
+            sourceRooms: rooms.length,
+            targetSlots: successfulSlots,
+            totalCloned,
+          },
+        }));
+
+        // ✅ Show success toast
+        if (totalCloned > 0) {
+          const timeSettingsInfo = cloneOptions?.includeTimeSettings
+            ? " (giữ giờ tùy chỉnh)"
+            : " (giờ theo ca đích)";
+
+          toast.success(
+            `✅ Đã nhân bản ${totalCloned} phòng sang ${successfulSlots.length} ca khám${timeSettingsInfo}`,
+            {
+              description: `Thành công: ${successfulSlots.length} ca • Thất bại: ${failedSlots.length} ca`,
+              duration: 4000,
+            }
+          );
+        }
+
+        if (failedSlots.length > 0) {
+          toast.error(
+            `⚠️ Không thể nhân bản sang ${failedSlots.length} ca khám`
+          );
+        }
+      } catch (error) {
+        console.error("Error in handleCloneRooms:", error);
+        toast.error("Lỗi khi nhân bản phòng!");
+      }
+    },
+    [scheduleData, timeSlots, shiftDefaults, examinations]
+  );
 
   // ✅ Update room config function
   const updateRoomConfig = (
@@ -1373,15 +1783,24 @@ const WeeklySchedule = () => {
                 // ✅ Tính ngày trong tuần dựa trên fullDate của slot
                 const slotDate = new Date(slotInfo.fullDate);
 
-                // ✅ Lấy doctorId từ selectedDoctor
+                // ✅ Lấy doctorId từ selectedDoctor với nhiều cách tìm kiếm
                 let doctorId = 0;
                 if (room.selectedDoctor) {
-                  // Tìm doctor theo tên trong danh sách allDoctors
-                  const doctor = allDoctors.find(
-                    (d) =>
-                      d.name === room.selectedDoctor ||
-                      d.fullName === room.selectedDoctor
-                  );
+                  // ✅ Tìm doctor theo nhiều field: name, fullName, code, id
+                  const doctor = allDoctors.find((d) => {
+                    const searchValue = room.selectedDoctor.toString();
+                    return (
+                      // Tìm theo tên
+                      d.name === searchValue ||
+                      d.fullName === searchValue ||
+                      // Tìm theo code (employee ID)
+                      d.doctor_IdEmployee_Postgresql?.toString() ===
+                        searchValue ||
+                      d.code?.toString() === searchValue ||
+                      // Tìm theo ID
+                      d.id?.toString() === searchValue
+                    );
+                  });
 
                   if (doctor) {
                     doctorId =
@@ -1391,13 +1810,30 @@ const WeeklySchedule = () => {
                           "0"
                       ) || 0;
                   } else {
-                    console.warn("⚠️ Doctor not found:", room.selectedDoctor);
+                    console.warn("⚠️ Doctor not found:", {
+                      searchValue: room.selectedDoctor,
+                      availableDoctors: allDoctors.map((d) => ({
+                        name: d.name,
+                        fullName: d.fullName,
+                        code: d.doctor_IdEmployee_Postgresql || d.code,
+                        id: d.id,
+                      })),
+                    });
                   }
                 }
 
-                // ✅ Lấy examTypeId từ selectedExamType
+                // ✅ Lấy examTypeId từ selectedExamType HOẶC từ room.examTypeId (copy từ DB)
                 let examTypeId = 0;
-                if (room.selectedExamType && departmentsByZone[selectedZone]) {
+
+                // ✅ PRIORITY 1: Sử dụng examTypeId trực tiếp nếu có (từ copy DB)
+                if (room.examTypeId && room.examTypeId > 0) {
+                  examTypeId = room.examTypeId;
+                }
+                // ✅ PRIORITY 2: Tìm từ selectedExamType như bình thường
+                else if (
+                  room.selectedExamType &&
+                  departmentsByZone[selectedZone]
+                ) {
                   const currentDept = departmentsByZone[selectedZone].find(
                     (dept: any) =>
                       dept.departmentHospitalId.toString() === deptId
@@ -1408,13 +1844,30 @@ const WeeklySchedule = () => {
                     );
                     if (examType) {
                       examTypeId = examType.id || 0;
+                    } else {
+                      console.warn(
+                        `⚠️ ExamType not found: "${room.selectedExamType}" in department ${deptId}`
+                      );
                     }
                   }
+                } else {
+                  console.warn(
+                    `⚠️ No examTypeId or selectedExamType found for room ${room.name}`
+                  );
                 }
 
-                // ✅ Lấy specialtyId từ selectedSpecialty
+                // ✅ Lấy specialtyId từ selectedSpecialty HOẶC từ room.specialtyId (copy từ DB)
                 let specialtyId = 0;
-                if (room.selectedSpecialty && departmentsByZone[selectedZone]) {
+
+                // ✅ PRIORITY 1: Sử dụng specialtyId trực tiếp nếu có (từ copy DB)
+                if (room.specialtyId && room.specialtyId > 0) {
+                  specialtyId = room.specialtyId;
+                }
+                // ✅ PRIORITY 2: Tìm từ selectedSpecialty như bình thường
+                else if (
+                  room.selectedSpecialty &&
+                  departmentsByZone[selectedZone]
+                ) {
                   const currentDept = departmentsByZone[selectedZone].find(
                     (dept: any) =>
                       dept.departmentHospitalId.toString() === deptId
@@ -1498,7 +1951,7 @@ const WeeklySchedule = () => {
                 const scheduleEntry = {
                   dateInWeek: slotDate.toISOString(),
                   total: room.appointmentCount || room.maxAppointments || 10,
-                  spaceMinutes: room.appointmentDuration || 30,
+                  spaceMinutes: room.appointmentDuration || 60,
                   specialtyId: specialtyId,
                   roomId: parseInt(room.id) || 0,
                   examinationId: examinationId, // ✅ Sử dụng examinationId từ examination thực tế
@@ -1716,120 +2169,390 @@ const WeeklySchedule = () => {
         setUndoStack((prev) => [...prev, { ...scheduleData }]);
         setRedoStack([]);
 
-        let totalClonedRooms = 0;
-        const sourceWeekData = { ...scheduleData };
+        let totalCloned = 0;
+        let successfulSlots: string[] = [];
+        let failedSlots: string[] = [];
+
+        // ✅ Lấy tất cả rooms từ scheduleData hiện tại để clone
+        const allRoomsToClone: any[] = [];
+        Object.entries(scheduleData).forEach(([deptId, deptSchedule]) => {
+          Object.entries(deptSchedule).forEach(
+            ([slotId, slot]: [string, any]) => {
+              if (slot?.rooms && Array.isArray(slot.rooms)) {
+                slot.rooms.forEach((room: any) => {
+                  allRoomsToClone.push({
+                    ...room,
+                    sourceDeptId: deptId,
+                    sourceSlotId: slotId,
+                  });
+                });
+              }
+            }
+          );
+        });
+
+        if (allRoomsToClone.length === 0) {
+          toast.error("Không có phòng nào để nhân bản!");
+          return;
+        }
 
         setScheduleData((prev) => {
           const newData = { ...prev };
 
           targetWeeks.forEach((targetWeek) => {
-            // ✅ Tạo mapping từ slot ID tuần nguồn sang tuần đích
-            const sourceSlots = timeSlots.filter((slot) =>
-              slot.id.includes(selectedWeek.split("-W")[0])
-            );
+            try {
+              // ✅ Parse targetWeek để lấy thông tin tuần
+              const [targetYear, targetWeekStr] = targetWeek.split("-W");
+              const targetWeekNum = parseInt(targetWeekStr);
+              const targetYearNum = parseInt(targetYear);
 
-            const targetSlots = timeSlots.filter((slot) =>
-              slot.id.includes(targetWeek.split("-W")[0])
-            );
+              // ✅ Tạo timeSlots cho tuần đích
+              const targetWeekRange = getWeekDateRange(targetWeek);
+              const targetTimeSlots = [];
+              const dayNames = [
+                "Thứ Hai",
+                "Thứ Ba",
+                "Thứ Tư",
+                "Thứ Năm",
+                "Thứ Sáu",
+              ];
 
-            Object.entries(sourceWeekData).forEach(([deptId, deptSchedule]) => {
-              if (!newData[deptId]) {
-                newData[deptId] = {};
+              for (let i = 0; i < 5; i++) {
+                const currentDay = new Date(targetWeekRange.mondayDate);
+                currentDay.setDate(targetWeekRange.mondayDate.getDate() + i);
+
+                const formattedDate = format(currentDay, "dd/MM");
+                const fullDate = format(currentDay, "yyyy-MM-dd");
+
+                examinations.forEach((exam) => {
+                  targetTimeSlots.push({
+                    id: `${fullDate}-${exam.id}`,
+                    day: dayNames[i],
+                    period: exam.workSession,
+                    periodName: exam.name,
+                    date: formattedDate,
+                    fullDate: fullDate,
+                    startTime: exam.startTime,
+                    endTime: exam.endTime,
+                    examinationId: exam.id,
+                    workSession: exam.workSession,
+                    enabled: exam.enable,
+                    disabled: !exam.enable,
+                  });
+                });
               }
 
-              Object.entries(deptSchedule || {}).forEach(
-                ([sourceSlotId, slot]: [string, any]) => {
-                  if (!slot?.rooms || !Array.isArray(slot.rooms)) return;
-
+              // ✅ Clone từng room sang tuần đích
+              allRoomsToClone.forEach((room) => {
+                try {
                   // ✅ Tìm slot tương ứng trong tuần đích
-                  const sourceSlot = sourceSlots.find(
-                    (s) => s.id === sourceSlotId
+                  const sourceSlot = timeSlots.find(
+                    (slot) => slot.id === room.sourceSlotId
                   );
                   if (!sourceSlot) return;
 
-                  // ✅ Tìm slot cùng ngày và ca trong tuần đích
-                  const targetSlot = targetSlots.find(
-                    (ts) =>
-                      ts.day === sourceSlot.day &&
-                      ts.workSession === sourceSlot.workSession
+                  // ✅ Tìm slot tương ứng trong tuần đích (cùng ngày trong tuần và cùng ca)
+                  const targetSlot = targetTimeSlots.find(
+                    (slot) =>
+                      slot.day === sourceSlot.day &&
+                      slot.workSession === sourceSlot.workSession
                   );
 
                   if (!targetSlot) return;
 
                   const targetSlotId = targetSlot.id;
 
-                  // ✅ Xử lý ghi đè hoặc bổ sung
-                  let existingRooms: any[] = [];
-                  if (
-                    !options.overwriteExisting &&
-                    newData[deptId][targetSlotId]?.rooms
-                  ) {
-                    existingRooms = [...newData[deptId][targetSlotId].rooms];
+                  // ✅ Sử dụng department từ room gốc
+                  const targetDeptId = room.sourceDeptId;
+
+                  // ✅ Khởi tạo structure nếu chưa có
+                  if (!newData[targetDeptId]) {
+                    newData[targetDeptId] = {};
+                  }
+                  if (!newData[targetDeptId][targetSlotId]) {
+                    newData[targetDeptId][targetSlotId] = { rooms: [] };
                   }
 
-                  // ✅ Clone rooms với options
-                  const clonedRooms = slot.rooms.map((room: any) => {
-                    const clonedRoom = {
-                      ...room,
-                      id: room.id, // Giữ nguyên ID phòng
-                    };
+                  // ✅ Kiểm tra duplicate
+                  const existingRoomIds = new Set(
+                    newData[targetDeptId][targetSlotId].rooms.map(
+                      (r: any) => r.id
+                    )
+                  );
 
-                    // ✅ Áp dụng options
-                    if (!options.includeSpecialties) {
-                      clonedRoom.selectedSpecialty = "";
-                    }
-                    if (!options.includeDoctors) {
-                      clonedRoom.selectedDoctor = "";
-                    }
-                    if (!options.includeTimeSettings) {
-                      clonedRoom.customStartTime = "";
-                      clonedRoom.customEndTime = "";
-                      clonedRoom.appointmentCount = 0;
-                    }
+                  if (existingRoomIds.has(room.id)) {
+                    return;
+                  }
 
-                    return clonedRoom;
-                  });
+                  // ✅ Clone room với options
+                  const clonedRoom = { ...room };
 
-                  // ✅ Kết hợp với rooms hiện có (nếu không ghi đè)
-                  const finalRooms = options.overwriteExisting
-                    ? clonedRooms
-                    : [...existingRooms, ...clonedRooms];
+                  // ✅ Áp dụng clone options
+                  if (!options?.includeDoctors) {
+                    clonedRoom.selectedDoctor = "";
+                    clonedRoom.doctor = "";
+                  } else {
+                    clonedRoom.selectedDoctor =
+                      room.selectedDoctor || room.doctor || "";
+                  }
 
-                  newData[deptId][targetSlotId] = {
-                    rooms: finalRooms,
+                  if (!options?.includeSpecialties) {
+                    clonedRoom.selectedSpecialty = "";
+                    clonedRoom.specialty = "";
+                  } else {
+                    clonedRoom.selectedSpecialty =
+                      room.selectedSpecialty || room.specialty || "";
+                  }
+
+                  // ✅ Xử lý thời gian
+                  const targetWorkSession = targetSlot.workSession;
+                  const sourceWorkSession = sourceSlot.workSession;
+                  const isSameShift = sourceWorkSession === targetWorkSession;
+
+                  // ✅ Map workSession sang English keys
+                  const workSessionMap: Record<string, string> = {
+                    sáng: "morning",
+                    chiều: "afternoon",
+                    tối: "evening",
+                    morning: "morning",
+                    afternoon: "afternoon",
+                    evening: "evening",
                   };
 
-                  totalClonedRooms += clonedRooms.length;
+                  const shiftKey = targetWorkSession
+                    ? workSessionMap[targetWorkSession]
+                    : null;
+                  const shiftConfig = shiftKey
+                    ? shiftDefaults[shiftKey as keyof typeof shiftDefaults]
+                    : null;
+
+                  const targetExamination = examinations.find(
+                    (exam) =>
+                      exam.workSession === targetWorkSession && exam.enable
+                  );
+
+                  const examTime = targetExamination
+                    ? {
+                        startTime: targetExamination.startTime?.slice(0, 5),
+                        endTime: targetExamination.endTime?.slice(0, 5),
+                        maxAppointments: 10,
+                      }
+                    : null;
+
+                  if (!options?.includeTimeSettings) {
+                    if (isSameShift) {
+                      // ✅ CÙNG CA: Giữ giờ tùy chỉnh
+                      const startTime =
+                        room.customStartTime || room.startTime || "";
+                      const endTime = room.customEndTime || room.endTime || "";
+                      const maxAppointments =
+                        room.appointmentCount || room.maxAppointments || 10;
+
+                      clonedRoom.customStartTime = startTime;
+                      clonedRoom.customEndTime = endTime;
+                      clonedRoom.appointmentCount = maxAppointments;
+                      clonedRoom.startTime = startTime;
+                      clonedRoom.endTime = endTime;
+                      clonedRoom.maxAppointments = maxAppointments;
+                    } else {
+                      // ✅ KHÁC CA: Reset về giờ mặc định của ca đích
+                      const defaultStartTime =
+                        examTime?.startTime || shiftConfig?.startTime || "";
+                      const defaultEndTime =
+                        examTime?.endTime || shiftConfig?.endTime || "";
+                      const defaultMaxAppointments =
+                        examTime?.maxAppointments ||
+                        shiftConfig?.maxAppointments ||
+                        10;
+
+                      // ✅ XÓA HOÀN TOÀN tất cả time fields cũ
+                      delete clonedRoom.customStartTime;
+                      delete clonedRoom.customEndTime;
+                      delete clonedRoom.appointmentCount;
+                      delete clonedRoom.maxAppointments;
+                      delete clonedRoom.appointmentDuration;
+
+                      // ✅ SET giờ mặc định của ca đích
+                      clonedRoom.startTime = defaultStartTime;
+                      clonedRoom.endTime = defaultEndTime;
+                      clonedRoom.appointmentCount = defaultMaxAppointments;
+                      clonedRoom.maxAppointments = defaultMaxAppointments;
+                    }
+                  } else {
+                    // ✅ Copy time settings
+                    if (isSameShift) {
+                      const startTime =
+                        room.customStartTime || room.startTime || "";
+                      const endTime = room.customEndTime || room.endTime || "";
+                      const maxAppointments =
+                        room.appointmentCount || room.maxAppointments || 10;
+
+                      clonedRoom.customStartTime = startTime;
+                      clonedRoom.customEndTime = endTime;
+                      clonedRoom.appointmentCount = maxAppointments;
+                      clonedRoom.startTime = startTime;
+                      clonedRoom.endTime = endTime;
+                      clonedRoom.maxAppointments = maxAppointments;
+                    } else {
+                      const defaultStartTime =
+                        examTime?.startTime || shiftConfig?.startTime || "";
+                      const defaultEndTime =
+                        examTime?.endTime || shiftConfig?.endTime || "";
+                      const defaultMaxAppointments =
+                        examTime?.maxAppointments ||
+                        shiftConfig?.maxAppointments ||
+                        10;
+
+                      delete clonedRoom.customStartTime;
+                      delete clonedRoom.customEndTime;
+
+                      clonedRoom.startTime = defaultStartTime;
+                      clonedRoom.endTime = defaultEndTime;
+                      clonedRoom.appointmentCount = defaultMaxAppointments;
+                      clonedRoom.maxAppointments = defaultMaxAppointments;
+                    }
+                  }
+
+                  // ✅ Xử lý notes
+                  const shouldIncludeNotes = Boolean(options?.includeNotes);
+                  clonedRoom.notes = shouldIncludeNotes
+                    ? room?.notes?.toString() || ""
+                    : "";
+
+                  // ✅ Giữ lại thông tin cơ bản
+                  clonedRoom.holdSlot = room.holdSlot || room.holdSlots || 0;
+                  clonedRoom.priorityOrder = room.priorityOrder || 10;
+                  clonedRoom.appointmentDuration =
+                    room.appointmentDuration || 60;
+
+                  // ✅ Metadata
+                  clonedRoom.isCloned = true;
+                  clonedRoom.clonedFrom = `${room.sourceDeptId}-${room.sourceSlotId}`;
+                  clonedRoom.clonedAt = Date.now();
+                  clonedRoom.clonedOptions = options;
+
+                  // ✅ Xóa source metadata
+                  delete clonedRoom.sourceDeptId;
+                  delete clonedRoom.sourceSlotId;
+
+                  // ✅ Thêm vào target slot
+                  newData[targetDeptId][targetSlotId].rooms.push(clonedRoom);
+                  totalCloned++;
+                } catch (error) {
+                  console.error("Error cloning room:", room.name, error);
                 }
-              );
-            });
+              });
+
+              successfulSlots.push(targetWeek);
+            } catch (error) {
+              console.error("Error cloning to week:", targetWeek, error);
+              failedSlots.push(targetWeek);
+            }
           });
 
           return newData;
         });
 
-        // ✅ Track changes
-        const changeKey = `clone-${Date.now()}`;
+        // ✅ Update schedule changes
+        const changeKey = `clone-week-${Date.now()}`;
         setScheduleChanges((prev) => ({
           ...prev,
           [changeKey]: {
             action: "clone_week",
-            sourceWeek: selectedWeek,
-            targetWeeks,
+            sourceRooms: allRoomsToClone.length,
+            targetWeeks: successfulSlots,
+            totalCloned,
             options,
-            roomCount: totalClonedRooms,
           },
         }));
 
-        toast.success(
-          `Đã nhân bản thành công ${totalClonedRooms} phòng sang ${targetWeeks.length} tuần!`
-        );
+        // ✅ Show success toast
+        if (totalCloned > 0) {
+          const timeSettingsInfo = options?.includeTimeSettings
+            ? " (giữ giờ tùy chỉnh)"
+            : " (giờ theo ca đích)";
+
+          toast.success(
+            `✅ Đã nhân bản ${totalCloned} phòng sang ${successfulSlots.length} tuần${timeSettingsInfo}`,
+            {
+              description: `Thành công: ${successfulSlots.length} tuần • Thất bại: ${failedSlots.length} tuần`,
+              duration: 4000,
+            }
+          );
+        }
+
+        if (failedSlots.length > 0) {
+          toast.error(`⚠️ Không thể nhân bản sang ${failedSlots.length} tuần`);
+        }
       } catch (error) {
-        console.error("❌ Error cloning week:", error);
+        console.error("Error in handleCloneWeek:", error);
         toast.error("Lỗi khi nhân bản tuần!");
       }
     },
-    [scheduleData, selectedWeek, timeSlots]
+    [scheduleData, timeSlots, shiftDefaults, examinations, getWeekDateRange]
+  );
+
+  // ✅ Thêm missing function handleWeekCloned
+  const handleWeekCloned = useCallback(
+    (targetWeeks: string[], sourceWeek: string, roomCount: number) => {
+      // ✅ Set week clone indicators
+      setRecentClonedWeeks({
+        targetWeeks,
+        sourceWeek,
+        roomCount,
+        timestamp: Date.now(),
+      });
+
+      // ✅ Show indicators function
+      const showClonedWeeksSequentially = () => {
+        targetWeeks.forEach((targetWeek, index) => {
+          setTimeout(() => {
+            // ✅ Tạo indicator element
+            const indicator = document.createElement("div");
+            indicator.className =
+              "fixed top-4 right-4 bg-green-500 text-white p-3 rounded-lg shadow-lg z-50 animate-bounce";
+            indicator.style.top = `${80 + index * 60}px`;
+            indicator.innerHTML = `
+              <div class="flex items-center gap-2">
+                <span class="text-lg">📅</span>
+                <div>
+                  <div class="font-medium">Tuần ${targetWeek}</div>
+                  <div class="text-sm opacity-90">${roomCount} phòng</div>
+                </div>
+              </div>
+            `;
+
+            document.body.appendChild(indicator);
+
+            // ✅ Animation sequence
+            setTimeout(() => {
+              indicator.classList.remove("animate-bounce");
+              indicator.classList.add("animate-pulse");
+            }, 2000);
+
+            // ✅ Auto remove after 10s
+            setTimeout(() => {
+              if (document.body.contains(indicator)) {
+                indicator.classList.add("opacity-0", "transition-opacity");
+                setTimeout(() => {
+                  if (document.body.contains(indicator)) {
+                    document.body.removeChild(indicator);
+                  }
+                }, 500);
+              }
+            }, 10000);
+          }, index * 200);
+        });
+      };
+
+      showClonedWeeksSequentially();
+
+      // ✅ Clear indicators after 15s
+      setTimeout(() => {
+        setRecentClonedWeeks(null);
+      }, 15000);
+    },
+    []
   );
 
   // ✅ Loading check
@@ -1852,7 +2575,6 @@ const WeeklySchedule = () => {
       </div>
     );
   }
-  console.log(clinicSchedules);
 
   return (
     <TooltipProvider>
@@ -1898,9 +2620,13 @@ const WeeklySchedule = () => {
           redoStack={redoStack}
           scheduleChanges={scheduleChanges}
           onCloneWeek={handleCloneWeek} // ✅ Thêm prop mới
+          // ✅ Thêm callback cho week clone indicators
+          onWeekCloned={handleWeekCloned}
+          clinicSchedules={clinicSchedules}
         />
 
         <WeeklyScheduleTable
+          key={`schedule-table-${refreshCounter}`}
           searchFilteredDepartments={searchFilteredDepartments}
           timeSlots={timeSlots}
           viewMode={viewMode}
@@ -1929,6 +2655,12 @@ const WeeklySchedule = () => {
           selectedZone={selectedZone}
           // ✅ Thêm clinic schedules data
           clinicSchedules={clinicSchedules}
+          // ✅ Thêm props cho chức năng clone rooms
+          onCloneRooms={handleCloneRooms}
+          allTimeSlots={timeSlots}
+          allDepartments={searchFilteredDepartments}
+          // ✅ Thêm callback để refresh data
+          onDataUpdated={handleDataUpdated}
         />
 
         <WeeklyScheduleLegend
@@ -1988,12 +2720,6 @@ const WeeklySchedule = () => {
 
             {scheduleConflicts.doctorConflicts.length > 0 && (
               <div className="mb-4">
-                <h4 className="font-medium text-red-700 mb-2 flex items-center gap-2">
-                  �‍⚕️ Xung đột bác sĩ
-                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
-                    {scheduleConflicts.doctorConflicts.length}
-                  </span>
-                </h4>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {scheduleConflicts.doctorConflicts.map((conflict, index) => (
                     <div
@@ -2035,12 +2761,6 @@ const WeeklySchedule = () => {
 
             {scheduleConflicts.roomConflicts.length > 0 && (
               <div>
-                <h4 className="font-medium text-red-700 mb-2 flex items-center gap-2">
-                  🏥 Xung đột phòng khám
-                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
-                    {scheduleConflicts.roomConflicts.length}
-                  </span>
-                </h4>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {scheduleConflicts.roomConflicts.map((conflict, index) => (
                     <div

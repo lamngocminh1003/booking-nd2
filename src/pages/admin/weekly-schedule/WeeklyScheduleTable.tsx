@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { format } from "date-fns";
+import { format, startOfISOWeek, addWeeks, addDays } from "date-fns";
 import { RoomCell } from "./RoomCell";
 
 interface WeeklyScheduleTableProps {
@@ -41,6 +41,17 @@ interface WeeklyScheduleTableProps {
   selectedZone?: string;
   // ✅ Thêm clinic schedules props
   clinicSchedules?: any[];
+  // ✅ Thêm props cho chức năng clone rooms
+  onCloneRooms?: (
+    rooms: any[],
+    targetSlots?: string[],
+    targetDepartmentIds?: string[],
+    cloneOptions?: any
+  ) => void;
+  allTimeSlots?: any[]; // Danh sách tất cả slots để chọn target clone
+  allDepartments?: Array<{ id: string; name: string }>; // Danh sách tất cả departments
+  // ✅ Thêm callback để refresh data sau khi copy từ DB
+  onDataUpdated?: () => void;
 }
 
 export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
@@ -72,6 +83,12 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   selectedZone,
   // ✅ Nhận clinic schedules
   clinicSchedules = [],
+  // ✅ Nhận props cho chức năng clone rooms
+  onCloneRooms,
+  allTimeSlots,
+  allDepartments,
+  // ✅ Nhận callback để refresh data
+  onDataUpdated,
 }) => {
   const getWeekDateRange = (weekString: string) => {
     try {
@@ -84,20 +101,22 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
         throw new Error("Invalid week format");
       }
 
-      const startOfYear = new Date(yearNum, 0, 1);
-      const daysToAdd = (weekNum - 1) * 7 - startOfYear.getDay() + 1;
-      const mondayOfWeek = new Date(yearNum, 0, 1 + daysToAdd);
+      // ✅ Use startOfISOWeek to get accurate Monday for ISO week
+      const januaryFirst = new Date(yearNum, 0, 1); // Jan 1st of the year
+      const mondayOfWeek = startOfISOWeek(addWeeks(januaryFirst, weekNum - 1));
 
-      const fridayOfWeek = new Date(mondayOfWeek);
-      fridayOfWeek.setDate(mondayOfWeek.getDate() + 4);
+      // ✅ Friday is 4 days after Monday
+      const fridayOfWeek = addDays(mondayOfWeek, 4);
 
-      return {
+      const result = {
         startDate: format(mondayOfWeek, "dd/MM"),
         endDate: format(fridayOfWeek, "dd/MM"),
         weekNum,
         mondayDate: mondayOfWeek,
         fridayDate: fridayOfWeek,
       };
+
+      return result;
     } catch (error) {
       console.error("Error parsing week:", error);
       // ✅ Fallback to current week
@@ -319,6 +338,7 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                     return (
                       <td
                         key={slotId || Math.random()}
+                        data-slot-id={slotId}
                         className={`border border-gray-300 p-1 align-top min-w-[120px] relative ${
                           displayTime.isCustom
                             ? "bg-orange-50 border-orange-200"
@@ -354,6 +374,12 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           // ✅ Thêm clinic schedules data
                           clinicSchedules={clinicSchedules}
                           selectedWeek={selectedWeek}
+                          // ✅ Thêm props cho chức năng clone rooms
+                          onCloneRooms={onCloneRooms}
+                          allTimeSlots={allTimeSlots || timeSlots}
+                          allDepartments={allDepartments || safeDepartments}
+                          // ✅ Thêm callback để refresh data sau khi copy từ DB
+                          onDataUpdated={onDataUpdated}
                           // ✅ Thêm callback để handle room swap
                           onRoomSwapped={(oldRoomId, newRoomId) => {
                             // Data sẽ được cập nhật tự động thông qua updateRoomConfig
