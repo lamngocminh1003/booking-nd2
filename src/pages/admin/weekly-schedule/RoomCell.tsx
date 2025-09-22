@@ -246,24 +246,13 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
   // ✅ Helper functions cho chức năng clone clinic schedules từ DB
   const toggleClinicScheduleSelection = (scheduleIndex: number) => {
-    console.log(`🎯 Toggling clinic schedule selection:`, {
-      scheduleIndex,
-      schedule: cellClinicSchedules[scheduleIndex],
-      doctorName: cellClinicSchedules[scheduleIndex]?.doctorName,
-      roomName: cellClinicSchedules[scheduleIndex]?.roomName,
-      id: cellClinicSchedules[scheduleIndex]?.id,
-    });
-
     setSelectedClinicSchedules((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(scheduleIndex)) {
         newSet.delete(scheduleIndex);
-        console.log(`❌ Deselected schedule ${scheduleIndex}`);
       } else {
         newSet.add(scheduleIndex);
-        console.log(`✅ Selected schedule ${scheduleIndex}`);
       }
-      console.log(`📋 Updated selection:`, Array.from(newSet));
       return newSet;
     });
   };
@@ -285,17 +274,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
   // ✅ Helper function để hiển thị từng slot phòng một cách tuần tự với animation đẹp
   const showClonedRoomSlotsSequentially = (targetSlots: string[]) => {
-    console.log("🎬 Bắt đầu hiển thị tuần tự nhân bản phòng:", targetSlots);
-    console.log("🏥 Khoa hiện tại:", deptId);
-
     // ✅ Debug DOM elements hiện có
     const allSlotElements = document.querySelectorAll("[data-slot-id]");
-    console.log("🔍 Tất cả DOM elements với data-slot-id:", {
-      totalElements: allSlotElements.length,
-      slotIds: Array.from(allSlotElements).map((el) =>
-        el.getAttribute("data-slot-id")
-      ),
-    });
 
     if (allSlotElements.length === 0) {
       console.error("❌ Không tìm thấy DOM elements nào với data-slot-id!");
@@ -315,10 +295,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
     targetSlots.forEach((targetSlotId, index) => {
       setTimeout(() => {
-        console.log(
-          `🔍 [${index + 1}/${targetSlots.length}] Tìm slot: ${targetSlotId}`
-        );
-
         // ✅ Parse để lấy actualSlotId cho việc tìm DOM element
         let actualSlotId = targetSlotId;
         let targetDeptId = "";
@@ -329,13 +305,9 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             // Format: deptId-YYYY-MM-DD-examinationId
             targetDeptId = slotParts[0];
             actualSlotId = slotParts.slice(1).join("-");
-            console.log(
-              `📋 Cross-dept animation: dept=${targetDeptId}, actualSlot=${actualSlotId}`
-            );
           } else {
             // Format: YYYY-MM-DD-examinationId
             actualSlotId = targetSlotId;
-            console.log(`📋 Same-dept animation: actualSlot=${actualSlotId}`);
           }
         }
 
@@ -346,7 +318,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
         // ✅ Fallback 1: tìm theo table cell
         if (!element) {
-          console.log(`⚠️ Fallback 1: Tìm td[data-slot-id="${actualSlotId}"]`);
           element = document.querySelector(
             `td[data-slot-id="${actualSlotId}"]`
           );
@@ -354,27 +325,16 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
         // ✅ Fallback 2: tìm theo tất cả elements có data-slot-id
         if (!element) {
-          console.log(
-            `⚠️ Fallback 2: Tìm trong tất cả elements với data-slot-id`
-          );
           const allCells = document.querySelectorAll("[data-slot-id]");
           for (const cell of allCells) {
             if (cell.getAttribute("data-slot-id") === actualSlotId) {
               element = cell;
-              console.log(`✅ Tìm thấy (fallback 2): ${actualSlotId}`);
               break;
             }
           }
         }
 
         if (element) {
-          console.log(
-            `✅ [${index + 1}/${
-              targetSlots.length
-            }] Tìm thấy element cho slot: ${actualSlotId}`,
-            element
-          );
-
           // ✅ Scroll đến slot đầu tiên
           if (index === 0) {
             element.scrollIntoView({
@@ -382,7 +342,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               block: "center",
               inline: "center",
             });
-            console.log(`📍 Scroll đến slot đầu tiên: ${targetSlotId}`);
           }
 
           // ✅ Thêm class preparation trước khi highlight
@@ -411,11 +370,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             if (element instanceof HTMLElement) {
               element.style.position = "relative";
               element.appendChild(badge);
-              console.log(
-                `🏷️ Thêm badge ${
-                  index + 1
-                } cho slot: ${actualSlotId} (original: ${targetSlotId})`
-              );
             }
 
             // ✅ Thêm progress indicator cho tổng tiến trình
@@ -426,17 +380,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 description: `Hiển thị ${targetSlots.length} vị trí được nhân bản phòng`,
                 duration: targetSlots.length * 800 + 2000,
               });
-              console.log(
-                `📱 Hiển thị progress toast cho ${targetSlots.length} slots`
-              );
             }
-
-            // ✅ Hiệu ứng âm thanh hoặc visual cue với detailed logging
-            console.log(
-              `✅ [${index + 1}/${
-                targetSlots.length
-              }] Hiển thị slot: ${targetSlotId}`
-            );
 
             // ✅ Tự động remove các effect sau một thời gian
             setTimeout(() => {
@@ -458,7 +402,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 existingBadge.classList.add("animate-fade-out");
                 setTimeout(() => {
                   existingBadge.remove();
-                  console.log(`🗑️ Đã xóa badge cho slot: ${actualSlotId}`);
                 }, 300);
               }
 
@@ -470,9 +413,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     description: `Đã hiển thị tất cả ${targetSlots.length} vị trí được nhân bản phòng`,
                     duration: 3000,
                   });
-                  console.log(
-                    `🎉 Hoàn thành hiển thị ${targetSlots.length} slots`
-                  );
                 }, 500);
               }
             }, 3000 + index * 200); // Thời gian hiển thị tăng dần
@@ -480,12 +420,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         } else {
           console.error(
             `❌ Không tìm thấy element cho slot: ${actualSlotId} (original: ${targetSlotId})`
-          );
-          console.log(
-            "🔍 Available data-slot-id elements:",
-            Array.from(document.querySelectorAll("[data-slot-id]")).map((el) =>
-              el.getAttribute("data-slot-id")
-            )
           );
 
           // ✅ Fallback: hiển thị toast thông báo cho slot không tìm thấy
@@ -504,15 +438,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     targetDepartmentIds?: string[],
     cloneOptions?: any
   ) => {
-    console.log("🚀 handleCloneRooms được gọi với:", {
-      targetSlots,
-      targetDepartmentIds,
-      cloneOptions,
-      selectedRoomsSize: selectedRooms.size,
-      onCloneRooms: !!onCloneRooms,
-      allTimeSlots: allTimeSlots?.length || 0,
-    });
-
     if (!onCloneRooms) {
       console.error("❌ onCloneRooms prop không được truyền từ component cha!");
       toast({
@@ -586,18 +511,9 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     });
 
     // ✅ Hiển thị animation ngay lập tức
-    console.log("⏰ Chuẩn bị hiển thị animation sau 300ms...");
     setTimeout(() => {
-      console.log("▶️ Bắt đầu hiển thị animation cho slots:", targetSlots);
       showClonedRoomSlotsSequentially(targetSlots);
     }, 300); // Giảm delay xuống 300ms để hiển thị nhanh hơn
-
-    // ✅ Debug: Log thông tin về targetSlots
-    console.log("📋 Target slots for room clone:", targetSlots);
-    console.log(
-      "📋 All available time slots:",
-      allTimeSlots.map((slot) => ({ id: slot.id, name: slot.slotName }))
-    );
 
     // ✅ Auto clear thông tin clone sau 10 giây
     setTimeout(() => {
@@ -788,8 +704,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   const handleCopyFromClinicSchedule = React.useCallback(
     (schedule: any) => {
       try {
-        console.log("📋 Copy clinic schedule từ DB:", schedule);
-
         // ✅ Tìm room info từ allRooms dựa trên schedule
         const roomInfo = allRooms.find(
           (room) => room.id?.toString() === schedule.roomId?.toString()
@@ -843,47 +757,17 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           zoneName: roomInfo.zoneName,
         };
 
-        console.log("✅ Created room from DB:", newRoomFromDB);
-
         // ✅ Gọi addRoomToShift để thêm phòng
         if (addRoomToShift) {
           // ✅ CRITICAL FIX: Lưu index TRƯỚC khi thêm room để tránh race condition
           const currentRooms = rooms || [];
           const expectedNewRoomIndex = currentRooms.length;
 
-          console.log("🔍 Room index calculation:", {
-            roomName: schedule.roomName,
-            doctorName: schedule.doctorName,
-            currentRoomsLength: currentRooms.length,
-            expectedNewRoomIndex,
-            roomData: newRoomFromDB,
-          });
-
           addRoomToShift(deptId, slotId, roomInfo.id.toString());
 
           // ✅ Sau khi thêm, update config với data từ DB - SỬ DỤNG INDEX ĐÃ TÍNH TRƯỚC
           setTimeout(() => {
             if (updateRoomConfig) {
-              console.log(
-                "🔧 Updating room config for index:",
-                expectedNewRoomIndex,
-                {
-                  roomName: schedule.roomName,
-                  doctorName: schedule.doctorName,
-                  selectedDoctor: newRoomFromDB.selectedDoctor,
-                  configData: {
-                    customStartTime: newRoomFromDB.customStartTime,
-                    customEndTime: newRoomFromDB.customEndTime,
-                    appointmentCount: newRoomFromDB.appointmentCount,
-                    maxAppointments: newRoomFromDB.maxAppointments,
-                    holdSlot: newRoomFromDB.holdSlot,
-                    selectedSpecialty: newRoomFromDB.selectedSpecialty,
-                    selectedDoctor: newRoomFromDB.selectedDoctor,
-                    notes: newRoomFromDB.notes,
-                  },
-                }
-              );
-
               updateRoomConfig(deptId, slotId, expectedNewRoomIndex, {
                 customStartTime: newRoomFromDB.customStartTime,
                 customEndTime: newRoomFromDB.customEndTime,
@@ -929,9 +813,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         // ✅ Notify parent để refresh UI với delay để đảm bảo add room đã hoàn thành
         setTimeout(() => {
           if (onDataUpdated) {
-            console.log(
-              "🔄 Single copy - calling onDataUpdated to refresh UI..."
-            );
             onDataUpdated();
           }
         }, 500); // Tăng delay để đảm bảo room đã được add xong
@@ -962,12 +843,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   const handleBulkCopyClinicSchedules = React.useCallback(
     async (targetSlots: string[], cloneOptions?: any) => {
       try {
-        console.log("🚀 Bulk copy clinic schedules (SIMPLIFIED):", {
-          selectedCount: selectedClinicSchedules.size,
-          targetSlots,
-          cloneOptions,
-        });
-
         if (selectedClinicSchedules.size === 0) {
           toast({
             title: "Không có phòng nào được chọn",
@@ -990,47 +865,17 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           selectedClinicSchedules.has(index)
         );
 
-        console.log("🔍 Debug copy operation:", {
-          totalSchedules: cellClinicSchedules.length,
-          selectedIndices: Array.from(selectedClinicSchedules),
-          schedulesToCopyCount: schedulesToCopy.length,
-          schedulesToCopy: schedulesToCopy.map((s, idx) => ({
-            index: idx,
-            roomName: s.roomName,
-            doctorName: s.doctorName,
-            examinationName: s.examinationName,
-            id: s.id,
-          })),
-        });
-
         let successCount = 0;
         let errorCount = 0;
         const errors: string[] = [];
 
         // ✅ Sequential copy để tránh race condition (NO TIMEOUT)
         for (const targetSlotId of targetSlots) {
-          console.log(
-            `🎯 Processing target slot: ${targetSlotId} (${
-              targetSlots.indexOf(targetSlotId) + 1
-            }/${targetSlots.length})`
-          );
-
           // ✅ CRITICAL FIX: Đếm số room đã thêm trong mỗi slot để tính index đúng
           let roomIndexInSlot = 0;
 
           for (const schedule of schedulesToCopy) {
             try {
-              console.log(
-                `📅 Processing schedule ${
-                  schedulesToCopy.indexOf(schedule) + 1
-                }/${schedulesToCopy.length}: ${schedule.roomName} (Doctor: ${
-                  schedule.doctorName ||
-                  schedule.doctorCode ||
-                  schedule.doctorId ||
-                  "N/A"
-                }) to slot ${targetSlotId} [Room Index: ${roomIndexInSlot}]`
-              );
-
               // ✅ Parse target slot để lấy thông tin
               let targetDeptId = deptId; // Mặc định copy trong cùng khoa
               let actualTargetSlotId = targetSlotId;
@@ -1048,8 +893,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 }
               }
 
-              console.log(`📍 Target: ${targetDeptId}-${actualTargetSlotId}`);
-
               // ✅ Tìm room info
               const roomInfo = allRooms.find(
                 (room) => room.id?.toString() === schedule.roomId?.toString()
@@ -1066,9 +909,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
               // ✅ Gọi addRoomToShift cho target slot
               if (addRoomToShift) {
-                console.log(
-                  `🏥 Adding room ${roomInfo.name} to ${targetDeptId}-${actualTargetSlotId}`
-                );
                 addRoomToShift(
                   targetDeptId,
                   actualTargetSlotId,
@@ -1090,39 +930,12 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   roomName: currentSchedule.roomName,
                 };
 
-                console.log(
-                  `🩺 Doctor data extraction for room ${doctorData.roomName}:`,
-                  {
-                    roomIndex: roomIndexInSlot,
-                    original: {
-                      doctorName: schedule.doctorName,
-                      doctorCode: schedule.doctorCode,
-                      doctorId: schedule.doctorId,
-                    },
-                    cloned: doctorData,
-                    isEqual: {
-                      doctorName: schedule.doctorName === doctorData.doctorName,
-                      doctorCode: schedule.doctorCode === doctorData.doctorCode,
-                      doctorId: schedule.doctorId === doctorData.doctorId,
-                    },
-                  }
-                );
-
                 if (doctorData.doctorName && doctorData.doctorName.trim()) {
                   selectedDoctorValue = doctorData.doctorName.trim();
-                  console.log(
-                    `✅ Using doctorName: "${selectedDoctorValue}" for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
-                  );
                 } else if (doctorData.doctorCode) {
                   selectedDoctorValue = doctorData.doctorCode.toString();
-                  console.log(
-                    `✅ Using doctorCode: "${selectedDoctorValue}" for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
-                  );
                 } else if (doctorData.doctorId) {
                   selectedDoctorValue = doctorData.doctorId.toString();
-                  console.log(
-                    `✅ Using doctorId: "${selectedDoctorValue}" for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
-                  );
                 } else {
                   console.warn(
                     `⚠️ No doctor data found for room ${doctorData.roomName} [Index: ${roomIndexInSlot}]`
@@ -1175,43 +988,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   priorityOrder: 10,
                 };
 
-                console.log(`📋 Room config for ${roomInfo.name}:`, {
-                  room: roomInfo.name,
-                  doctor: {
-                    original: {
-                      doctorName: doctorData.doctorName,
-                      doctorCode: doctorData.doctorCode,
-                      doctorId: doctorData.doctorId,
-                    },
-                    selected: roomConfigUpdate.selectedDoctor,
-                  },
-                  targetDept: targetDeptId,
-                  targetSlot: actualTargetSlotId,
-                  examType: roomConfigUpdate.selectedExamType,
-                  specialty: roomConfigUpdate.selectedSpecialty,
-                  appointments: roomConfigUpdate.appointmentCount,
-                  useTargetSlotTime: true, // Luôn dùng giờ ca đích
-                  // ✅ CRITICAL DEBUG: IDs từ clinic schedule
-                  directIds: {
-                    examTypeId: roomConfigUpdate.examTypeId,
-                    specialtyId: roomConfigUpdate.specialtyId,
-                    appointmentDuration: roomConfigUpdate.appointmentDuration,
-                  },
-                  clinicScheduleSource: {
-                    examTypeId: currentSchedule.examTypeId,
-                    specialtyId: currentSchedule.specialtyId,
-                    spaceMinutes: currentSchedule.spaceMinutes,
-                    examinationName: currentSchedule.examinationName,
-                    specialtyName: currentSchedule.specialtyName,
-                  },
-                });
-
                 // ✅ Update room config với unique identifier để tránh ghi đè
                 if (updateRoomConfig) {
-                  console.log(
-                    `🔧 Calling updateRoomConfig for ${roomInfo.name} (roomId: ${roomInfo.id})...`
-                  );
-
                   // ✅ GIẢI PHÁP: Thêm roomId vào config để đảm bảo unique identification
                   const uniqueRoomConfigUpdate = {
                     ...roomConfigUpdate,
@@ -1232,21 +1010,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     },
                   };
 
-                  console.log(`📊 Unique room config for ${roomInfo.name}:`, {
-                    roomId: roomInfo.id,
-                    roomName: roomInfo.name,
-                    scheduleId: currentSchedule.id,
-                    doctorFromSchedule: doctorData.doctorName,
-                    finalSelectedDoctor: uniqueRoomConfigUpdate.selectedDoctor,
-                    uniqueKey: uniqueRoomConfigUpdate.uniqueKey,
-                    timestamp: new Date().toISOString(),
-                  });
-
-                  // ✅ CRITICAL FIX: Sử dụng roomIndexInSlot thay vì index cố định 0
-                  console.log(
-                    `🔧 Calling updateRoomConfig with room index: ${roomIndexInSlot} for ${roomInfo.name}`
-                  );
-
                   updateRoomConfig(
                     targetDeptId,
                     actualTargetSlotId,
@@ -1262,13 +1025,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 }
 
                 successCount++;
-                console.log(
-                  `✅ Successfully processed ${
-                    roomInfo.name
-                  } (Doctor: ${selectedDoctorValue}) to ${targetDeptId}-${actualTargetSlotId} [${successCount}/${
-                    schedulesToCopy.length * targetSlots.length
-                  }]`
-                );
 
                 // ✅ Delay lâu hơn giữa các phòng để tránh race condition
                 await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1284,12 +1040,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             }
           }
         }
-
-        // ✅ Hiển thị kết quả và log chi tiết
-        console.log(
-          `📊 Bulk copy results: ${successCount} success, ${errorCount} errors`
-        );
-        console.log(`📍 Target slots processed:`, targetSlots);
 
         if (successCount > 0) {
           // ✅ Tạo summary về những gì đã copy
@@ -1339,14 +1089,12 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           });
 
           // ✅ Gọi refresh ngay lập tức để hiển thị rooms
-          console.log("🔄 Calling onDataUpdated immediately to refresh UI...");
           if (onDataUpdated) {
             onDataUpdated();
           }
 
           // ✅ Gọi refresh thêm lần nữa sau delay ngắn
           setTimeout(() => {
-            console.log("🔄 Second refresh call...");
             if (onDataUpdated) {
               onDataUpdated();
             }
@@ -1388,7 +1136,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
         // ✅ Final refresh sau khi clear selections
         if (onDataUpdated) {
-          console.log("🔄 Final refresh after clearing selections...");
           setTimeout(() => onDataUpdated(), 100);
         }
       } catch (error) {
@@ -2242,13 +1989,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
     const handleConfirmBulkCopy = () => {
       if (targetSlots.size > 0) {
-        console.log(
-          "🎯 Selected target slots for bulk copy:",
-          Array.from(targetSlots)
-        );
-        console.log("🎯 Current slot (source):", slotId);
-        console.log("🎯 Current department:", deptId);
-
         handleBulkCopyClinicSchedules(Array.from(targetSlots), cloneOptions);
       }
     };
@@ -2711,29 +2451,10 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         // ✅ Chỉ clone trong cùng khoa hiện tại
         const properTargetSlots: string[] = [];
 
-        console.log("🎯 Clone trong cùng khoa:", {
-          targetSlots: Array.from(targetSlots),
-          currentDepartment: deptId,
-        });
-
         // ✅ Chỉ sử dụng khoa hiện tại, không clone cross-department
         targetSlots.forEach((baseSlotId) => {
           properTargetSlots.push(baseSlotId);
-          console.log(`📋 Same-dept clone: ${baseSlotId} (dept: ${deptId})`);
         });
-
-        console.log(
-          "🎯 Final target slots (same department only):",
-          properTargetSlots
-        );
-
-        console.log(
-          "🎯 Clone phòng từ slot:",
-          slotId,
-          "sang slots:",
-          properTargetSlots
-        );
-        console.log("🏥 Trong cùng khoa:", deptId);
 
         // ✅ Chỉ clone trong cùng khoa (chỉ truyền khoa hiện tại)
         handleCloneRooms(

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { format } from "date-fns";
+import { format, startOfISOWeek, addWeeks, addDays } from "date-fns";
 import { RoomCell } from "./RoomCell";
 
 interface WeeklyScheduleTableProps {
@@ -101,20 +101,22 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
         throw new Error("Invalid week format");
       }
 
-      const startOfYear = new Date(yearNum, 0, 1);
-      const daysToAdd = (weekNum - 1) * 7 - startOfYear.getDay() + 1;
-      const mondayOfWeek = new Date(yearNum, 0, 1 + daysToAdd);
+      // ✅ Use startOfISOWeek to get accurate Monday for ISO week
+      const januaryFirst = new Date(yearNum, 0, 1); // Jan 1st of the year
+      const mondayOfWeek = startOfISOWeek(addWeeks(januaryFirst, weekNum - 1));
 
-      const fridayOfWeek = new Date(mondayOfWeek);
-      fridayOfWeek.setDate(mondayOfWeek.getDate() + 4);
+      // ✅ Friday is 4 days after Monday
+      const fridayOfWeek = addDays(mondayOfWeek, 4);
 
-      return {
+      const result = {
         startDate: format(mondayOfWeek, "dd/MM"),
         endDate: format(fridayOfWeek, "dd/MM"),
         weekNum,
         mondayDate: mondayOfWeek,
         fridayDate: fridayOfWeek,
       };
+
+      return result;
     } catch (error) {
       console.error("Error parsing week:", error);
       // ✅ Fallback to current week

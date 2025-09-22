@@ -52,6 +52,13 @@ interface WeeklyScheduleControlsProps {
   redoStack: any[];
   scheduleChanges: Record<string, any>;
   onCloneWeek: (targetWeeks: string[], options: CloneOptions) => void;
+  onWeekCloned?: (
+    targetWeeks: string[],
+    sourceWeek: string,
+    roomCount: number
+  ) => void;
+  onCloneFromDB?: (targetWeeks: string[], options: CloneOptions) => void;
+  clinicSchedules?: any[];
 }
 
 export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
@@ -88,6 +95,9 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
   redoStack,
   scheduleChanges,
   onCloneWeek,
+  onWeekCloned,
+  onCloneFromDB,
+  clinicSchedules = [],
 }) => {
   const [showCloneDialog, setShowCloneDialog] = useState(false);
 
@@ -429,6 +439,9 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
           weeks={weeks}
           scheduleData={scheduleData}
           onClone={onCloneWeek}
+          onWeekCloned={onWeekCloned}
+          onCloneFromDB={onCloneFromDB}
+          clinicSchedules={clinicSchedules}
         />
       </CardContent>
     </Card>

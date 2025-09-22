@@ -36,7 +36,7 @@ export const WeekNavigationControls: React.FC<WeekNavigationControlsProps> = ({
         <ChevronLeft className="w-4 h-4" />
       </Button>
       <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-        <SelectTrigger className="w-40 h-9">
+        <SelectTrigger className="w-40 h-9" data-week-value={selectedWeek}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -44,6 +44,7 @@ export const WeekNavigationControls: React.FC<WeekNavigationControlsProps> = ({
             <SelectItem
               key={week.value}
               value={week.value}
+              data-week-value={week.value}
               className={`${
                 week.isCurrent
                   ? "text-blue-600 font-medium"
