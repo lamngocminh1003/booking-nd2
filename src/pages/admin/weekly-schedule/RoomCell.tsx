@@ -404,17 +404,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   existingBadge.remove();
                 }, 300);
               }
-
-              // ✅ Hiển thị completion toast cho item cuối
-              if (index === targetSlots.length - 1) {
-                setTimeout(() => {
-                  toast({
-                    title: "🎉 Hoàn thành nhân bản phòng!",
-                    description: `Đã hiển thị tất cả ${targetSlots.length} vị trí được nhân bản phòng`,
-                    duration: 3000,
-                  });
-                }, 500);
-              }
             }, 3000 + index * 200); // Thời gian hiển thị tăng dần
           }, 100);
         } else {
@@ -492,23 +481,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         return room.name || room.roomName || `Phòng ${room.id}`;
       })
       .join(", ");
-
-    toast({
-      title: "Nhân bản phòng thành công! ✅",
-      description: `Đã nhân bản ${selectedRooms.size} phòng [${roomDetails}] sang ${targetSlots.length} ca`,
-      action: (
-        <button
-          onClick={() => {
-            // ✅ Sử dụng hàm helper mới để hiển thị từng slot tuần tự
-            showClonedRoomSlotsSequentially(targetSlots);
-          }}
-          className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700 transition-colors flex items-center gap-1"
-        >
-          <span>🎯</span>
-          Xem lại
-        </button>
-      ),
-    });
 
     // ✅ Hiển thị animation ngay lập tức
     setTimeout(() => {
@@ -1402,283 +1374,199 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     );
   };
 
-  // ✅ Helper function để kiểm tra conflicts cho từng phòng (tránh hook trong loop)
-  const getConflictInfo = React.useCallback(
-    (room: any, roomId: string) => {
-      // ✅ Safe doctors retrieval
-      let roomDoctors: any[] = [];
-      try {
-        if (getDoctorsByDepartment && room?.departmentId) {
-          roomDoctors =
-            getDoctorsByDepartment(room.departmentId.toString()) || [];
+  // ✅ Helper function để kiểm tra slot có phải quá khứ không
+  const isSlotInPast = React.useMemo(() => {
+    try {
+      // Parse slotId để lấy ngày (format: YYYY-MM-DD-examinationId)
+      if (slotId && slotId.includes("-")) {
+        const parts = slotId.split("-");
+        if (parts.length >= 3) {
+          const dateStr = `${parts[0]}-${parts[1]}-${parts[2]}`;
+          const slotDate = new Date(dateStr + "T00:00:00");
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Reset time để chỉ so sánh ngày
+
+          return slotDate < today;
         }
-      } catch (error) {
-        console.warn("Error getting room doctors:", error);
-        roomDoctors = [];
       }
 
-      // ✅ Kiểm tra xung đột bác sĩ trong clinic schedules (TRÊN TẤT CẢ CÁC KHOA)
-      const doctorConflictInfo = (() => {
-        if (!allCellClinicSchedules || allCellClinicSchedules.length === 0) {
-          return { hasConflict: false, conflictDetails: [] };
-        }
+      // Fallback: kiểm tra từ timeSlots data
+      const currentSlot = timeSlots?.find((slot) => slot.id === slotId);
+      if (currentSlot?.date || currentSlot?.fullDate) {
+        const slotDate = new Date(currentSlot.date || currentSlot.fullDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        const conflictDetails: any[] = [];
+        return slotDate < today;
+      }
 
-        // Kiểm tra xem có bác sĩ nào trong phòng này đã có lịch khám không (chỉ so sánh mã bác sĩ)
-        roomDoctors.forEach((doctor) => {
-          const doctorCode =
-            doctor.doctor_IdEmployee_Postgresql || doctor.code || doctor.id;
-          const doctorSchedules = allCellClinicSchedules.filter((schedule) => {
-            const scheduleCode =
-              schedule.doctor_IdEmployee_Postgresql ||
-              schedule.doctorCode ||
-              schedule.doctorId;
-            return scheduleCode === doctorCode;
-          });
+      return false; // Mặc định cho phép thêm nếu không xác định được
+    } catch (error) {
+      console.warn("Error checking if slot is in past:", error);
+      return false; // Safe fallback
+    }
+  }, [slotId, timeSlots]);
 
-          if (doctorSchedules.length > 0) {
-            // Phân loại conflicts theo khoa
-            const sameDepConflicts = doctorSchedules.filter(
-              (s) => s.departmentHospitalId?.toString() === deptId
-            );
-            const otherDepConflicts = doctorSchedules.filter(
-              (s) => s.departmentHospitalId?.toString() !== deptId
-            );
+  // ✅ Thêm thông tin ngày slot để user biết (optional)
+  const slotDateInfo = React.useMemo(() => {
+    try {
+      if (slotId && slotId.includes("-")) {
+        const parts = slotId.split("-");
+        if (parts.length >= 3) {
+          const dateStr = `${parts[0]}-${parts[1]}-${parts[2]}`;
+          const slotDate = new Date(dateStr + "T00:00:00");
 
-            conflictDetails.push({
-              doctor,
-              sameDepConflicts,
-              otherDepConflicts,
-              totalConflicts: doctorSchedules.length,
-            });
-          }
-        });
-
-        return {
-          hasConflict: conflictDetails.length > 0,
-          conflictDetails,
-        };
-      })();
-
-      // ✅ Kiểm tra xung đột phòng trong clinic schedules (TRÊN TẤT CẢ CÁC KHOA)
-      const roomConflictInfo = (() => {
-        if (!allCellClinicSchedules || allCellClinicSchedules.length === 0) {
           return {
-            hasConflict: false,
-            conflictDetails: {
-              sameDepConflicts: [],
-              otherDepConflicts: [],
-              totalConflicts: 0,
-            },
+            dateStr: dateStr,
+            formatted: slotDate.toLocaleDateString("vi-VN"),
+            dayName: [
+              "Chủ nhật",
+              "Thứ hai",
+              "Thứ ba",
+              "Thứ tư",
+              "Thứ năm",
+              "Thứ sáu",
+              "Thứ bảy",
+            ][slotDate.getDay()],
+            isToday: slotDate.toDateString() === new Date().toDateString(),
+            isPast: slotDate < new Date(new Date().toDateString()),
           };
         }
-
-        const roomSchedules = allCellClinicSchedules.filter((schedule) => {
-          return schedule.roomId?.toString() === roomId;
-        });
-
-        if (roomSchedules.length === 0) {
-          return {
-            hasConflict: false,
-            conflictDetails: {
-              sameDepConflicts: [],
-              otherDepConflicts: [],
-              totalConflicts: 0,
-            },
-          };
-        }
-
-        // Phân loại conflicts theo khoa
-        const sameDepConflicts = roomSchedules.filter(
-          (s) => s.departmentHospitalId?.toString() === deptId
-        );
-        const otherDepConflicts = roomSchedules.filter(
-          (s) => s.departmentHospitalId?.toString() !== deptId
-        );
-
-        return {
-          hasConflict: true,
-          conflictDetails: {
-            sameDepConflicts,
-            otherDepConflicts,
-            totalConflicts: roomSchedules.length,
-          },
-        };
-      })();
-
-      // ✅ Tạo thông báo tooltip chi tiết với phân loại conflict
-      const getDisabledReason = () => {
-        const reasons = [];
-        const isUsed = isRoomUsed(room);
-
-        if (isUsed) {
-          reasons.push("Phòng đã được sử dụng trong ca này");
-        }
-
-        if (roomConflictInfo.hasConflict) {
-          const { sameDepConflicts, otherDepConflicts } =
-            roomConflictInfo.conflictDetails;
-
-          if (sameDepConflicts.length > 0) {
-            reasons.push(
-              `Phòng đã có lịch khám trong khoa này (${sameDepConflicts.length} lịch)`
-            );
-          }
-
-          if (otherDepConflicts.length > 0) {
-            const deptNames = [
-              ...new Set(
-                otherDepConflicts.map(
-                  (s) => s.departmentName || `Khoa ${s.departmentHospitalId}`
-                )
-              ),
-            ];
-            reasons.push(
-              `Phòng đã có lịch khám ở khoa khác: ${deptNames.join(", ")} (${
-                otherDepConflicts.length
-              } lịch)`
-            );
-          }
-        }
-
-        if (doctorConflictInfo.hasConflict) {
-          doctorConflictInfo.conflictDetails.forEach(
-            ({ doctor, sameDepConflicts, otherDepConflicts }) => {
-              if (sameDepConflicts.length > 0) {
-                reasons.push(
-                  `BS ${doctor.name} đã có lịch khám trong khoa này (${sameDepConflicts.length} lịch)`
-                );
-              }
-
-              if (otherDepConflicts.length > 0) {
-                const deptNames = [
-                  ...new Set(
-                    otherDepConflicts.map(
-                      (s) =>
-                        s.departmentName || `Khoa ${s.departmentHospitalId}`
-                    )
-                  ),
-                ];
-                reasons.push(
-                  `BS ${
-                    doctor.name
-                  } đã có lịch khám ở khoa khác: ${deptNames.join(", ")} (${
-                    otherDepConflicts.length
-                  } lịch)`
-                );
-              }
-            }
-          );
-        }
-
-        return reasons.join(" • ");
-      };
-
-      return {
-        roomDoctors,
-        hasDoctorConflict: doctorConflictInfo.hasConflict,
-        hasRoomConflict: roomConflictInfo.hasConflict,
-        doctorConflictInfo,
-        roomConflictInfo,
-        getDisabledReason,
-      };
-    },
-    [allCellClinicSchedules, getDoctorsByDepartment, isRoomUsed]
-  );
-
-  // ✅ Enhanced search logic với tốt hơn performance
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }, [slotId]);
   const searchableRooms = React.useMemo(() => {
-    // Ưu tiên sử dụng filteredRooms (đã filter theo zone), fallback về allRooms
-    const roomsToSearch =
-      filteredRooms && filteredRooms.length > 0
-        ? filteredRooms
-        : allRooms || [];
+    if (!filteredRooms || filteredRooms.length === 0) {
+      return [];
+    }
 
-    if (!roomSearchTerm || roomSearchTerm.trim().length === 0) {
-      return roomsToSearch;
+    if (!roomSearchTerm) {
+      return filteredRooms;
     }
 
     const searchTerm = roomSearchTerm.toLowerCase().trim();
 
-    return roomsToSearch.filter((room) => {
-      try {
-        // ✅ Tìm kiếm theo thông tin cơ bản
-        const basicFields = [
-          room.name,
-          room.code,
-          room.roomNumber,
-          room.roomName,
-          room.zoneName,
-          room.classification,
-          room.departmentName,
-        ].filter(Boolean);
+    return filteredRooms.filter((room) => {
+      // Tìm kiếm theo tên phòng
+      const roomName = (room?.name || room?.roomName || "").toLowerCase();
+      const roomCode = (room?.code || room?.roomCode || "").toLowerCase();
+      const roomNumber = (room?.roomNumber || "").toString().toLowerCase();
 
-        const basicMatch = basicFields.some((field) =>
-          field?.toString().toLowerCase().includes(searchTerm)
-        );
+      // Tìm kiếm theo chuyên khoa
+      const specialties = room?.specialties || [];
+      const specialtyMatch = specialties.some((specialty: string) =>
+        specialty.toLowerCase().includes(searchTerm)
+      );
 
-        // ✅ Tìm kiếm theo specialties của phòng
-        const specialtyMatch = room.specialties?.some((specialty: string) =>
-          specialty?.toLowerCase().includes(searchTerm)
-        );
+      // Tìm kiếm theo bác sĩ
+      const roomId = normalizeRoomId(room);
+      const doctorsForRoom = getDoctorsBySpecialty
+        ? specialties.flatMap(
+            (specialty: string) => getDoctorsBySpecialty(specialty) || []
+          )
+        : [];
 
-        // ✅ Tìm kiếm theo available specialties (từ dropdown)
-        const availableSpecialtyMatch = availableSpecialties?.some(
-          (specialty) => specialty?.toLowerCase().includes(searchTerm)
-        );
+      const doctorMatch = doctorsForRoom.some((doctor: any) =>
+        (doctor?.name || "").toLowerCase().includes(searchTerm)
+      );
 
-        // ✅ Tìm kiếm theo doctors - cải thiện performance
-        let doctorMatch = false;
+      // Tìm kiếm theo khoa
+      const departmentMatch = (room?.departmentName || "")
+        .toLowerCase()
+        .includes(searchTerm);
 
-        // Tìm theo doctors trong department của phòng
-        if (getDoctorsByDepartment && room.departmentId) {
-          try {
-            const deptDoctors = getDoctorsByDepartment(
-              room.departmentId.toString()
-            );
-            doctorMatch = deptDoctors?.some(
-              (doctor) =>
-                doctor?.name?.toLowerCase().includes(searchTerm) ||
-                doctor?.code?.toLowerCase().includes(searchTerm) ||
-                doctor?.specialty?.toLowerCase().includes(searchTerm)
-            );
-          } catch (error) {
-            console.warn("Error getting doctors by department:", error);
-          }
+      // Tìm kiếm theo zone
+      const zoneMatch = (room?.zoneName || "")
+        .toLowerCase()
+        .includes(searchTerm);
+
+      return (
+        roomName.includes(searchTerm) ||
+        roomCode.includes(searchTerm) ||
+        roomNumber.includes(searchTerm) ||
+        specialtyMatch ||
+        doctorMatch ||
+        departmentMatch ||
+        zoneMatch
+      );
+    });
+  }, [filteredRooms, roomSearchTerm, getDoctorsBySpecialty]);
+
+  // ✅ Thêm function getConflictInfo
+  const getConflictInfo = React.useCallback(
+    (room: any, roomId: string) => {
+      // Lấy danh sách bác sĩ cho phòng này
+      const roomSpecialties = room?.specialties || [];
+      const roomDoctors = roomSpecialties.flatMap((specialty: string) => {
+        if (getDoctorsBySpecialty) {
+          return getDoctorsBySpecialty(specialty) || [];
+        }
+        return [];
+      });
+
+      // Kiểm tra xung đột bác sĩ với clinic schedules
+      const hasDoctorConflict = roomDoctors.some((doctor: any) => {
+        return allCellClinicSchedules.some((schedule: any) => {
+          return (
+            schedule.doctorId?.toString() === doctor?.id?.toString() ||
+            schedule.doctorName === doctor?.name
+          );
+        });
+      });
+
+      // Kiểm tra xung đột phòng với clinic schedules
+      const hasRoomConflict = allCellClinicSchedules.some((schedule: any) => {
+        return schedule.roomId?.toString() === roomId;
+      });
+
+      // Function để lấy lý do disable
+      const getDisabledReason = () => {
+        const reasons = [];
+
+        if (isRoomUsed(room)) {
+          reasons.push("Phòng đã được sử dụng trong ca này");
         }
 
-        // Fallback: tìm trong tất cả doctors nếu chưa tìm thấy
-        if (!doctorMatch && availableDoctors?.length > 0) {
-          doctorMatch = availableDoctors.some(
-            (doctor) =>
-              doctor?.name?.toLowerCase().includes(searchTerm) ||
-              doctor?.code?.toLowerCase().includes(searchTerm) ||
-              doctor?.specialty?.toLowerCase().includes(searchTerm)
+        if (hasRoomConflict) {
+          reasons.push("Phòng này đã có lịch khám trong database");
+        }
+
+        if (hasDoctorConflict) {
+          const conflictDoctors = roomDoctors.filter((doctor: any) => {
+            return allCellClinicSchedules.some((schedule: any) => {
+              return (
+                schedule.doctorId?.toString() === doctor?.id?.toString() ||
+                schedule.doctorName === doctor?.name
+              );
+            });
+          });
+          reasons.push(
+            `Bác sĩ đã có lịch: ${conflictDoctors
+              .map((d: any) => d.name)
+              .join(", ")}`
           );
         }
 
-        return (
-          basicMatch || specialtyMatch || availableSpecialtyMatch || doctorMatch
-        );
-      } catch (error) {
-        console.warn("Error in room search filter:", error);
-        return false;
-      }
-    });
-  }, [
-    filteredRooms,
-    allRooms,
-    roomSearchTerm,
-    availableSpecialties,
-    availableDoctors,
-    getDoctorsByDepartment,
-  ]);
+        return reasons.join(". ");
+      };
+
+      return {
+        roomDoctors,
+        hasDoctorConflict,
+        hasRoomConflict,
+        getDisabledReason,
+      };
+    },
+    [getDoctorsBySpecialty, allCellClinicSchedules, isRoomUsed]
+  );
 
   // ✅ Rendering logic cho editing mode
   if (isEditing) {
     return (
-      <div className="space-y-2 ">
+      <div className="space-y-2">
         {/* Search Input */}
         <div className="relative">
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
@@ -1735,7 +1623,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         setLocalUsedRooms((prev) => {
                           const newSet = new Set(prev);
                           newSet.add(roomId);
-
                           return newSet;
                         });
                       } catch (error) {
@@ -1961,7 +1848,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     );
   }
 
-  // ✅ Component Clinic Schedule Clone Dialog
+  // ✅ Component Clinic Schedule Clone Dialog: Đối thoại nhân bản lịch khám
   const ClinicScheduleCloneDialog: React.FC = () => {
     const [targetSlots, setTargetSlots] = React.useState<Set<string>>(
       new Set()
@@ -2850,16 +2737,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   return (
     <div className="space-y-1 relative">
       {/* Room header với chức năng clone khi có phòng */}
-      {rooms && rooms.length > 0 && (
+      {rooms && rooms.length > 0 && !isSlotInPast && (
         <div className="flex items-center justify-between py-1">
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
             <span>Phòng ({rooms.length})</span>
-            {/* ✅ Badge clone available */}
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[10px] font-medium">
-              <Copy className="w-2.5 h-2.5" />
-              <span>Có thể nhân bản</span>
-            </div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -2889,7 +2771,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   disabled={selectedRooms.size === 0}
                 >
                   <Copy className="w-3 h-3 mr-1" />
-                  Clone ({selectedRooms.size})
+                  Nhân bản ({selectedRooms.size})
                 </Button>
               </>
             ) : (
@@ -2926,6 +2808,20 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         </div>
       )}
 
+      {/* ✅ Header thay thế cho slot quá khứ */}
+      {rooms && rooms.length > 0 && isSlotInPast && (
+        <div className="flex items-center justify-between py-1">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+            <span>Phòng ({rooms.length}) - Chỉ xem</span>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-gray-400">
+            <AlertTriangle className="w-3 h-3" />
+            <span>Ca đã qua</span>
+          </div>
+        </div>
+      )}
+
       {/* Existing rooms */}
       {rooms?.map((room, index) => (
         <div
@@ -2950,7 +2846,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               }}
             >
               <CheckSquare
-                className={`w-4 h-4 cursor-pointer transition-colors ${
+                className={`w-4 h-4 cursor-pointer transition-colors  ${
                   selectedRooms.has(index)
                     ? "text-purple-600 fill-purple-100"
                     : "text-gray-400 hover:text-purple-500"
@@ -3147,7 +3043,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                     deptId && (
                                     <Badge
                                       variant="outline"
-                                      className="text-[9px] px-1 py-0 h-3 bg-orange-50 text-orange-600 border-orange-300"
+                                      className="text-[9px] px-1.5 py-0.5 h-4 bg-orange-50 text-orange-600 border-orange-300"
                                     >
                                       {schedule.departmentName ||
                                         `Khoa ${schedule.departmentHospitalId}`}
@@ -3245,16 +3141,28 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       {/* Add room button - when rooms exist */}
       {rooms && rooms.length > 0 && (
         <div className="space-y-1">
-          {/* Nút thêm phòng trước */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
-            onClick={() => setEditingCell(cellKey)}
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            Thêm phòng mới
-          </Button>
+          {/* ✅ Nút thêm phòng trước - chỉ hiển thị khi không phải quá khứ */}
+          {!isSlotInPast && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
+              onClick={() => setEditingCell(cellKey)}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Thêm phòng mới
+            </Button>
+          )}
+
+          {/* ✅ Thông báo thay thế cho slot quá khứ */}
+          {isSlotInPast && (
+            <div className="w-full h-6 border-2 border-dashed border-gray-200 rounded-md flex items-center justify-center text-gray-400 text-xs cursor-not-allowed bg-gray-50">
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              <span>
+                Ca đã qua ({slotDateInfo?.formatted || "N/A"}) - chỉ xem
+              </span>
+            </div>
+          )}
 
           {/* ✅ CHỈ hiển thị clinic schedules sau nút thêm phòng */}
           {clinicScheduleStats && (
@@ -3267,15 +3175,17 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className={`w-full h-auto min-h-[85px] p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer ${
-                        schedule.examTypeId &&
-                        roomClassifications[`exam_${schedule.examTypeId}`]
+                      className={`w-full h-auto min-h-[85px] p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer w-full ${
+                        selectedClinicSchedules.has(idx)
+                          ? "bg-green-100 border-green-400 text-green-800 shadow-sm"
+                          : schedule.examTypeId &&
+                            roomClassifications[`exam_${schedule.examTypeId}`]
                           ? roomClassifications[`exam_${schedule.examTypeId}`]
                               .color ||
                             "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
                           : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
                       }`}
-                      title="Click để xem chi tiết lịch khám"
+                      title="Click để xem chi tiết lịch khám từ DB"
                     >
                       <div className="flex flex-col gap-1 w-full">
                         {/* Header row with exam type and time */}
@@ -3290,35 +3200,25 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                             }`}
                           />
 
-                          {/* Exam Type and time info */}
-                          <div className="flex items-center gap-1 flex-1">
-                            {schedule.examTypeName && (
-                              <>
-                                <span className="font-medium text-[10px] px-1.5 py-0.5 rounded bg-current/10 text-current">
-                                  {schedule.examTypeName}
-                                </span>
-                                <span className="text-current/60 text-[10px]">
-                                  •
-                                </span>
-                              </>
-                            )}
-                            <Clock className="w-3 h-3 text-current/70" />
-                            <span className="text-current/80 text-[10px] font-medium">
-                              {schedule.timeStart?.slice(0, 5) ||
-                                currentSlotInfo?.startTime}{" "}
-                              -{" "}
-                              {schedule.timeEnd?.slice(0, 5) ||
-                                currentSlotInfo?.endTime}
-                            </span>
-                          </div>
-
-                          {/* Patient count */}
-                          <div className="flex items-center gap-1">
-                            <Users className="w-3 h-3 text-current/70" />
-                            <span className="text-xs font-medium text-current">
-                              {schedule.total || 0}
-                            </span>
-                          </div>
+                          {/* Exam Type name */}
+                          {schedule.examTypeName && (
+                            <>
+                              <span className="font-medium text-[10px] px-1.5 py-0.5 rounded bg-current/10 text-current">
+                                {schedule.examTypeName}
+                              </span>
+                              <span className="text-current/60 text-[10px]">
+                                •
+                              </span>
+                            </>
+                          )}
+                          <Clock className="w-3 h-3 text-current/70" />
+                          <span className="text-current/80 text-[10px] font-medium">
+                            {schedule.timeStart?.slice(0, 5) ||
+                              currentSlotInfo?.startTime}{" "}
+                            -{" "}
+                            {schedule.timeEnd?.slice(0, 5) ||
+                              currentSlotInfo?.endTime}
+                          </span>
                         </div>
 
                         {/* Room row */}
@@ -3375,113 +3275,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         </div>
       )}
 
-      {/* ✅ Hiển thị thông tin các ô được nhân bản phòng gần đây */}
-      {recentClonedRoomSlots && (
-        <div className="mt-2 p-3 bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-lg shadow-sm animate-in slide-in-from-top-2 duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
-                <CheckSquare className="w-4 h-4 text-purple-600" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-purple-800">
-                  Nhân bản phòng thành công!
-                </div>
-                <div className="text-xs text-purple-600">
-                  {recentClonedRoomSlots.roomsCount} phòng →{" "}
-                  {recentClonedRoomSlots.targetSlots.length} ca đích
-                </div>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-purple-600 hover:text-purple-800 hover:bg-purple-100"
-              onClick={() => setRecentClonedRoomSlots(null)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Danh sách các slot được nhân bản với grid layout */}
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-purple-700 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              Các vị trí đã nhân bản phòng:
-            </div>
-
-            <div className="grid grid-cols-1 gap-1.5">
-              {recentClonedRoomSlots.targetSlots.map((targetSlotId, index) => {
-                const slot = allTimeSlots.find((s) => s.id === targetSlotId);
-                return (
-                  <button
-                    key={targetSlotId}
-                    onClick={() => {
-                      // ✅ Sử dụng hàm helper để hiển thị từng slot tuần tự
-                      showClonedRoomSlotsSequentially([targetSlotId]);
-                    }}
-                    className="group p-2 bg-white hover:bg-purple-50 border border-purple-200 hover:border-purple-300 rounded-md transition-all duration-200 hover:shadow-sm text-left relative"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-5 h-5 bg-purple-500 text-white text-xs rounded-full flex items-center justify-center">
-                        {index + 1}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="text-xs font-medium text-purple-800">
-                          {slot
-                            ? slot.slotName || slot.periodName || "Ca khám"
-                            : targetSlotId}
-                        </div>
-                        {slot && (
-                          <div className="text-xs text-purple-600">
-                            {slot.startTime?.slice(0, 5)}-
-                            {slot.endTime?.slice(0, 5)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Action để xem tất cả các slot với improved styling */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full h-8 text-xs mt-3 border-purple-300 text-purple-700 hover:bg-purple-100 hover:border-purple-400 transition-all duration-200"
-              onClick={() => {
-                // ✅ Sử dụng hàm helper để hiển thị tuần tự
-                showClonedRoomSlotsSequentially(
-                  recentClonedRoomSlots.targetSlots
-                );
-              }}
-            >
-              <div className="flex items-center gap-1">
-                <span>🎬</span>
-                <span>
-                  Xem tuần tự {recentClonedRoomSlots.targetSlots.length} vị trí
-                </span>
-                <div className="ml-1 text-xs bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded-full">
-                  {Math.floor(
-                    (Date.now() - recentClonedRoomSlots.timestamp) / 1000
-                  )}
-                  s trước
-                </div>
-              </div>
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* ✅ Room Clone Dialog */}
       <RoomCloneDialog />
-
       {/* ✅ Clinic Schedule Clone Dialog */}
       <ClinicScheduleCloneDialog />
     </div>

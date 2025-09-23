@@ -46,10 +46,10 @@ const DoctorManagement = () => {
   const filteredDoctors =
     doctors?.filter(
       (doctor) =>
-        doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        doctor.name?.toLowerCase().includes(searchTerm?.toLowerCase()) ||
         (doctor.doctor_IdEmployee_Postgresql || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
+          ?.toLowerCase()
+          .includes(searchTerm?.toLowerCase())
     ) || [];
 
   const [currentPage, setCurrentPage] = useState(1);

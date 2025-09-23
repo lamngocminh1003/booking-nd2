@@ -1713,8 +1713,6 @@ const WeeklySchedule = () => {
       ...prev,
       [cellKey]: { action: "update_room", roomIndex, updates },
     }));
-
-    toast.success("Đã cập nhật cấu hình phòng");
   };
 
   // ✅ Undo/Redo functions

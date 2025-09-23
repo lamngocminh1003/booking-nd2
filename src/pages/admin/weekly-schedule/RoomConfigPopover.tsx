@@ -363,67 +363,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       });
 
       return; // ✅ EARLY RETURN - DISABLE AUTO-RESET
-
-      // ✅ Kiểm tra xem có phải clone từ ca khác thật sự không
-      const hasCustomTime = room.customStartTime && room.customEndTime;
-      const customTimeMatchesSlotDefault =
-        hasCustomTime &&
-        room.customStartTime === slotInfo.defaultStartTime &&
-        room.customEndTime === slotInfo.defaultEndTime; // ✅ CHỈ reset khi:
-      // 1. Room có startTime/endTime (đã được clone)
-      // 2. startTime/endTime KHÁC với default của ca đích
-      // 3. KHÔNG có customTime hoặc customTime không phù hợp với ca đích
-      // 4. QUAN TRỌNG: Đảm bảo không phải cùng ca (có customTime trùng với slot default)
-      const isClonedFromOtherShift =
-        room.startTime &&
-        room.endTime &&
-        // Room có thời gian khác với ca đích
-        (room.startTime !== slotInfo.defaultStartTime ||
-          room.endTime !== slotInfo.defaultEndTime) &&
-        // Chưa có customTime phù hợp HOẶC không phải cùng ca
-        (!hasCustomTime ||
-          (!customTimeMatchesSlotDefault &&
-            room.customStartTime !== slotInfo.defaultStartTime &&
-            room.customEndTime !== slotInfo.defaultEndTime));
-
-      if (isClonedFromOtherShift) {
-        console.log("🔄 Auto-reset CLONED room to slot default time:", {
-          room: {
-            startTime: room.startTime,
-            endTime: room.endTime,
-            customStartTime: room.customStartTime,
-            customEndTime: room.customEndTime,
-          },
-          slotInfo: {
-            defaultStartTime: slotInfo.defaultStartTime,
-            defaultEndTime: slotInfo.defaultEndTime,
-          },
-          isClonedFromOtherShift,
-          action: "calling handleResetToDefault",
-        });
-
-        // Delay nhỏ để đảm bảo component đã render xong
-        setTimeout(() => {
-          handleResetToDefault();
-        }, 100);
-      } else {
-        console.log(
-          "🚫 NOT resetting - room has valid custom time or same shift:",
-          {
-            room: {
-              startTime: room.startTime,
-              endTime: room.endTime,
-              customStartTime: room.customStartTime,
-              customEndTime: room.customEndTime,
-            },
-            slotInfo: {
-              defaultStartTime: slotInfo.defaultStartTime,
-              defaultEndTime: slotInfo.defaultEndTime,
-            },
-            isClonedFromOtherShift,
-          }
-        );
-      }
     }, [
       room.startTime,
       room.endTime,
@@ -705,62 +644,36 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       const selectedDoctorValue =
         room.selectedDoctor && room.selectedDoctor.trim();
       const doctorValue = room.doctor && room.doctor.trim();
-
-      console.log("🔍 Doctor validation debug (ENHANCED):", {
-        roomObject: {
-          selectedDoctor: room.selectedDoctor,
-          doctor: room.doctor,
-          // ✅ Kiểm tra thêm các field khác có thể chứa doctor data
-          doctorName: room.doctorName,
-          doctorCode: room.doctorCode,
-          doctorId: room.doctorId,
-        },
-        processedValues: {
-          selectedDoctorValue,
-          doctorValue,
-        },
-        validation: {
-          hasValidDoctor: !!(selectedDoctorValue || doctorValue),
-          validationWillFail: !selectedDoctorValue && !doctorValue,
-        },
-        allRoomFields: Object.keys(room),
-      });
-
-      // ✅ ENHANCED: Kiểm tra các field doctor khác có thể có từ DB copy
       const doctorFromOtherFields =
         room.doctorName || room.doctorCode || room.doctorId;
 
       if (!selectedDoctorValue && !doctorValue && !doctorFromOtherFields) {
         errors.push("Vui lòng chọn bác sĩ phụ trách");
-      } else if (
-        doctorFromOtherFields &&
-        !selectedDoctorValue &&
-        !doctorValue
-      ) {
-        // ✅ Có doctor data nhưng không ở đúng field, cần auto-fix
-        console.warn("🔧 Doctor data found in other fields, auto-fixing...", {
-          doctorName: room.doctorName,
-          doctorCode: room.doctorCode,
-          doctorId: room.doctorId,
-        });
-
-        // Auto-fix: chuyển doctor data vào selectedDoctor field
-        setTimeout(() => {
-          if (room.doctorName) {
-            handleUpdate("selectedDoctor", room.doctorName);
-          } else if (room.doctorCode) {
-            handleUpdate("selectedDoctor", room.doctorCode);
-          } else if (room.doctorId) {
-            handleUpdate("selectedDoctor", room.doctorId.toString());
-          }
-        }, 100);
       }
 
-      // Kiểm tra thời gian hợp lệ
+      // ✅ Kiểm tra thời gian hợp lệ và bội số 30 phút
       const startTime = currentTime.startTime;
       const endTime = currentTime.endTime;
-      if (startTime && endTime && startTime >= endTime) {
-        errors.push("Giờ kết thúc phải sau giờ bắt đầu");
+
+      if (startTime && endTime) {
+        // Kiểm tra giờ kết thúc phải sau giờ bắt đầu
+        if (startTime >= endTime) {
+          errors.push("Giờ kết thúc phải sau giờ bắt đầu");
+        }
+
+        // ✅ Kiểm tra thời gian bắt đầu phải là bội số của 30 phút
+        if (!isValidTimeSlot(startTime)) {
+          errors.push(
+            "Thời gian bắt đầu phải là bội số của 30 phút (ví dụ: 07:00, 07:30, 08:00...)"
+          );
+        }
+
+        // ✅ Kiểm tra thời gian kết thúc phải là bội số 30 phút
+        if (!isValidTimeSlot(endTime)) {
+          errors.push(
+            "Thời gian kết thúc phải là bội số của 30 phút (ví dụ: 11:00, 11:30, 12:00...)"
+          );
+        }
       }
 
       // Kiểm tra số lượt khám
@@ -923,6 +836,61 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
         return classification.name || classification.originalName;
       }
       return null;
+    };
+
+    // Thêm validation cho thời gian bội số 30 phút
+
+    // ✅ Helper function để kiểm tra thời gian có phải bội số 30 phút không
+    const isValidTimeSlot = (timeString: string): boolean => {
+      if (!timeString) return false;
+
+      const [hours, minutes] = timeString.split(":").map(Number);
+      return minutes === 0 || minutes === 30;
+    };
+
+    // ✅ Helper function để làm tròn thời gian về bội số 30 phút gần nhất
+    const roundToNearestHalfHour = (timeString: string): string => {
+      if (!timeString) return timeString;
+
+      const [hours, minutes] = timeString.split(":").map(Number);
+
+      // Làm tròn phút về 0 hoặc 30
+      const roundedMinutes = minutes < 15 ? 0 : minutes < 45 ? 30 : 0;
+      const adjustedHours = minutes >= 45 ? hours + 1 : hours;
+
+      // Đảm bảo giờ trong khoảng 0-23
+      const finalHours = adjustedHours >= 24 ? 0 : adjustedHours;
+
+      return `${finalHours.toString().padStart(2, "0")}:${roundedMinutes
+        .toString()
+        .padStart(2, "0")}`;
+    };
+
+    const handleTimeChange = (
+      field: "customStartTime" | "customEndTime",
+      value: string
+    ) => {
+      // Validate và auto-correct thời gian
+      if (value && !isValidTimeSlot(value)) {
+        const correctedTime = roundToNearestHalfHour(value);
+        console.log(`🕐 Auto-correcting time: ${value} → ${correctedTime}`);
+
+        // Hiển thị warning tạm thời
+        setValidationErrors([
+          `Thời gian đã được làm tròn từ ${value} thành ${correctedTime} (bội số 30 phút)`,
+        ]);
+        setShowValidationWarning(true);
+
+        // Tự động ẩn warning sau 3 giây
+        setTimeout(() => {
+          setShowValidationWarning(false);
+          setValidationErrors([]);
+        }, 3000);
+
+        handleUpdate(field, correctedTime);
+      } else {
+        handleUpdate(field, value);
+      }
     };
 
     return (
@@ -1807,7 +1775,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                             }}
                           >
                             <div className="flex items-center gap-2 text-gray-500">
-                              <div className="w-3 h-3 border border-gray-300 rounded-full flex-shrink-0"></div>
+                              <div className="w-3 h-3 border border-gray-300 rounded flex-shrink-0"></div>
                               <span className="text-sm">Không chọn bác sĩ</span>
                             </div>
                           </button>
@@ -2144,15 +2112,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           <Badge variant="outline" className="text-xs">
                             {departmentData.examTypes.length} loại
                           </Badge>
-                          {departmentData.examTypes.length === 1 &&
-                            room.selectedExamType && (
-                              <Badge
-                                variant="secondary"
-                                className="text-xs bg-blue-50 text-blue-600 border-blue-200"
-                              >
-                                Auto
-                              </Badge>
-                            )}
                         </div>
                       </div>
 
@@ -2230,45 +2189,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           })}
                         </SelectContent>
                       </Select>
-
-                      {/* Hiển thị thông tin specialties với design đẹp */}
-                      {room.selectedExamType && (
-                        <div className="space-y-2">
-                          <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                            <div className="flex items-center gap-2 text-sm text-green-700">
-                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="font-medium">
-                                Loại khám này có{" "}
-                                {availableSpecialtiesForSelectedExamType.length}{" "}
-                                chuyên khoa
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Hiển thị thông tin màu sắc đã áp dụng */}
-                          {room.classification &&
-                            roomClassifications?.[room.classification] && (
-                              <div
-                                className={`p-3 rounded-lg border ${
-                                  roomClassifications[room.classification].color
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 text-sm">
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${getClassificationStyle()}`}
-                                  ></div>
-                                  <span className="font-medium">
-                                    🎨 Màu sắc phòng:{" "}
-                                    {
-                                      roomClassifications[room.classification]
-                                        .name
-                                    }
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                        </div>
-                      )}
                     </div>
                   )}
                   {/* Specialty Selection với card design */}
@@ -2291,15 +2211,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                             Chọn loại khám trước
                           </Badge>
                         )}
-                        {availableSpecialtiesForSelectedExamType.length === 1 &&
-                          room.selectedSpecialty && (
-                            <Badge
-                              variant="secondary"
-                              className="text-xs bg-purple-50 text-purple-600 border-purple-200"
-                            >
-                              Auto
-                            </Badge>
-                          )}
                       </div>
                     </div>
 
@@ -2405,7 +2316,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                         </div>
                       )}
                   </div>
-                  {/* ✅ Time Configuration với card design */}
+                  {/* ✅ Time Configuration với custom step control */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -2422,203 +2333,220 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                       </Label>
                     </div>
 
+                    {/* ✅ Thông báo về quy tắc 30 phút */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Clock className="w-3 h-3 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-blue-800">
+                            ⏰ Quy tắc thời gian
+                          </div>
+                          <div className="text-xs text-blue-600 mt-1">
+                            Thời gian chỉ có thể là bội số của 30 phút (VD:
+                            07:00, 07:30, 08:00, 08:30...)
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
+                      {/* ✅ Start Time với custom controls */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-gray-600">
                           Giờ bắt đầu
                         </Label>
-                        <Input
-                          type="time"
-                          value={currentTime.startTime}
-                          onChange={(e) =>
-                            handleUpdate("customStartTime", e.target.value)
-                          }
-                          className={`h-10 ${
-                            isCustomTime
-                              ? "border-orange-300 bg-orange-50"
-                              : "bg-white"
-                          }`}
-                        />
+                        <div className="relative">
+                          {/* ✅ Custom time input với datalist */}
+                          <Input
+                            type="time"
+                            list="time-options-start"
+                            value={currentTime.startTime}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Tự động làm tròn về bội số 30 phút
+                              const correctedTime =
+                                roundToNearestHalfHour(value);
+                              if (value !== correctedTime) {
+                                console.log(
+                                  `🕐 Auto-correcting start time: ${value} → ${correctedTime}`
+                                );
+                              }
+                              handleUpdate("customStartTime", correctedTime);
+                            }}
+                            className={`h-10 ${
+                              isCustomTime
+                                ? "border-orange-300 bg-orange-50"
+                                : "bg-white"
+                            }`}
+                          />
+
+                          {/* ✅ Datalist với các options bội số 30 phút */}
+                          <datalist id="time-options-start">
+                            {Array.from({ length: 48 }, (_, i) => {
+                              const hours = Math.floor(i / 2);
+                              const minutes = (i % 2) * 30;
+                              const timeString = `${hours
+                                .toString()
+                                .padStart(2, "0")}:${minutes
+                                .toString()
+                                .padStart(2, "0")}`;
+                              return (
+                                <option key={timeString} value={timeString} />
+                              );
+                            })}
+                          </datalist>
+
+                          {/* ✅ Quick buttons */}
+                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
+                              onClick={() => {
+                                const [hours, minutes] = currentTime.startTime
+                                  .split(":")
+                                  .map(Number);
+                                const newMinutes = minutes === 0 ? 30 : 0;
+                                const newHours =
+                                  minutes === 30 ? hours + 1 : hours;
+                                const adjustedHours =
+                                  newHours >= 24 ? 0 : newHours;
+                                const newTime = `${adjustedHours
+                                  .toString()
+                                  .padStart(2, "0")}:${newMinutes
+                                  .toString()
+                                  .padStart(2, "0")}`;
+                                handleUpdate("customStartTime", newTime);
+                              }}
+                              title="Tăng 30 phút"
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* ✅ End Time với custom controls */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-gray-600">
                           Giờ kết thúc
                         </Label>
-                        <Input
-                          type="time"
-                          value={currentTime.endTime}
-                          onChange={(e) =>
-                            handleUpdate("customEndTime", e.target.value)
-                          }
-                          className={`h-10 ${
-                            isCustomTime
-                              ? "border-orange-300 bg-orange-50"
-                              : "bg-white"
-                          }`}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Số lượt khám theo phút */}
-                    <div className="space-y-3">
-                      <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        Cấu hình lượt khám theo thời gian
-                      </Label>
-
-                      {/* Grid layout cho 3 trường input */}
-                      <div className="grid grid-cols-3 gap-3">
-                        {/* Số lượt khám */}
-                        <div className="space-y-2">
-                          <Label className="text-xs text-gray-500">
-                            Số lượt khám
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min="1"
-                              max="50"
-                              value={currentTime.maxAppointments}
-                              onChange={(e) =>
-                                handleUpdate(
-                                  "appointmentCount",
-                                  parseInt(e.target.value) || 10
-                                )
+                        <div className="relative">
+                          <Input
+                            type="time"
+                            list="time-options-end"
+                            value={currentTime.endTime}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Tự động làm tròn về bội số 30 phút
+                              const correctedTime =
+                                roundToNearestHalfHour(value);
+                              if (value !== correctedTime) {
+                                console.log(
+                                  `🕐 Auto-correcting end time: ${value} → ${correctedTime}`
+                                );
                               }
-                              className={`h-10 pr-12 ${
-                                isCustomTime
-                                  ? "border-orange-300 bg-orange-50"
-                                  : "bg-white"
-                              }`}
-                            />
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium">
-                              lượt
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Số lượng giữ chỗ */}
-                        <div className="space-y-2">
-                          <Label className="text-xs text-gray-500">
-                            Số giữ chỗ
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min="0"
-                              max="20"
-                              value={getHoldSlots(room)}
-                              onChange={(e) =>
-                                handleUpdate(
-                                  "holdSlot",
-                                  parseInt(e.target.value) || 0
-                                )
-                              }
-                              className={`h-10 pr-12 ${
-                                isCustomTime
-                                  ? "border-orange-300 bg-orange-50"
-                                  : "bg-white"
-                              }`}
-                            />
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium">
-                              slot
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Thời gian (phút) */}
-                        <div className="space-y-2">
-                          <Label className="text-xs text-gray-500">
-                            Trong thời gian
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min="5"
-                              max="120"
-                              value={room.appointmentDuration || 60}
-                              onChange={(e) =>
-                                handleUpdate(
-                                  "appointmentDuration",
-                                  parseInt(e.target.value) || 60
-                                )
-                              }
-                              className={`h-10 pr-12 ${
-                                isCustomTime
-                                  ? "border-orange-300 bg-orange-50"
-                                  : "bg-white"
-                              }`}
-                            />
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium">
-                              phút
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Hiển thị tóm tắt với thông tin giữ chỗ */}
-                      <div
-                        className={`text-sm p-3 rounded-lg border ${
-                          isCustomTime
-                            ? "bg-orange-50 border-orange-200 text-orange-800"
-                            : "bg-blue-50 border-blue-200 text-blue-800"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              isCustomTime ? "bg-orange-500" : "bg-blue-500"
+                              handleUpdate("customEndTime", correctedTime);
+                            }}
+                            className={`h-10 ${
+                              isCustomTime
+                                ? "border-orange-300 bg-orange-50"
+                                : "bg-white"
                             }`}
-                          ></div>
-                          <span className="font-medium">
-                            📅 {currentTime.maxAppointments} lượt trong{" "}
-                            {room.appointmentDuration || 60} phút
-                          </span>
-                        </div>
+                          />
 
-                        {/* Thông tin giữ chỗ */}
-                        {getHoldSlots(room) > 0 && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <div
-                              className={`w-2 h-2 rounded-full ${
-                                isCustomTime ? "bg-orange-400" : "bg-blue-400"
-                              }`}
-                            ></div>
-                            <span className="font-medium">
-                              🔒 {getHoldSlots(room)} slot giữ chỗ
-                            </span>
+                          {/* ✅ Datalist với các options bội số 30 phút */}
+                          <datalist id="time-options-end">
+                            {Array.from({ length: 48 }, (_, i) => {
+                              const hours = Math.floor(i / 2);
+                              const minutes = (i % 2) * 30;
+                              const timeString = `${hours
+                                .toString()
+                                .padStart(2, "0")}:${minutes
+                                .toString()
+                                .padStart(2, "0")}`;
+                              return (
+                                <option key={timeString} value={timeString} />
+                              );
+                            })}
+                          </datalist>
+
+                          {/* ✅ Quick buttons */}
+                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
+                              onClick={() => {
+                                const [hours, minutes] = currentTime.endTime
+                                  .split(":")
+                                  .map(Number);
+                                const newMinutes = minutes === 0 ? 30 : 0;
+                                const newHours =
+                                  minutes === 30 ? hours + 1 : hours;
+                                const adjustedHours =
+                                  newHours >= 24 ? 0 : newHours;
+                                const newTime = `${adjustedHours
+                                  .toString()
+                                  .padStart(2, "0")}:${newMinutes
+                                  .toString()
+                                  .padStart(2, "0")}`;
+                                handleUpdate("customEndTime", newTime);
+                              }}
+                              title="Tăng 30 phút"
+                            >
+                              +
+                            </Button>
                           </div>
-                        )}
-
-                        <div className="flex flex-wrap gap-4 text-xs opacity-80">
-                          <span>
-                            Trung bình{" "}
-                            {Math.round(
-                              (room.appointmentDuration || 60) /
-                                currentTime.maxAppointments
-                            )}{" "}
-                            phút/lượt khám
-                          </span>
-
-                          {getHoldSlots(room) > 0 && (
-                            <span>
-                              • Còn lại{" "}
-                              {currentTime.maxAppointments - getHoldSlots(room)}{" "}
-                              slot khám bệnh
-                            </span>
-                          )}
                         </div>
                       </div>
-
-                      {slotInfo && (
-                        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border">
-                          💡 Mặc định cho ca này:{" "}
-                          <strong>{slotInfo.defaultMaxAppointments}/60p</strong>
-                          {" • "}
-                          <span>Giữ chỗ: {getHoldSlots(room)} slot</span>
-                        </div>
-                      )}
                     </div>
+
+                    {/* ✅ Time difference display */}
+                    {currentTime.startTime && currentTime.endTime && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">
+                            Thời gian làm việc:
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {(() => {
+                              const start = currentTime.startTime
+                                .split(":")
+                                .map(Number);
+                              const end = currentTime.endTime
+                                .split(":")
+                                .map(Number);
+                              const startMinutes = start[0] * 60 + start[1];
+                              const endMinutes = end[0] * 60 + end[1];
+                              const diffMinutes = endMinutes - startMinutes;
+                              const hours = Math.floor(diffMinutes / 60);
+                              const minutes = diffMinutes % 60;
+                              return `${hours}h${
+                                minutes > 0 ? ` ${minutes}p` : ""
+                              }`;
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reset button */}
+                    {isCustomTime && (
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          onClick={handleResetToDefault}
+                        >
+                          <RotateCcw className="w-3 h-3 mr-1" />
+                          Reset về mặc định
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
