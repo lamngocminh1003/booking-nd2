@@ -127,11 +127,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
           <Save className="w-4 h-4 mr-2" />
           Lưu tất cả ({Object.keys(scheduleChanges || {}).length})
         </Button>
-
-        <Button variant="outline" size="sm" className="h-9">
-          <Filter className="w-4 h-4 mr-2" />
-          Bộ lọc
-        </Button>
       </div>
     </>
   );

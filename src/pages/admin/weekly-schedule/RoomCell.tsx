@@ -165,8 +165,19 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     React.useState(false);
   const [showClinicScheduleCloneDialog, setShowClinicScheduleCloneDialog] =
     React.useState(false);
+  // Tách ngày từ slotId (yyyy-mm-dd)
+  const datePart = slotId.split("-").slice(0, 3).join("-"); // "2025-09-24"
+  const [year, month, day] = datePart.split("-").map(Number);
+  const slotDate = new Date(year, month - 1, day);
 
-  // ✅ State để track các slot đã được nhân bản phòng và hiển thị chúng
+  const today = new Date();
+  slotDate.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  // Chỉ hiện nếu là ngày TƯƠNG LAI
+  const isFutureOrToday = slotDate.getTime() > today.getTime();
+
+  // ✅ State để track các slot đã được nhân bản và hiển thị chúng
   const [recentClonedRoomSlots, setRecentClonedRoomSlots] = React.useState<{
     targetSlots: string[];
     timestamp: number;
@@ -370,16 +381,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             if (element instanceof HTMLElement) {
               element.style.position = "relative";
               element.appendChild(badge);
-            }
-
-            // ✅ Thêm progress indicator cho tổng tiến trình
-            if (index === 0) {
-              // Tạo progress toast cho sequence
-              toast({
-                title: "🎬 Đang hiển thị từng vị trí phòng...",
-                description: `Hiển thị ${targetSlots.length} vị trí được nhân bản phòng`,
-                duration: targetSlots.length * 800 + 2000,
-              });
             }
 
             // ✅ Tự động remove các effect sau một thời gian
@@ -724,7 +725,9 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           selectedDoctor:
             schedule.doctorName || schedule.doctorId?.toString() || "",
           priorityOrder: 10,
-          notes: `📋 Copy từ DB: ${schedule.examinationName || "Lịch khám"}`,
+          notes: `📋 Copy từ phòng có sẵn : ${
+            schedule.examinationName || "Lịch khám"
+          }`,
           zoneId: roomInfo.zoneId,
           zoneName: roomInfo.zoneName,
         };
@@ -753,34 +756,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             }
           }, 150); // ✅ Tăng delay để đảm bảo room đã được thêm hoàn toàn
         }
-
-        // ✅ Hiển thị thông báo thành công
-        toast({
-          title: "📋 Copy phòng từ DB thành công!",
-          description: `Đã copy phòng ${schedule.roomName} với đầy đủ thông tin từ database.`,
-          action: (
-            <div className="text-xs bg-green-50 p-2 rounded mt-2">
-              <div>
-                <strong>Thông tin đã copy:</strong>
-              </div>
-              <div>🏥 Phòng: {schedule.roomName}</div>
-              {schedule.doctorName && (
-                <div>👨‍⚕️ Bác sĩ: {schedule.doctorName}</div>
-              )}
-              {schedule.specialtyName && (
-                <div>🔬 Chuyên khoa: {schedule.specialtyName}</div>
-              )}
-              <div>
-                ⏰ Thời gian: {newRoomFromDB.customStartTime} -{" "}
-                {newRoomFromDB.customEndTime}
-              </div>
-              <div>🔢 Số lượt: {newRoomFromDB.appointmentCount}</div>
-              {schedule.holdSlot > 0 && (
-                <div>🔒 Giữ chỗ: {schedule.holdSlot}</div>
-              )}
-            </div>
-          ),
-        });
 
         // ✅ Notify parent để refresh UI với delay để đảm bảo add room đã hoàn thành
         setTimeout(() => {
@@ -945,7 +920,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     appointmentCount: parseInt(currentSchedule.total),
                   }),
 
-                  notes: `📋 Copy từ DB: ${
+                  notes: `📋 Copy từ có sẵn: ${
                     currentSchedule.examinationName || "Lịch khám"
                   } - ${currentSchedule.roomName}${
                     currentSchedule.doctorName
@@ -1026,40 +1001,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             )}`,
           }));
 
-          toast({
-            title: `🎉 Bulk copy thành công!`,
-            description: `Đã copy ${successCount} phòng với đầy đủ thông tin sang ${targetSlots.length} ca khám`,
-            action: (
-              <div className="text-xs bg-green-50 p-2 rounded mt-2 max-h-48 overflow-y-auto">
-                <div>
-                  <strong>Chi tiết copy:</strong>
-                </div>
-                <div>• Thành công: {successCount} phòng</div>
-                <div>• Lỗi: {errorCount}</div>
-                <div>• Target slots: {targetSlots.length}</div>
-                <div className="mt-2 border-t pt-2">
-                  <strong>Thông tin đã copy:</strong>
-                </div>
-                {copiedDetails.slice(0, 3).map((detail, idx) => (
-                  <div key={idx} className="text-xs mt-1 bg-white p-1 rounded">
-                    <div>🏥 {detail.room}</div>
-                    {detail.doctor && <div>👨‍⚕️ {detail.doctor}</div>}
-                    {detail.specialty && <div>🩺 {detail.specialty}</div>}
-                    {detail.appointments && (
-                      <div>📅 {detail.appointments} lượt</div>
-                    )}
-                    <div>⏰ {detail.time}</div>
-                  </div>
-                ))}
-                {copiedDetails.length > 3 && (
-                  <div className="text-xs mt-1 text-gray-500">
-                    ... và {copiedDetails.length - 3} phòng khác
-                  </div>
-                )}
-              </div>
-            ),
-          });
-
           // ✅ Gọi refresh ngay lập tức để hiển thị rooms
           if (onDataUpdated) {
             onDataUpdated();
@@ -1082,14 +1023,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               enabledFeatures.push("⏰ Giờ tùy chỉnh");
             if (cloneOptions?.includeAppointmentCounts)
               enabledFeatures.push("🔢 Số lượt khám");
-
-            if (enabledFeatures.length > 0) {
-              toast({
-                title: "✨ Copy hoàn tất với đầy đủ thông tin!",
-                description: `Đã copy: ${enabledFeatures.join(", ")}`,
-                variant: "default",
-              });
-            }
           }, 1000);
         }
 
@@ -1331,30 +1264,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
               {/* Thông tin khoa phòng */}
               <div className="bg-purple-50 rounded-lg p-3">
-                <h5 className="font-medium text-purple-700 mb-2">
-                  Thông tin khoa phòng
-                </h5>
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="text-purple-600">Khoa:</span>
                     <span className="ml-2 font-medium">
                       {schedule.departmentHospitalName}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-purple-600">Mã khoa:</span>
-                    <span className="ml-2 font-medium">
-                      {schedule.departmentHospitalId}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-purple-600">Mã phòng:</span>
-                    <span className="ml-2 font-medium">{schedule.roomId}</span>
-                  </div>
-                  <div>
-                    <span className="text-purple-600">Mã bác sĩ:</span>
-                    <span className="ml-2 font-medium">
-                      {schedule.doctorId}
                     </span>
                   </div>
                 </div>
@@ -1407,37 +1321,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     }
   }, [slotId, timeSlots]);
 
-  // ✅ Thêm thông tin ngày slot để user biết (optional)
-  const slotDateInfo = React.useMemo(() => {
-    try {
-      if (slotId && slotId.includes("-")) {
-        const parts = slotId.split("-");
-        if (parts.length >= 3) {
-          const dateStr = `${parts[0]}-${parts[1]}-${parts[2]}`;
-          const slotDate = new Date(dateStr + "T00:00:00");
-
-          return {
-            dateStr: dateStr,
-            formatted: slotDate.toLocaleDateString("vi-VN"),
-            dayName: [
-              "Chủ nhật",
-              "Thứ hai",
-              "Thứ ba",
-              "Thứ tư",
-              "Thứ năm",
-              "Thứ sáu",
-              "Thứ bảy",
-            ][slotDate.getDay()],
-            isToday: slotDate.toDateString() === new Date().toDateString(),
-            isPast: slotDate < new Date(new Date().toDateString()),
-          };
-        }
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }, [slotId]);
   const searchableRooms = React.useMemo(() => {
     if (!filteredRooms || filteredRooms.length === 0) {
       return [];
@@ -1562,7 +1445,39 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     },
     [getDoctorsBySpecialty, allCellClinicSchedules, isRoomUsed]
   );
+  function isFutureDate(dateKey: string): boolean {
+    // Tìm pattern dd/MM trong string (VD: "23/09")
+    const match = dateKey.match(/(\d{2}\/\d{2})/);
 
+    if (!match) {
+      console.log("❌ Không tìm thấy ngày hợp lệ trong:", dateKey);
+      return false;
+    }
+
+    const [day, month] = match[0].split("/").map(Number);
+    const currentYear = new Date().getFullYear();
+
+    const slotDate = new Date(currentYear, month - 1, day);
+    const today = new Date();
+
+    slotDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    const isFuture = slotDate.getTime() > today.getTime();
+
+    console.log(
+      "✅ Parsed dateKey:",
+      dateKey,
+      "| Extracted:",
+      match[0],
+      "| slotDate:",
+      slotDate,
+      "| isFuture:",
+      isFuture
+    );
+
+    return isFuture;
+  }
   // ✅ Rendering logic cho editing mode
   if (isEditing) {
     return (
@@ -1748,25 +1663,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                               </span>
                             )}
                           </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Available Doctors */}
-                    {roomDoctors.length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
-                        {roomDoctors.slice(0, 2).map((doctor, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs bg-purple-100 text-purple-600 px-1 rounded"
-                          >
-                            👨‍⚕️ {doctor?.name || "N/A"}
-                          </span>
-                        ))}
-                        {roomDoctors.length > 2 && (
-                          <span className="text-xs text-gray-400">
-                            +{roomDoctors.length - 2} BS
-                          </span>
                         )}
                       </div>
                     )}
@@ -2015,7 +1911,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-semibold text-gray-900">
-                  📋 Copy phòng từ DB sang ca khác
+                  📋 Copy phòng có sẵn sang ca khác
                 </h4>
                 <Badge variant="secondary" className="text-xs">
                   {targetSlots.size} ca đích
@@ -2212,17 +2108,98 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
               {/* Target Slots Selection */}
               <div className="space-y-3">
-                <h5 className="font-medium text-sm">
-                  🎯 Chọn ca đích ({totalAvailableSlots} ca khả dụng)
-                </h5>
+                {/* ✅ Thêm header với nút chọn tất cả */}
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-medium text-gray-700">
+                    📅 Chọn ca khám đích (
+                    {
+                      Object.values(slotsByDate)
+                        .flat()
+                        .filter((slot) => {
+                          const dateKey = Object.keys(slotsByDate).find((key) =>
+                            slotsByDate[key].includes(slot)
+                          );
+                          return dateKey && isFutureDate(dateKey);
+                        }).length
+                    }{" "}
+                    ca khả dụng)
+                  </h5>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      onClick={() => {
+                        // ✅ Chọn tất cả slots trong tương lai
+                        const allFutureSlots = new Set<string>();
+                        sortedDateKeys
+                          .filter(isFutureDate)
+                          .forEach((dateKey) => {
+                            slotsByDate[dateKey].forEach((slot) => {
+                              allFutureSlots.add(slot.id);
+                            });
+                          });
+                        setTargetSlots(allFutureSlots);
+                      }}
+                    >
+                      ✅ Chọn tất cả
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      onClick={() => setTargetSlots(new Set())}
+                    >
+                      ❌ Bỏ chọn tất cả
+                    </Button>
+                  </div>
+                </div>
 
                 {sortedDateKeys.length > 0 ? (
                   <div className="space-y-3 max-h-60 overflow-y-auto">
-                    {sortedDateKeys.map((dateKey) => (
+                    {sortedDateKeys.filter(isFutureDate).map((dateKey) => (
                       <div key={dateKey} className="space-y-2">
-                        <h6 className="text-xs font-medium text-gray-700 bg-gray-50 px-2 py-1 rounded">
-                          {dateKey}
-                        </h6>
+                        {/* ✅ Header với nút chọn tất cả cho từng ngày */}
+                        <div className="flex items-center justify-between">
+                          <h6 className="text-xs font-medium text-gray-700 bg-gray-50 px-2 py-1 rounded">
+                            {dateKey}
+                          </h6>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 text-[10px] px-1.5 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => {
+                                // ✅ Chọn tất cả slots trong ngày này
+                                const newTargetSlots = new Set(targetSlots);
+                                slotsByDate[dateKey].forEach((slot) => {
+                                  newTargetSlots.add(slot.id);
+                                });
+                                setTargetSlots(newTargetSlots);
+                              }}
+                              title={`Chọn tất cả ${slotsByDate[dateKey].length} ca trong ngày ${dateKey}`}
+                            >
+                              ✅ Chọn ngày
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 text-[10px] px-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                              onClick={() => {
+                                // ✅ Bỏ chọn tất cả slots trong ngày này
+                                const newTargetSlots = new Set(targetSlots);
+                                slotsByDate[dateKey].forEach((slot) => {
+                                  newTargetSlots.delete(slot.id);
+                                });
+                                setTargetSlots(newTargetSlots);
+                              }}
+                              title={`Bỏ chọn tất cả ca trong ngày ${dateKey}`}
+                            >
+                              ❌ Bỏ chọn
+                            </Button>
+                          </div>
+                        </div>
+
                         <div className="space-y-1 pl-2">
                           {slotsByDate[dateKey].map((slot) => (
                             <label
@@ -2258,7 +2235,12 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   </div>
                 ) : (
                   <div className="text-center py-4 text-gray-500 text-sm">
-                    Không có ca khám nào khả dụng
+                    <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>Không có ca khám tương lai nào khả dụng</p>
+                    <div className="text-xs text-gray-400 mt-2 p-2 bg-gray-50 rounded">
+                      💡 Chỉ có thể copy sang các ngày sau hôm nay để tránh xung
+                      đột lịch khám
+                    </div>
                   </div>
                 )}
               </div>
@@ -2659,49 +2641,73 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   </Button>
                 </div>
               </div>
-
               <div className="max-h-80 overflow-y-auto space-y-3">
                 {sortedDateKeys.length > 0 ? (
-                  sortedDateKeys.map((dateKey) => (
-                    <div key={dateKey} className="space-y-2">
-                      <div className="text-xs font-medium text-gray-600 border-b pb-1">
-                        {dateKey}
+                  sortedDateKeys
+                    // lọc chỉ lấy ngày tương lai
+                    .filter((dateKey) => {
+                      // Tách theo dòng, lấy phần ngày tháng (VD: "23/09")
+                      const lines = dateKey.split("\n");
+                      const datePart = lines[lines.length - 1]?.trim();
+
+                      if (!datePart || !datePart.includes("/")) {
+                        return false;
+                      }
+
+                      const [day, month] = datePart.split("/").map(Number);
+                      const currentYear = new Date().getFullYear();
+
+                      const slotDate = new Date(currentYear, month - 1, day);
+                      const today = new Date();
+
+                      slotDate.setHours(0, 0, 0, 0);
+                      today.setHours(0, 0, 0, 0);
+
+                      const isFuture = slotDate.getTime() > today.getTime();
+
+                      return isFuture;
+                    })
+                    .map((dateKey) => (
+                      <div key={dateKey} className="space-y-2">
+                        <div className="text-xs font-medium text-gray-600 border-b pb-1">
+                          {dateKey}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {slotsByDate[dateKey].map((slot) => (
+                            <label
+                              key={slot.id}
+                              className={`flex items-center gap-2 p-2 text-xs rounded border cursor-pointer transition-colors ${
+                                targetSlots.has(slot.id)
+                                  ? "bg-purple-50 border-purple-300 text-purple-700"
+                                  : "bg-white border-gray-200 hover:bg-gray-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={targetSlots.has(slot.id)}
+                                onChange={() => toggleSlotSelection(slot.id)}
+                                className="rounded border-gray-300"
+                              />
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {slot.slotName ||
+                                    slot.periodName ||
+                                    "Ca khám"}
+                                </span>
+                                <span className="text-gray-500">
+                                  {slot.startTime?.slice(0, 5)}-
+                                  {slot.endTime?.slice(0, 5)}
+                                </span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {slotsByDate[dateKey].map((slot) => (
-                          <label
-                            key={slot.id}
-                            className={`flex items-center gap-2 p-2 text-xs rounded border cursor-pointer transition-colors ${
-                              targetSlots.has(slot.id)
-                                ? "bg-purple-50 border-purple-300 text-purple-700"
-                                : "bg-white border-gray-200 hover:bg-gray-50"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={targetSlots.has(slot.id)}
-                              onChange={() => toggleSlotSelection(slot.id)}
-                              className="rounded border-gray-300"
-                            />
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {slot.slotName || slot.periodName || "Ca khám"}
-                              </span>
-                              <span className="text-gray-500">
-                                {slot.startTime?.slice(0, 5)}-
-                                {slot.endTime?.slice(0, 5)}
-                              </span>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))
+                    ))
                 ) : (
-                  <div className="text-center py-4 text-gray-500 text-xs">
-                    <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>Không có ca khám nào khả dụng</p>
-                  </div>
+                  <p className="text-xs text-gray-500">
+                    Không có lịch hẹn khả dụng
+                  </p>
                 )}
               </div>
             </div>
@@ -2739,11 +2745,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       {/* Room header với chức năng clone khi có phòng */}
       {rooms && rooms.length > 0 && !isSlotInPast && (
         <div className="flex items-center justify-between py-1">
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-            <span>Phòng ({rooms.length})</span>
-          </div>
-
           <div className="flex items-center gap-1">
             {isRoomCloneMode ? (
               <>
@@ -2784,40 +2785,10 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   title="Vào chế độ chọn phòng để nhân bản"
                 >
                   <Copy className="w-3 h-3 mr-1" />
-                  Chế độ nhân bản
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                  onClick={() => {
-                    // ✅ Tự động chọn tất cả phòng và mở dialog clone ngay
-                    const allIndices = new Set(rooms.map((_, index) => index));
-                    setSelectedRooms(allIndices);
-                    setIsRoomCloneMode(true);
-                    setShowRoomCloneDialog(true);
-                  }}
-                  title="Nhân bản tất cả phòng hiện tại"
-                >
-                  <Copy className="w-3 h-3 mr-1" />
-                  Nhân bản tất cả ({rooms.length})
+                  Nhân bản
                 </Button>
               </>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ✅ Header thay thế cho slot quá khứ */}
-      {rooms && rooms.length > 0 && isSlotInPast && (
-        <div className="flex items-center justify-between py-1">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-            <span>Phòng ({rooms.length}) - Chỉ xem</span>
-          </div>
-          <div className="flex items-center gap-1 text-xs text-gray-400">
-            <AlertTriangle className="w-3 h-3" />
-            <span>Ca đã qua</span>
           </div>
         </div>
       )}
@@ -2912,14 +2883,18 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       {/* Add room button - empty state */}
       {(!rooms || rooms.length === 0) && (
         <div className="space-y-2">
-          {/* ✅ Cross-department conflict warning */}
-
           {/* ✅ CHỈ hiển thị clinic schedules khi có dữ liệu thực sự phù hợp */}
-          {clinicScheduleStats && (
+          {clinicScheduleStats && cellClinicSchedules.length > 0 && (
             <div className="space-y-2">
-              {/* ✅ Header cho clinic schedules với bulk actions */}
+              {/* ✅ Header cho clinic schedules với bulk actions - CHỈ KHI CÓ PHÒNG */}
               <div className="flex items-center justify-between p-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
-                {/* ✅ Bulk action controls */}
+                {/* ✅ Thông tin tổng quan */}
+                <div className="flex items-center gap-2 text-xs text-gray-700">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="font-medium"></span>
+                </div>
+
+                {/* ✅ Bulk action controls - CHỈ HIỂN THỊ KHI CÓ PHÒNG */}
                 <div className="flex items-center gap-1">
                   {isClinicScheduleCloneMode ? (
                     <>
@@ -2960,13 +2935,12 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         title="Chọn nhiều phòng để copy sang ca khác"
                       >
                         <Copy className="w-3 h-3 mr-1" />
-                        Chọn nhiều
+                        Nhân bản
                       </Button>
                     </>
                   )}
                 </div>
               </div>
-
               {/* ✅ Danh sách clinic schedules */}
               <div className="flex flex-col gap-1">
                 {cellClinicSchedules.map((schedule, idx) => (
@@ -3101,21 +3075,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                   </Badge>
                                 )}
                               </div>
-
-                              {/* ✅ Copy button inline */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 ml-2 hover:bg-green-100 hover:text-green-700"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleCopyFromClinicSchedule(schedule);
-                                }}
-                                title={`📋 Copy phòng ${schedule.roomName} từ DB`}
-                              >
-                                <Copy className="w-3 h-3 text-green-600" />
-                              </Button>
                             </div>
                           </div>
                         </Button>
@@ -3124,152 +3083,132 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   </div>
                 ))}
               </div>
+              {/* Nút thêm phòng */}
             </div>
           )}
-
-          {/* Nút thêm phòng */}
-          <div
-            className="w-full h-8 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 cursor-pointer flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors"
-            onClick={() => setEditingCell(cellKey)}
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            <span className="text-xs">Thêm mới</span>
-          </div>
+          {isFutureOrToday === true && (
+            <div
+              className="w-full h-8 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 cursor-pointer flex items-center justify-center text-gray-400 hover:text-blue-500 transition-colors"
+              onClick={() => setEditingCell(cellKey)}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              <span className="text-xs">Thêm mới</span>
+            </div>
+          )}
         </div>
       )}
-
       {/* Add room button - when rooms exist */}
       {rooms && rooms.length > 0 && (
         <div className="space-y-1">
           {/* ✅ Nút thêm phòng trước - chỉ hiển thị khi không phải quá khứ */}
-          {!isSlotInPast && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
-              onClick={() => setEditingCell(cellKey)}
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              Thêm phòng mới
-            </Button>
-          )}
 
-          {/* ✅ Thông báo thay thế cho slot quá khứ */}
-          {isSlotInPast && (
-            <div className="w-full h-6 border-2 border-dashed border-gray-200 rounded-md flex items-center justify-center text-gray-400 text-xs cursor-not-allowed bg-gray-50">
-              <AlertTriangle className="w-3 h-3 mr-1" />
-              <span>
-                Ca đã qua ({slotDateInfo?.formatted || "N/A"}) - chỉ xem
-              </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-6 text-xs border-dashed border-2 border-gray-300 hover:border-blue-400"
+            onClick={() => setEditingCell(cellKey)}
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            Thêm phòng mới
+          </Button>
+
+          {/* ✅ CHỈ hiển thị clinic schedules và nút "Chọn nhiều" sau nút thêm phòng KHI CÓ PHÒNG */}
+          {clinicScheduleStats && cellClinicSchedules.length > 0 && (
+            <div className="space-y-2 mt-2">
+              {/* ✅ Header đơn giản cho clinic schedules khi đã có phòng manual */}
+              <div className="flex items-center justify-between p-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 text-xs text-gray-700">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="font-medium">
+                    📋 {cellClinicSchedules.length} phòng từ DB
+                  </span>
+                </div>
+
+                {/* ✅ Compact clone button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  onClick={enterClinicScheduleCloneMode}
+                  title="Copy phòng có sẵn sang ca khác"
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Nhân bản
+                </Button>
+              </div>
+
+              {/* ✅ Danh sách clinic schedules compact */}
+              <div className="flex flex-col gap-1">
+                {cellClinicSchedules.map((schedule, idx) => (
+                  <ClinicScheduleDetailPopover
+                    key={schedule.id || idx}
+                    schedule={schedule}
+                    trigger={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`w-full h-auto min-h-[60px] p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer ${
+                          selectedClinicSchedules.has(idx)
+                            ? "bg-blue-100 border-blue-400 text-blue-800 shadow-sm"
+                            : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+                        }`}
+                        title="Click để xem chi tiết lịch khám từ DB"
+                      >
+                        <div className="flex flex-col gap-1 w-full">
+                          {/* Compact schedule info */}
+                          <div className="flex items-center gap-2 w-full">
+                            <div className="w-2 h-2 rounded-full bg-current opacity-80" />
+                            <span className="font-semibold text-current text-xs">
+                              {schedule.roomName}
+                            </span>
+                            <span className="text-current/80 text-[10px] ml-auto">
+                              {schedule.timeStart?.slice(0, 5)}-
+                              {schedule.timeEnd?.slice(0, 5)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full">
+                            <Stethoscope className="w-2.5 h-2.5 text-current/70" />
+                            <span className="text-current text-xs truncate">
+                              {schedule.doctorName}
+                            </span>
+                            <div className="ml-auto flex items-center gap-1">
+                              <Users className="w-2.5 h-2.5" />
+                              <span className="text-xs">
+                                {schedule.total || 0}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Copy button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute bottom-1 right-1 h-5 w-5 p-0 hover:bg-blue-100"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleCopyFromClinicSchedule(schedule);
+                            }}
+                            title={`Copy ${schedule.roomName}`}
+                          >
+                            <Copy className="w-3 h-3 text-blue-600" />
+                          </Button>
+                        </div>
+                      </Button>
+                    }
+                  />
+                ))}
+              </div>
             </div>
           )}
 
-          {/* ✅ CHỈ hiển thị clinic schedules sau nút thêm phòng */}
-          {clinicScheduleStats && (
-            <div className="flex flex-col gap-1 mt-2">
-              {cellClinicSchedules.map((schedule, idx) => (
-                <ClinicScheduleDetailPopover
-                  key={schedule.id || idx}
-                  schedule={schedule}
-                  trigger={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={`w-full h-auto min-h-[85px] p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer w-full ${
-                        selectedClinicSchedules.has(idx)
-                          ? "bg-green-100 border-green-400 text-green-800 shadow-sm"
-                          : schedule.examTypeId &&
-                            roomClassifications[`exam_${schedule.examTypeId}`]
-                          ? roomClassifications[`exam_${schedule.examTypeId}`]
-                              .color ||
-                            "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
-                          : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
-                      }`}
-                      title="Click để xem chi tiết lịch khám từ DB"
-                    >
-                      <div className="flex flex-col gap-1 w-full">
-                        {/* Header row with exam type and time */}
-                        <div className="flex items-center gap-2 w-full">
-                          {/* Status dot */}
-                          <div
-                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                              schedule.departmentHospitalId?.toString() ===
-                              deptId
-                                ? "bg-current opacity-80"
-                                : "bg-orange-500"
-                            }`}
-                          />
-
-                          {/* Exam Type name */}
-                          {schedule.examTypeName && (
-                            <>
-                              <span className="font-medium text-[10px] px-1.5 py-0.5 rounded bg-current/10 text-current">
-                                {schedule.examTypeName}
-                              </span>
-                              <span className="text-current/60 text-[10px]">
-                                •
-                              </span>
-                            </>
-                          )}
-                          <Clock className="w-3 h-3 text-current/70" />
-                          <span className="text-current/80 text-[10px] font-medium">
-                            {schedule.timeStart?.slice(0, 5) ||
-                              currentSlotInfo?.startTime}{" "}
-                            -{" "}
-                            {schedule.timeEnd?.slice(0, 5) ||
-                              currentSlotInfo?.endTime}
-                          </span>
-                        </div>
-
-                        {/* Room row */}
-                        <div className="flex items-center gap-2 w-full">
-                          <MapPin className="w-3 h-3 text-current/70 flex-shrink-0" />
-                          <span className="font-semibold text-current text-xs">
-                            {schedule.roomName}
-                          </span>
-
-                          {/* Cross-department badge */}
-                          {schedule.departmentHospitalId?.toString() !==
-                            deptId && (
-                            <Badge
-                              variant="outline"
-                              className="text-[9px] px-1.5 py-0.5 h-4 bg-orange-50 text-orange-600 border-orange-300 ml-auto"
-                            >
-                              {schedule.departmentName ||
-                                `Khoa ${schedule.departmentHospitalId}`}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Doctor row */}
-                        <div className="flex items-center gap-2 w-full">
-                          <Stethoscope className="w-3 h-3 text-current/70 flex-shrink-0" />
-                          <span className="text-current font-medium text-xs">
-                            {schedule.doctorName}
-                          </span>
-                        </div>
-
-                        {/* Specialty row (if available) */}
-                        {schedule.specialtyName && (
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="w-3 h-3 flex items-center justify-center">
-                              <div className="w-1.5 h-1.5 bg-current/60 rounded-full"></div>
-                            </div>
-                            <span className="text-current/80 text-xs">
-                              {schedule.specialtyName}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Info icon in bottom right */}
-                        <div className="absolute bottom-1 right-1">
-                          <Info className="w-2.5 h-2.5 text-current/60" />
-                        </div>
-                      </div>
-                    </Button>
-                  }
-                />
-              ))}
+          {/* ✅ Hiển thị thông báo khi không có phòng từ DB (khi đã có phòng manual) */}
+          {clinicScheduleStats && cellClinicSchedules.length === 0 && (
+            <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded text-center">
+              <div className="text-xs text-gray-500">
+                📋 Không có phòng từ DB cho ca này
+              </div>
             </div>
           )}
         </div>

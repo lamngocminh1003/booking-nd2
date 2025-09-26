@@ -414,18 +414,6 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
                     {currentZoneRoomCount}
                   </span>
                 </div>
-                <div>
-                  <span className="text-gray-500">Đã sử dụng:</span>
-                  <span className="font-medium ml-1 text-orange-600">
-                    {totalUsedRooms}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Còn lại:</span>
-                  <span className="font-medium ml-1 text-green-600">
-                    {Math.max(0, currentZoneRoomCount - totalUsedRooms)}
-                  </span>
-                </div>
               </div>
             </div>
           </CardContent>

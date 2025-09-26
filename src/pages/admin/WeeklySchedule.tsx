@@ -56,6 +56,7 @@ interface ShiftDefaults {
   evening?: ShiftConfig;
 }
 
+// ✅ Cập nhật interface RoomSlot với đầy đủ properties
 interface RoomSlot {
   id: string;
   name: string;
@@ -66,6 +67,7 @@ interface RoomSlot {
   appointmentCount?: number;
   maxAppointments?: number;
   holdSlot?: number;
+  holdSlots?: number; // ✅ Thêm alias
   appointmentDuration?: number;
   specialties: string[];
   selectedSpecialty?: string;
@@ -74,6 +76,44 @@ interface RoomSlot {
   notes?: string;
   zoneId?: number;
   zoneName?: string;
+
+  // ✅ Thêm các properties còn thiếu
+  selectedExamType?: string;
+  examTypeName?: string;
+  examTypeId?: number;
+  specialtyId?: number;
+  specialtyName?: string;
+
+  // ✅ Thêm các properties cho time handling
+  startTime?: string;
+  endTime?: string;
+
+  // ✅ Thêm các properties cho clone tracking
+  isCloned?: boolean;
+  clonedFrom?: string;
+  clonedAt?: number;
+  clonedOptions?: any;
+
+  // ✅ Thêm các properties cho database sync
+  doctorId?: number;
+  doctorName?: string;
+  roomId?: number;
+  departmentId?: number;
+  departmentName?: string;
+
+  // ✅ Thêm các properties từ clinic schedules
+  total?: number;
+  spaceMinutes?: number;
+  dateInWeek?: string;
+  examinationId?: number;
+  departmentHospitalId?: number;
+
+  // ✅ Thêm metadata properties
+  sourceDeptId?: string;
+  sourceSlotId?: string;
+  doctor?: string; // alias cho selectedDoctor
+  specialty?: string; // alias cho selectedSpecialty
+  examType?: string; // alias cho selectedExamType
 }
 
 export interface CloneOptions {
@@ -1282,8 +1322,6 @@ const WeeklySchedule = () => {
           ...prev,
           [cellKey]: { action: "add_room", roomId },
         }));
-
-        toast.success(`Đã thêm ${roomInfo.name} vào lịch khám`);
       } catch (error) {
         console.error("Error adding room to shift:", error);
         toast.error("Lỗi khi thêm phòng vào ca khám!");
@@ -2051,17 +2089,24 @@ const WeeklySchedule = () => {
       event.target.value = "";
     }
   };
+  console.log("scheduleData", scheduleData);
 
   const handleDownloadExcel = () => {
     try {
       const exportData: any[] = [];
 
+      // ✅ Header với đầy đủ các trường
       exportData.push([
         "Khoa phòng",
         "Ngày",
         "Ca",
+        "Giờ",
         "Phòng",
+        "Bác sĩ - Mã Bác sĩ",
+        "Chuyên khoa",
+        "Giữ chỗ",
         "Phân loại",
+        "Khoảng cách",
         "Giờ bắt đầu",
         "Giờ kết thúc",
         "Số lượng khám",
@@ -2075,33 +2120,135 @@ const WeeklySchedule = () => {
           const timeSlot = timeSlots.find((t) => t.id === slotId);
 
           slot.rooms.forEach((room) => {
-            const period = slotId.includes("morning")
-              ? "morning"
-              : slotId.includes("afternoon")
-              ? "afternoon"
-              : "evening";
-            const defaultShift = shiftDefaults[period];
+            // ✅ Fix logic xác định period từ timeSlot hoặc slotId
+            let period = "N/A";
+            let workSession = "N/A";
 
-            exportData.push([
-              department?.name || deptId,
-              `${timeSlot?.day} ${timeSlot?.date}`,
-              timeSlot?.period || "N/A",
-              room.name,
+            if (timeSlot?.workSession) {
+              workSession = timeSlot.workSession;
+              period =
+                timeSlot.periodName || timeSlot.period || timeSlot.workSession;
+            } else if (timeSlot?.period) {
+              period = timeSlot.period;
+              workSession = timeSlot.period;
+            } else {
+              // Fallback: parse từ slotId
+              if (slotId.includes("morning") || slotId.includes("sáng")) {
+                period = "Ca sáng";
+                workSession = "sáng";
+              } else if (
+                slotId.includes("afternoon") ||
+                slotId.includes("chiều")
+              ) {
+                period = "Ca chiều";
+                workSession = "chiều";
+              } else if (slotId.includes("evening") || slotId.includes("tối")) {
+                period = "Ca tối";
+                workSession = "tối";
+              }
+            }
+
+            const defaultShift =
+              shiftDefaults[workSession] || shiftDefaults["morning"];
+
+            // ✅ Format ngày và giờ
+            const dateDisplay = timeSlot?.date
+              ? `${timeSlot.day} ${timeSlot.date}`
+              : timeSlot?.fullDate
+              ? `${timeSlot.day} ${format(
+                  new Date(timeSlot.fullDate),
+                  "dd/MM"
+                )}`
+              : "N/A";
+
+            const timeDisplay = timeSlot
+              ? `${timeSlot.startTime?.slice(0, 5) || "07:30"} - ${
+                  timeSlot.endTime?.slice(0, 5) || "11:00"
+                }`
+              : "N/A";
+
+            // ✅ Tìm thông tin bác sĩ
+            let doctorInfo = "Chưa phân công";
+            if (room.selectedDoctor) {
+              const doctor = availableDoctors.find(
+                (d) =>
+                  d.name === room.selectedDoctor ||
+                  d.code === room.selectedDoctor ||
+                  d.id === room.selectedDoctor
+              );
+              if (doctor) {
+                doctorInfo = `${doctor.name} - ${doctor.code || doctor.id}`;
+              } else {
+                doctorInfo = `${room.selectedDoctor} - N/A`;
+              }
+            }
+
+            // ✅ Chuyên khoa
+            const specialty = room.selectedSpecialty || "Khám chuyên khoa";
+
+            // ✅ Giữ chỗ
+            const holdSlot = room.holdSlot || room.holdSlots || 0;
+
+            // ✅ Phân loại phòng
+            const classification =
               roomClassifications[
                 room.classification as keyof typeof roomClassifications
-              ]?.name || room.classification,
-              room.customStartTime || defaultShift?.startTime || "07:30",
-              room.customEndTime || defaultShift?.endTime || "11:00",
-              room.appointmentCount || defaultShift?.maxAppointments || 10,
-              room.selectedSpecialty || "Khám chuyên khoa",
+              ]?.name ||
+              room.classification ||
+              "Thường";
+
+            // ✅ Khoảng cách (appointment duration)
+            const appointmentDuration = room.appointmentDuration || 60;
+
+            // ✅ Thời gian khám
+            const startTime =
+              room.customStartTime ||
+              timeSlot?.startTime?.slice(0, 5) ||
+              defaultShift?.startTime ||
+              "07:30";
+
+            const endTime =
+              room.customEndTime ||
+              timeSlot?.endTime?.slice(0, 5) ||
+              defaultShift?.endTime ||
+              "11:00";
+
+            // ✅ Số lượng khám
+            const appointmentCount =
+              room.appointmentCount ||
+              room.maxAppointments ||
+              defaultShift?.maxAppointments ||
+              10;
+
+            // ✅ Chức năng chuyên môn
+            const examFunction =
+              room.selectedExamType || room.examTypeName || specialty;
+
+            exportData.push([
+              department?.name || `Khoa ${deptId}`, // Khoa phòng
+              dateDisplay, // Ngày
+              period, // Ca
+              timeDisplay, // Giờ
+              room.name || "N/A", // Phòng
+              doctorInfo, // Bác sĩ - Mã Bác sĩ
+              specialty, // Chuyên khoa
+              holdSlot, // Giữ chỗ
+              classification, // Phân loại
+              `${appointmentDuration} phút`, // Khoảng cách
+              startTime, // Giờ bắt đầu
+              endTime, // Giờ kết thúc
+              appointmentCount, // Số lượng khám
+              examFunction, // Chức năng chuyên môn
             ]);
           });
         });
       });
 
+      // ✅ Tạo workbook và worksheet
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.aoa_to_sheet(exportData);
 
+      // ✅ Auto-size columns với width tối ưu
       const maxWidth = exportData.reduce((acc, row) => {
         row.forEach((cell: any, index: number) => {
           const cellLength = String(cell).length;
@@ -2110,24 +2257,73 @@ const WeeklySchedule = () => {
         return acc;
       }, [] as number[]);
 
-      worksheet["!cols"] = maxWidth.map((width) => ({
-        width: Math.min(width + 2, 50),
-      }));
+      worksheet["!cols"] = maxWidth.map((width, index) => {
+        // ✅ Custom width cho từng column
+        const customWidths = {
+          0: 20, // Khoa phòng
+          1: 15, // Ngày
+          2: 12, // Ca
+          3: 15, // Giờ
+          4: 18, // Phòng
+          5: 25, // Bác sĩ - Mã Bác sĩ
+          6: 20, // Chuyên khoa
+          7: 10, // Giữ chỗ
+          8: 12, // Phân loại
+          9: 12, // Khoảng cách
+          10: 12, // Giờ bắt đầu
+          11: 12, // Giờ kết thúc
+          12: 15, // Số lượng khám
+          13: 25, // Chức năng chuyên môn
+        };
+
+        return {
+          width: Math.min(customWidths[index] || Math.max(width + 2, 10), 50),
+        };
+      });
+
+      // ✅ Styling cho header row
+      const headerRange = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!worksheet[cellAddress]) continue;
+
+        worksheet[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "366092" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } },
+          },
+        };
+      }
 
       XLSX.utils.book_append_sheet(workbook, worksheet, "Lịch khám tuần");
 
+      // ✅ Generate filename với thông tin chi tiết
       const filename = `Lich_kham_tuan_${
         weekRange.weekNum
       }_${weekRange.startDate.replace("/", "")}-${weekRange.endDate.replace(
         "/",
         ""
-      )}.xlsx`;
+      )}_${selectedZone !== "all" ? `Zone${selectedZone}` : "AllZones"}.xlsx`;
 
       XLSX.writeFile(workbook, filename);
-      toast.success("Đã tải xuống file Excel thành công!");
+
+      // ✅ Show success toast với thống kê
+      const totalRooms = exportData.length - 1; // Trừ header row
+      const totalDepartments = new Set(exportData.slice(1).map((row) => row[0]))
+        .size;
+
+      toast.success(`Đã tải xuống file Excel thành công!`, {
+        description: `${totalRooms} phòng khám từ ${totalDepartments} khoa phòng`,
+        duration: 4000,
+      });
     } catch (error) {
       console.error("Error exporting to Excel:", error);
-      toast.error("Lỗi khi xuất file Excel.");
+      toast.error("Lỗi khi xuất file Excel: " + (error as any).message);
     }
   };
 

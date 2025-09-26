@@ -78,7 +78,7 @@ specialties: [schedule.specialtyName] (nếu có)
 ### 📝 Metadata
 
 ```javascript
-notes: `📋 Copy từ DB: ${schedule.examinationName || "Lịch khám"}`;
+notes: `📋 Copy từ có sẵn: ${schedule.examinationName || "Lịch khám"}`;
 ```
 
 ## 🎬 UI/UX Features

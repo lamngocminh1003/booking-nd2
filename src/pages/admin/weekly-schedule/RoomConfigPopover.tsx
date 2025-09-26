@@ -1735,9 +1735,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           <div className="px-3 py-2 bg-gray-50 border-b text-xs text-gray-600">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <span>
-                                  Tìm thấy {filteredDoctors.length} bác sĩ
-                                </span>
                                 {/* ✅ Hiển thị số lượng bác sĩ bị conflict */}
                                 {(() => {
                                   const conflictedDoctors =
@@ -1756,29 +1753,8 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                   );
                                 })()}
                               </div>
-                              <div className="flex items-center gap-1">
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span>Khả dụng</span>
-                                <div className="w-2 h-2 bg-red-500 rounded-full ml-2"></div>
-                                <span>Trùng lịch</span>
-                              </div>
                             </div>
                           </div>
-
-                          {/* Clear selection option */}
-                          <button
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b transition-colors"
-                            onClick={() => {
-                              handleUpdate("selectedDoctor", "");
-                              setShowDoctorDropdown(false);
-                              setDoctorSearchQuery("");
-                            }}
-                          >
-                            <div className="flex items-center gap-2 text-gray-500">
-                              <div className="w-3 h-3 border border-gray-300 rounded flex-shrink-0"></div>
-                              <span className="text-sm">Không chọn bác sĩ</span>
-                            </div>
-                          </button>
 
                           {/* Doctor list */}
                           {filteredDoctors.length > 0 ? (
