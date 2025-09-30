@@ -1450,7 +1450,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     const match = dateKey.match(/(\d{2}\/\d{2})/);
 
     if (!match) {
-      console.log("❌ Không tìm thấy ngày hợp lệ trong:", dateKey);
       return false;
     }
 
@@ -1464,17 +1463,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     today.setHours(0, 0, 0, 0);
 
     const isFuture = slotDate.getTime() > today.getTime();
-
-    console.log(
-      "✅ Parsed dateKey:",
-      dateKey,
-      "| Extracted:",
-      match[0],
-      "| slotDate:",
-      slotDate,
-      "| isFuture:",
-      isFuture
-    );
 
     return isFuture;
   }
@@ -1887,15 +1875,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         }
       });
     }, [slotsByDate]);
-
-    const totalAvailableSlots = Object.values(slotsByDate).flat().length;
-    const selectedSchedulesText =
-      selectedClinicSchedules.size > 0
-        ? cellClinicSchedules
-            .filter((_, idx) => selectedClinicSchedules.has(idx))
-            .map((s) => s.roomName)
-            .join(", ")
-        : "";
 
     return (
       <Popover

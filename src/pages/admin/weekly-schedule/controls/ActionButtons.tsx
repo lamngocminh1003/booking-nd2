@@ -46,15 +46,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={triggerFileUpload}
-          className="h-9 gap-2"
-        >
-          <Upload className="w-4 h-4" />
-          Tải lên Excel
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
           onClick={handleDownloadExcel}
           className="h-9 gap-2"
         >

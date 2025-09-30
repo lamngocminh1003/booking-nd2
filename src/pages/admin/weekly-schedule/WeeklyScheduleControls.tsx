@@ -221,7 +221,6 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
   };
 
   const currentZoneRoomCount = getCurrentZoneRoomCount();
-  const totalUsedRooms = getTotalUsedRooms();
   const weekDays = getWeekDays();
 
   return (

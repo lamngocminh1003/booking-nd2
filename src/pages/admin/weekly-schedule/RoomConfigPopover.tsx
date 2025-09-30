@@ -197,23 +197,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     const isCustomTime = useMemo(() => {
       if (!slotInfo) return false;
 
-      // ✅ Debug log để kiểm tra
-      console.log("🔍 Debug isCustomTime:", {
-        room: {
-          customStartTime: room.customStartTime,
-          customEndTime: room.customEndTime,
-          startTime: room.startTime,
-          endTime: room.endTime,
-          appointmentCount: room.appointmentCount,
-          maxAppointments: room.maxAppointments,
-        },
-        slotInfo: {
-          defaultStartTime: slotInfo.defaultStartTime,
-          defaultEndTime: slotInfo.defaultEndTime,
-          defaultMaxAppointments: slotInfo.defaultMaxAppointments,
-        },
-      });
-
       // ✅ CHỈ kiểm tra customStartTime/customEndTime có giá trị thực sự
       const hasCustomStart =
         room.customStartTime &&
@@ -229,33 +212,11 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
 
       const result = hasCustomStart || hasCustomEnd || hasCustomMax;
 
-      console.log("🔍 isCustomTime debug:", {
-        room: {
-          customStartTime: room.customStartTime,
-          customEndTime: room.customEndTime,
-          appointmentCount: room.appointmentCount,
-        },
-        checks: { hasCustomStart, hasCustomEnd, hasCustomMax },
-        result,
-      });
-
       return result;
     }, [room, slotInfo]);
 
     const handleUpdate = useCallback(
       (field: string, value: any) => {
-        console.log("🔧 RoomConfigPopover handleUpdate called:", {
-          field,
-          value,
-          currentRoom: {
-            id: room.id,
-            name: room.name,
-            selectedDoctor: room.selectedDoctor,
-            doctor: room.doctor,
-          },
-          params: { deptId, slotId, roomIndex },
-        });
-
         updateRoomConfig(deptId, slotId, roomIndex, {
           [field]: value,
         });
@@ -301,25 +262,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
         slotInfo?.defaultMaxAppointments ||
         10;
 
-      console.log("🕐 getCurrentTime:", {
-        room: {
-          customStartTime: room.customStartTime,
-          customEndTime: room.customEndTime,
-          startTime: room.startTime,
-          endTime: room.endTime,
-          appointmentCount: room.appointmentCount,
-          maxAppointments: room.maxAppointments,
-        },
-        slotInfo: slotInfo
-          ? {
-              defaultStartTime: slotInfo.defaultStartTime,
-              defaultEndTime: slotInfo.defaultEndTime,
-              defaultMaxAppointments: slotInfo.defaultMaxAppointments,
-            }
-          : null,
-        result: { startTime, endTime, maxAppointments },
-      });
-
       return { startTime, endTime, maxAppointments };
     };
 
@@ -345,22 +287,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     // ✅ Auto-reset time CHỈ cho room được clone từ ca khác (TẠMTHỜI DISABLE ĐỂ DEBUG)
     React.useEffect(() => {
       if (!slotInfo) return;
-
-      // ✅ DISABLE AUTO-RESET TEMPORARILY FOR DEBUGGING
-      console.log("🚫 AUTO-RESET DISABLED FOR DEBUGGING:", {
-        room: {
-          startTime: room.startTime,
-          endTime: room.endTime,
-          customStartTime: room.customStartTime,
-          customEndTime: room.customEndTime,
-        },
-        slotInfo: {
-          defaultStartTime: slotInfo.defaultStartTime,
-          defaultEndTime: slotInfo.defaultEndTime,
-        },
-        message:
-          "Auto-reset is temporarily disabled to debug clone same-shift issue",
-      });
 
       return; // ✅ EARLY RETURN - DISABLE AUTO-RESET
     }, [
@@ -873,7 +799,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       // Validate và auto-correct thời gian
       if (value && !isValidTimeSlot(value)) {
         const correctedTime = roundToNearestHalfHour(value);
-        console.log(`🕐 Auto-correcting time: ${value} → ${correctedTime}`);
 
         // Hiển thị warning tạm thời
         setValidationErrors([
@@ -1786,27 +1711,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                 const result =
                                   nameMatch || codeMatch || idMatch;
 
-                                // Debug logging cho first few doctors
-                                if (filteredDoctors.indexOf(doctor) < 3) {
-                                  console.log(
-                                    `🔍 Doctor selection debug for ${currentName}:`,
-                                    {
-                                      doctorData: {
-                                        name: currentName,
-                                        code: currentCode,
-                                        id: currentId,
-                                      },
-                                      roomSelectedDoctor: selectedValue,
-                                      matches: {
-                                        nameMatch,
-                                        codeMatch,
-                                        idMatch,
-                                        result,
-                                      },
-                                    }
-                                  );
-                                }
-
                                 return result;
                               })();
 
@@ -2344,11 +2248,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                               // Tự động làm tròn về bội số 30 phút
                               const correctedTime =
                                 roundToNearestHalfHour(value);
-                              if (value !== correctedTime) {
-                                console.log(
-                                  `🕐 Auto-correcting start time: ${value} → ${correctedTime}`
-                                );
-                              }
+
                               handleUpdate("customStartTime", correctedTime);
                             }}
                             className={`h-10 ${
@@ -2419,11 +2319,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                               // Tự động làm tròn về bội số 30 phút
                               const correctedTime =
                                 roundToNearestHalfHour(value);
-                              if (value !== correctedTime) {
-                                console.log(
-                                  `🕐 Auto-correcting end time: ${value} → ${correctedTime}`
-                                );
-                              }
+
                               handleUpdate("customEndTime", correctedTime);
                             }}
                             className={`h-10 ${
