@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Building2, RefreshCw } from "lucide-react";
+import { Edit, Building2, RefreshCw, DollarSign } from "lucide-react";
 import type { ExamTypeWithZone } from "./types";
 import type { Zone } from "@/store/slices/zoneSlice";
 
@@ -22,6 +22,7 @@ interface ExamTypeTableProps {
   onPageChange: (page: number) => void;
   onEdit: (examType: ExamTypeWithZone) => void;
   onViewDepartments: (examType: ExamTypeWithZone) => void;
+  onViewServicePrices: (examType: ExamTypeWithZone) => void;
   zoneDataLoading: Record<number, boolean>;
   loading: boolean;
   filteredCount: number;
@@ -36,6 +37,7 @@ export const ExamTypeTable: React.FC<ExamTypeTableProps> = ({
   onPageChange,
   onEdit,
   onViewDepartments,
+  onViewServicePrices,
   zoneDataLoading,
   loading,
   filteredCount,
@@ -54,8 +56,9 @@ export const ExamTypeTable: React.FC<ExamTypeTableProps> = ({
               <TableHead>Khu Vực</TableHead>
               <TableHead>Mô tả</TableHead>
               <TableHead>Trạng thái</TableHead>
-              <TableHead>Khoa/Phòng</TableHead>
-              <TableHead className="text-right">Thao tác</TableHead>
+              <TableHead>Khoa/Phòng</TableHead>{" "}
+              <TableHead>Gía dịch vụ</TableHead>
+              <TableHead>Thao tác</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -106,15 +109,27 @@ export const ExamTypeTable: React.FC<ExamTypeTableProps> = ({
                         <Building2 className="h-3 w-3" />
                       )}
                     </Button>
+                  </TableCell>{" "}
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onViewServicePrices(examType)}
+                      className="gap-1"
+                    >
+                      <DollarSign className="h-3 w-3" />
+                    </Button>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
+                    {/* Action buttons */}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onEdit(examType)}
-                      disabled={loading}
+                      className="gap-1"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-3 w-3" />
+                      Sửa
                     </Button>
                   </TableCell>
                 </TableRow>

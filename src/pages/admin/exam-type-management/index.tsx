@@ -1,12 +1,12 @@
-import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { ExamTypeFilters } from "./components/ExamTypeFilters";
 import { ExamTypeStats } from "./components/ExamTypeStats";
 import { ExamTypeTable } from "./components/ExamTypeTable";
 import { ExamTypeForm } from "./components/ExamTypeForm";
 import { DepartmentsModal } from "./components/DepartmentsModal";
+import { ServicePriceModal } from "./components/ServicePriceModal";
 import { useExamTypeManagement } from "./hooks/useExamTypeManagement";
 
 const ExamTypeManagement = () => {
@@ -37,7 +37,6 @@ const ExamTypeManagement = () => {
     // CRUD operations
     handleCreateClick,
     handleEditClick,
-    handleRefresh,
 
     // Modals
     showCreateDialog,
@@ -46,6 +45,8 @@ const ExamTypeManagement = () => {
     setShowEditDialog,
     showDepartmentsModal,
     setShowDepartmentsModal,
+    showServicePriceModal,
+    setShowServicePriceModal,
 
     // Form
     formData,
@@ -59,7 +60,16 @@ const ExamTypeManagement = () => {
     selectedZoneExamData,
     zoneDataLoading,
     handleRefreshDepartments,
+
+    // Service Prices
+    handleViewServicePrices,
+    selectedExamTypeForServicePrice,
+    setSelectedExamTypeForServicePrice,
   } = useExamTypeManagement();
+  console.log(
+    "selectedExamTypeForServicePrice",
+    selectedExamTypeForServicePrice
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -74,18 +84,6 @@ const ExamTypeManagement = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={loading || zonesLoading}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${
-                loading || zonesLoading ? "animate-spin" : ""
-              }`}
-            />
-          </Button>
           <Button onClick={handleCreateClick} className="gap-2">
             <Plus className="h-4 w-4" />
             Thêm Khu Khám
@@ -115,6 +113,7 @@ const ExamTypeManagement = () => {
             onPageChange={handlePageChange}
             onEdit={handleEditClick}
             onViewDepartments={handleViewDepartments}
+            onViewServicePrices={handleViewServicePrices}
             zoneDataLoading={zoneDataLoading}
             loading={loading || zonesLoading}
             filteredCount={filteredExamTypes.length}
@@ -154,6 +153,12 @@ const ExamTypeManagement = () => {
         examDetails={selectedZoneExamData}
         loading={zoneDataLoading}
         onRefreshDepartments={handleRefreshDepartments}
+      />
+
+      <ServicePriceModal
+        open={showServicePriceModal}
+        onOpenChange={setShowServicePriceModal}
+        selectedExamType={selectedExamTypeForServicePrice} // ✅ Pass single exam type, not array
       />
     </div>
   );

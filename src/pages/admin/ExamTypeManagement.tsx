@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +53,6 @@ import {
   type ExamType,
 } from "@/store/slices/examTypeSlice";
 import { fetchZones } from "@/store/slices/zoneSlice";
-import * as ExamTypeService from "@/services/ExamTypeService";
 
 const PAGE_SIZE = 10;
 
@@ -86,7 +85,6 @@ const ExamTypeManagement = () => {
     error = null,
     departmentsByZone = {},
     zoneDataLoading = {},
-    zoneDataErrors = {},
   } = useAppSelector((state) => state.examType);
 
   const { list: zones = [], loading: zonesLoading = false } = useAppSelector(
