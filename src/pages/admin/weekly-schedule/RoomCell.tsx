@@ -3096,13 +3096,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             <div className="space-y-2 mt-2">
               {/* ✅ Header đơn giản cho clinic schedules khi đã có phòng manual */}
               <div className="flex items-center justify-between p-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 text-xs text-gray-700">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="font-medium">
-                    📋 {cellClinicSchedules.length} phòng từ DB
-                  </span>
-                </div>
-
                 {/* ✅ Compact clone button */}
                 <Button
                   variant="ghost"
@@ -3134,36 +3127,102 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         title="Click để xem chi tiết lịch khám từ DB"
                       >
                         <div className="flex flex-col gap-1 w-full">
-                          {/* Compact schedule info */}
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="w-2 h-2 rounded-full bg-current opacity-80" />
-                            <span className="font-semibold text-current text-xs">
-                              {schedule.roomName}
-                            </span>
-                            <span className="text-current/80 text-[10px] ml-auto">
-                              {schedule.timeStart?.slice(0, 5)}-
-                              {schedule.timeEnd?.slice(0, 5)}
-                            </span>
-                          </div>
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex flex-col items-start gap-1 flex-1">
+                              {/* Schedule content */}
+                              {/* Schedule header với exam type và time */}
+                              <div className="flex items-center gap-1 w-full">
+                                <div
+                                  className={`w-2 h-2 rounded-full ${
+                                    schedule.departmentHospitalId?.toString() ===
+                                    deptId
+                                      ? "bg-current opacity-80"
+                                      : "bg-orange-500"
+                                  }`}
+                                />
 
-                          <div className="flex items-center gap-2 w-full">
-                            <Stethoscope className="w-2.5 h-2.5 text-current/70" />
-                            <span className="text-current text-xs truncate">
-                              {schedule.doctorName}
-                            </span>
-                            <div className="ml-auto flex items-center gap-1">
-                              <Users className="w-2.5 h-2.5" />
-                              <span className="text-xs">
-                                {schedule.total || 0}
-                              </span>
+                                {/* Exam Type name */}
+                                {schedule.examTypeName && (
+                                  <span className="font-medium text-[10px] px-1.5 py-0.5 rounded bg-current/10 text-current">
+                                    {schedule.examTypeName}
+                                  </span>
+                                )}
+
+                                <span className="font-medium truncate text-current">
+                                  {schedule.roomName}
+                                </span>
+
+                                {/* ✅ Badge hiển thị khoa nếu khác khoa hiện tại */}
+                                {schedule.departmentHospitalId?.toString() !==
+                                  deptId && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] px-1.5 py-0.5 h-4 bg-orange-50 text-orange-600 border-orange-300"
+                                  >
+                                    {schedule.departmentName ||
+                                      `Khoa ${schedule.departmentHospitalId}`}
+                                  </Badge>
+                                )}
+
+                                <div className="ml-auto">
+                                  <Info className="w-3 h-3 text-current/60 ml-1" />
+                                </div>
+                              </div>
+
+                              {/* Doctor info */}
+                              <div className="flex items-center gap-2 text-[10px] text-current/80">
+                                <div className="flex items-center gap-1">
+                                  <Stethoscope className="w-2.5 h-2.5" />
+                                  <span className="truncate max-w-[150px]">
+                                    {schedule.doctorName}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Time and patient info */}
+                              <div className="flex items-center gap-2 text-[10px] text-current/80">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span className="font-medium">
+                                    {schedule.timeStart?.slice(0, 5) ||
+                                      currentSlotInfo?.startTime}{" "}
+                                    -{" "}
+                                    {schedule.timeEnd?.slice(0, 5) ||
+                                      currentSlotInfo?.endTime}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Users className="w-2.5 h-2.5" />
+                                  <span className="font-medium">
+                                    {schedule.total || 0}
+                                  </span>
+                                  {schedule.holdSlot > 0 && (
+                                    <span className="text-amber-600 font-medium">
+                                      +{schedule.holdSlot}🔒
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Specialty badge */}
+                              {schedule.specialtyName && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] px-1 py-0 h-4 max-w-full bg-current/10 text-current"
+                                >
+                                  <span className="truncate">
+                                    🔬 {schedule.specialtyName}
+                                  </span>
+                                </Badge>
+                              )}
                             </div>
                           </div>
 
-                          {/* Copy button */}
+                          {/* ✅ Copy button */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="absolute bottom-1 right-1 h-5 w-5 p-0 hover:bg-blue-100"
+                            className="absolute bottom-1 right-1 h-6 w-6 p-0 hover:bg-blue-100/80"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();

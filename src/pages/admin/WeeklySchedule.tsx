@@ -58,6 +58,10 @@ interface ShiftDefaults {
 
 // ✅ Cập nhật interface RoomSlot với đầy đủ properties
 interface RoomSlot {
+  // ✅ THÊM các field tracking clinic schedule ID
+  clinicScheduleId?: number; // ✅ ID từ clinic schedules (nếu có)
+  originalScheduleId?: number; // ✅ ID gốc khi copy từ DB
+
   id: string;
   name: string;
   code?: string;
@@ -1243,19 +1247,22 @@ const WeeklySchedule = () => {
         };
 
         const newRoom: RoomSlot = {
+          // ✅ PHÒNG MỚI → clinicScheduleId = 0
+          clinicScheduleId: 0, // ✅ Đánh dấu là phòng MỚI
+
           id: roomInfo.id,
           name: roomInfo.name,
           code: roomInfo.code,
           classification: roomInfo.classification,
           customStartTime: shiftConfig?.startTime || fallbackConfig.startTime,
           customEndTime: shiftConfig?.endTime || fallbackConfig.endTime,
-          appointmentCount: 10, // ✅ Mặc định 10 lượt khám
-          maxAppointments: 10, // ✅ Mặc định 10 lượt khám
-          holdSlot: 0, // ✅ Mặc định 0 giữ chỗ
-          appointmentDuration: 60, // ✅ Mặc định 60 phút cho 1 tiếng (2 slot)
+          appointmentCount: 10,
+          maxAppointments: 10,
+          holdSlot: 0,
+          appointmentDuration: 60,
           specialties: [...(roomInfo.specialties || [])],
-          selectedSpecialty: "", // ✅ Không set mặc định, để trống
-          selectedDoctor: "", // ✅ Giữ nguyên - không set mặc định
+          selectedSpecialty: "",
+          selectedDoctor: "",
           priorityOrder: 10,
           zoneId: roomInfo.zoneId,
           zoneName: roomInfo.zoneName,
@@ -1568,9 +1575,6 @@ const WeeklySchedule = () => {
                       clonedRoom.appointmentCount = defaultMaxAppointments;
                       clonedRoom.maxAppointments = defaultMaxAppointments;
                     }
-
-                    clonedRoom.appointmentDuration =
-                      room.appointmentDuration || 60;
                   }
 
                   // ✅ Xử lý notes
@@ -1739,18 +1743,8 @@ const WeeklySchedule = () => {
       // ✅ Helper function để format time thành "HH:mm:ss"
       const formatTimeToHHmmss = (timeString: string): string => {
         if (!timeString) return "07:30:00";
-
-        // Nếu đã có format "HH:mm:ss" thì giữ nguyên
-        if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
-          return timeString;
-        }
-
-        // Nếu có format "HH:mm" thì thêm ":00"
-        if (timeString.match(/^\d{2}:\d{2}$/)) {
-          return `${timeString}:00`;
-        }
-
-        // Fallback: thêm ":00" vào cuối
+        if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) return timeString;
+        if (timeString.match(/^\d{2}:\d{2}$/)) return `${timeString}:00`;
         return `${timeString}:00`;
       };
 
@@ -1761,11 +1755,6 @@ const WeeklySchedule = () => {
       const [year, weekStr] = selectedWeek.split("-W");
       const weekNum = parseInt(weekStr);
       const yearNum = parseInt(year);
-
-      // ✅ Tính toán ngày đầu tuần (Thứ 2)
-      const startOfYear = new Date(yearNum, 0, 1);
-      const daysToAdd = (weekNum - 1) * 7 - startOfYear.getDay() + 1;
-      const mondayOfWeek = new Date(yearNum, 0, 1 + daysToAdd);
 
       Object.entries(scheduleData).forEach(([deptId, deptSchedule]) => {
         Object.entries(deptSchedule).forEach(
@@ -1779,21 +1768,17 @@ const WeeklySchedule = () => {
                 // ✅ Tính ngày trong tuần dựa trên fullDate của slot
                 const slotDate = new Date(slotInfo.fullDate);
 
-                // ✅ Lấy doctorId từ selectedDoctor với nhiều cách tìm kiếm
+                // ✅ Lấy doctorId từ selectedDoctor
                 let doctorId = 0;
                 if (room.selectedDoctor) {
-                  // ✅ Tìm doctor theo nhiều field: name, fullName, code, id
                   const doctor = allDoctors.find((d) => {
                     const searchValue = room.selectedDoctor.toString();
                     return (
-                      // Tìm theo tên
                       d.name === searchValue ||
                       d.fullName === searchValue ||
-                      // Tìm theo code (employee ID)
                       d.doctor_IdEmployee_Postgresql?.toString() ===
                         searchValue ||
                       d.code?.toString() === searchValue ||
-                      // Tìm theo ID
                       d.id?.toString() === searchValue
                     );
                   });
@@ -1805,28 +1790,14 @@ const WeeklySchedule = () => {
                           doctor.doctor_IdEmployee_Postgresql?.toString() ||
                           "0"
                       ) || 0;
-                  } else {
-                    console.warn("⚠️ Doctor not found:", {
-                      searchValue: room.selectedDoctor,
-                      availableDoctors: allDoctors.map((d) => ({
-                        name: d.name,
-                        fullName: d.fullName,
-                        code: d.doctor_IdEmployee_Postgresql || d.code,
-                        id: d.id,
-                      })),
-                    });
                   }
                 }
 
-                // ✅ Lấy examTypeId từ selectedExamType HOẶC từ room.examTypeId (copy từ DB)
+                // ✅ Lấy examTypeId
                 let examTypeId = 0;
-
-                // ✅ PRIORITY 1: Sử dụng examTypeId trực tiếp nếu có (từ copy DB)
                 if (room.examTypeId && room.examTypeId > 0) {
                   examTypeId = room.examTypeId;
-                }
-                // ✅ PRIORITY 2: Tìm từ selectedExamType như bình thường
-                else if (
+                } else if (
                   room.selectedExamType &&
                   departmentsByZone[selectedZone]
                 ) {
@@ -1838,29 +1809,15 @@ const WeeklySchedule = () => {
                     const examType = currentDept.examTypes.find(
                       (et: any) => et.name === room.selectedExamType
                     );
-                    if (examType) {
-                      examTypeId = examType.id || 0;
-                    } else {
-                      console.warn(
-                        `⚠️ ExamType not found: "${room.selectedExamType}" in department ${deptId}`
-                      );
-                    }
+                    if (examType) examTypeId = examType.id || 0;
                   }
-                } else {
-                  console.warn(
-                    `⚠️ No examTypeId or selectedExamType found for room ${room.name}`
-                  );
                 }
 
-                // ✅ Lấy specialtyId từ selectedSpecialty HOẶC từ room.specialtyId (copy từ DB)
+                // ✅ Lấy specialtyId
                 let specialtyId = 0;
-
-                // ✅ PRIORITY 1: Sử dụng specialtyId trực tiếp nếu có (từ copy DB)
                 if (room.specialtyId && room.specialtyId > 0) {
                   specialtyId = room.specialtyId;
-                }
-                // ✅ PRIORITY 2: Tìm từ selectedSpecialty như bình thường
-                else if (
+                } else if (
                   room.selectedSpecialty &&
                   departmentsByZone[selectedZone]
                 ) {
@@ -1870,28 +1827,7 @@ const WeeklySchedule = () => {
                   );
 
                   if (currentDept?.examTypes) {
-                    // Debug: Hiển thị tất cả specialties có sẵn
-                    const allSpecialties: any[] = [];
-                    currentDept.examTypes.forEach((examType: any) => {
-                      if (
-                        examType.sepicalties &&
-                        Array.isArray(examType.sepicalties)
-                      ) {
-                        examType.sepicalties.forEach((specialty: any) => {
-                          if (specialty.enable) {
-                            allSpecialties.push({
-                              id: specialty.id,
-                              name: specialty.name,
-                              examType: examType.name,
-                            });
-                          }
-                        });
-                      }
-                    });
-
-                    // Tìm specialty trong tất cả examTypes của department
                     let foundSpecialty = null;
-
                     for (const examType of currentDept.examTypes) {
                       if (
                         examType.sepicalties &&
@@ -1905,20 +1841,14 @@ const WeeklySchedule = () => {
                         if (foundSpecialty) break;
                       }
                     }
-
                     if (foundSpecialty) {
                       specialtyId =
                         parseInt(foundSpecialty.id?.toString() || "0") || 0;
-                    } else {
-                      console.warn(
-                        "⚠️ Specialty not found:",
-                        room.selectedSpecialty
-                      );
                     }
                   }
                 }
 
-                // ✅ Tạo clinic schedule entry
+                // ✅ Tạo thời gian formatted
                 const startSlotFormatted = formatTimeToHHmmss(
                   room.customStartTime ||
                     slotInfo.startTime?.slice(0, 5) ||
@@ -1928,30 +1858,114 @@ const WeeklySchedule = () => {
                   room.customEndTime || slotInfo.endTime?.slice(0, 5) || "11:00"
                 );
 
-                // ✅ Lấy examinationId từ examination thực tế
+                // ✅ Lấy examinationId
                 let examinationId = 0;
                 if (slotInfo && slotInfo.examinationId) {
                   examinationId = slotInfo.examinationId;
                 } else {
-                  // Fallback: tìm examination từ workSession và thời gian
                   const matchingExam = examinations.find(
                     (exam) =>
                       exam.workSession === slotInfo?.workSession ||
                       exam.workSession === slotInfo?.period
                   );
-                  if (matchingExam) {
-                    examinationId = matchingExam.id;
+                  if (matchingExam) examinationId = matchingExam.id;
+                }
+
+                // ✅ TÌM ID TỪ CLINIC SCHEDULES - QUAN TRỌNG!
+                let clinicScheduleId = 0;
+
+                // ✅ Option 1: Nếu room đã có clinicScheduleId (được set từ copy DB)
+                if (room.clinicScheduleId && room.clinicScheduleId > 0) {
+                  clinicScheduleId = room.clinicScheduleId;
+                  console.log(
+                    `✅ Found clinicScheduleId from room: ${clinicScheduleId}`
+                  );
+                }
+                // ✅ Option 2: Nếu room có originalScheduleId (copied from DB)
+                else if (
+                  room.originalScheduleId &&
+                  room.originalScheduleId > 0
+                ) {
+                  clinicScheduleId = room.originalScheduleId;
+                  console.log(
+                    `✅ Found originalScheduleId from room: ${clinicScheduleId}`
+                  );
+                }
+                // ✅ Option 3: Tìm trong clinicSchedules bằng matching criteria
+                else {
+                  const matchingSchedule = clinicSchedules.find(
+                    (schedule: any) => {
+                      // ✅ Match theo nhiều tiêu chí
+                      const dateMatch =
+                        schedule.dateInWeek?.slice(0, 10) ===
+                        slotDate.toISOString().slice(0, 10);
+
+                      const roomMatch =
+                        schedule.roomId?.toString() === room.id?.toString();
+
+                      const deptMatch =
+                        schedule.departmentHospitalId?.toString() === deptId;
+
+                      const examinationMatch =
+                        schedule.examinationId === examinationId;
+
+                      // ✅ Optional: Match doctor if available
+                      const doctorMatch =
+                        !doctorId || schedule.doctorId === doctorId;
+
+                      return (
+                        dateMatch &&
+                        roomMatch &&
+                        deptMatch &&
+                        examinationMatch &&
+                        doctorMatch
+                      );
+                    }
+                  );
+
+                  if (matchingSchedule) {
+                    clinicScheduleId = matchingSchedule.id || 0;
+                    console.log(
+                      `✅ Found matching schedule in clinicSchedules: ${clinicScheduleId}`,
+                      {
+                        room: room.name,
+                        date: slotDate.toISOString().slice(0, 10),
+                        examination: examinationId,
+                        department: deptId,
+                      }
+                    );
                   }
                 }
 
+                // ✅ Log để debug
+                if (clinicScheduleId === 0) {
+                  console.log("🆕 NEW CLINIC SCHEDULE - CREATE", {
+                    room: room.name,
+                    date: slotDate.toISOString().slice(0, 10),
+                    examination: examinationId,
+                    department: deptId,
+                    doctor: doctorId,
+                  });
+                } else {
+                  console.log("📝 EXISTING CLINIC SCHEDULE - UPDATE", {
+                    id: clinicScheduleId,
+                    room: room.name,
+                    date: slotDate.toISOString().slice(0, 10),
+                  });
+                }
+
+                // ✅ Tạo clinic schedule entry với ID
                 const scheduleEntry = {
+                  // ✅ THÊM TRƯỜNG ID - QUAN TRỌNG!
+                  id: clinicScheduleId, // ✅ 0 = CREATE, >0 = UPDATE
+
                   dateInWeek: slotDate.toISOString(),
                   total: room.appointmentCount || room.maxAppointments || 10,
                   spaceMinutes: room.appointmentDuration || 60,
                   specialtyId: specialtyId,
                   roomId: parseInt(room.id) || 0,
-                  examinationId: examinationId, // ✅ Sử dụng examinationId từ examination thực tế
-                  doctorId: doctorId, // ✅ Sử dụng doctorId đã tìm được
+                  examinationId: examinationId,
+                  doctorId: doctorId,
                   departmentHospitalId: parseInt(deptId) || 0,
                   examTypeId: examTypeId,
                   startSlot: startSlotFormatted,
@@ -1966,12 +1980,38 @@ const WeeklySchedule = () => {
         );
       });
 
+      // ✅ Phân loại CREATE vs UPDATE để log
+      const createSchedules = clinicScheduleData.filter((s) => s.id === 0);
+      const updateSchedules = clinicScheduleData.filter((s) => s.id > 0);
+
+      console.log("📊 Save Summary:", {
+        total: clinicScheduleData.length,
+        create: createSchedules.length,
+        update: updateSchedules.length,
+        createList: createSchedules.map((s) => ({
+          room: s.roomId,
+          date: s.dateInWeek.slice(0, 10),
+          dept: s.departmentHospitalId,
+        })),
+        updateList: updateSchedules.map((s) => ({
+          id: s.id,
+          room: s.roomId,
+          date: s.dateInWeek.slice(0, 10),
+        })),
+      });
+
       // ✅ Gọi API để lưu
       if (clinicScheduleData.length > 0) {
         await dispatch(addClinicSchedules(clinicScheduleData));
         setScheduleChanges({});
+
+        // ✅ Toast với thông tin chi tiết
         toast.success(
-          `Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`
+          `✅ Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`,
+          {
+            description: `🆕 Thêm mới: ${createSchedules.length} • 📝 Cập nhật: ${updateSchedules.length}`,
+            duration: 5000,
+          }
         );
       } else {
         toast.warning("Không có dữ liệu để lưu");
@@ -2110,7 +2150,6 @@ const WeeklySchedule = () => {
       event.target.value = "";
     }
   };
-  console.log("clinicSchedulesDT", clinicSchedulesDT);
 
   const handleDownloadExcel = () => {
     try {
@@ -2129,6 +2168,7 @@ const WeeklySchedule = () => {
         "Ca",
         "Giờ",
         "Phòng",
+
         "Bác sĩ",
         "Chuyên khoa",
         "Giữ chỗ",
