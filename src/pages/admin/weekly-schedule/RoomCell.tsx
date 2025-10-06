@@ -198,8 +198,19 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       "";
     return id.trim();
   };
+  // ✅ 1. Thêm callback để handle khi phòng bị xóa
+  const handleRoomRemoved = (removedRoomId: string) => {
+    // ✅ Xóa phòng khỏi localUsedRooms ngay lập tức
+    setLocalUsedRooms((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(removedRoomId);
+      return newSet;
+    });
 
-  // ✅ Enhanced isUsed check để dùng cả usedRooms và localUsedRooms
+    console.log(`✅ Removed room ${removedRoomId} from localUsedRooms`);
+  };
+
+  // ✅ 2. Enhanced isRoomUsed với debugging
   const isRoomUsed = (roomData: any): boolean => {
     const roomId = normalizeRoomId(roomData);
     if (!roomId) return false;
@@ -207,8 +218,55 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     const inUsedRooms = usedRooms && usedRooms.has(roomId);
     const inLocalUsedRooms = localUsedRooms.has(roomId);
 
+    // ✅ Debug logging
+    if (inUsedRooms || inLocalUsedRooms) {
+      console.log(`🔍 Room ${roomId} marked as used:`, {
+        inUsedRooms,
+        inLocalUsedRooms,
+        roomData: roomData?.name || roomData?.roomName,
+      });
+    }
+
     return inUsedRooms || inLocalUsedRooms;
   };
+
+  // ✅ 3. Cập nhật khi thêm phòng
+  const handleAddRoom = (roomId: string) => {
+    if (addRoomToShift) {
+      addRoomToShift(deptId, slotId, roomId);
+      setEditingCell(null);
+      setRoomSearchTerm("");
+
+      // ✅ Cập nhật local used rooms
+      setLocalUsedRooms((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(roomId);
+        return newSet;
+      });
+
+      console.log(`✅ Added room ${roomId} to localUsedRooms`);
+    }
+  };
+
+  // ✅ 4. Sync localUsedRooms với rooms prop khi có thay đổi
+  React.useEffect(() => {
+    if (rooms && rooms.length > 0) {
+      const currentRoomIds = new Set(
+        rooms.map((room) => normalizeRoomId(room)).filter(Boolean)
+      );
+
+      setLocalUsedRooms(currentRoomIds);
+
+      console.log("🔄 Synced localUsedRooms with current rooms:", {
+        roomCount: rooms.length,
+        roomIds: Array.from(currentRoomIds),
+      });
+    } else {
+      // ✅ Nếu không có phòng nào, clear localUsedRooms
+      setLocalUsedRooms(new Set());
+      console.log("🗑️ Cleared localUsedRooms - no rooms in slot");
+    }
+  }, [rooms]); // ✅ Sync khi rooms prop thay đổi
 
   // ✅ Handle room swap notification từ RoomConfigPopover
   const handleRoomSwapped = (oldRoomId: string, newRoomId: string) => {
@@ -1518,16 +1576,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
                     if (!isDisabled && roomId && addRoomToShift) {
                       try {
-                        addRoomToShift(deptId, slotId, roomId);
-                        setEditingCell(null);
-                        setRoomSearchTerm("");
-
-                        // ✅ Cập nhật local used rooms ngay lập tức
-                        setLocalUsedRooms((prev) => {
-                          const newSet = new Set(prev);
-                          newSet.add(roomId);
-                          return newSet;
-                        });
+                        // ✅ Sử dụng helper function
+                        handleAddRoom(roomId);
                       } catch (error) {
                         console.error("❌ Error adding room:", error);
                       }
@@ -2133,7 +2183,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     </Button>
                   </div>
                 </div>
-
                 {sortedDateKeys.length > 0 ? (
                   <div className="space-y-3 max-h-60 overflow-y-auto">
                     {sortedDateKeys.filter(isFutureDate).map((dateKey) => (
@@ -2193,7 +2242,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                 type="checkbox"
                                 checked={targetSlots.has(slot.id)}
                                 onChange={() => toggleSlotSelection(slot.id)}
-                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                className="rounded border-gray-300"
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between">
@@ -2829,13 +2878,14 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             </div>
           )}
 
+          {/* ✅ Cập nhật RoomConfigPopover với callback */}
           <RoomConfigPopover
             key={`${room?.id || index}-${index}`}
             room={room}
             roomIndex={index}
             deptId={deptId}
             slotId={slotId}
-            availableSpecialties={departmentData.specialties} // ✅ Sử dụng specialties từ departmentData
+            availableSpecialties={departmentData.specialties}
             availableDoctors={availableDoctors}
             getDoctorsBySpecialty={getDoctorsBySpecialty}
             roomClassifications={roomClassifications}
@@ -2845,14 +2895,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             removeRoomFromShift={removeRoomFromShift}
             getRoomStyle={getRoomStyle}
             hasChanges={hasChanges}
-            // ✅ Thêm departmentData để truyền xuống
             departmentData={departmentData}
-            // ✅ Thêm props cho đổi phòng
             allRooms={allRooms}
             usedRooms={usedRooms}
-            // ✅ Thêm callback để handle room swap
             onRoomSwapped={handleRoomSwapped}
-            // ✅ Thêm clinic schedules để check doctor conflicts
+            onRoomRemoved={handleRoomRemoved} // ✅ THÊM CALLBACK
             allCellClinicSchedules={allCellClinicSchedules}
             cellClinicSchedules={cellClinicSchedules}
           />
@@ -3062,7 +3109,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   </div>
                 ))}
               </div>
-              {/* Nút thêm phòng */}
             </div>
           )}
           {isFutureOrToday === true && (
@@ -3237,15 +3283,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                     }
                   />
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* ✅ Hiển thị thông báo khi không có phòng từ DB (khi đã có phòng manual) */}
-          {clinicScheduleStats && cellClinicSchedules.length === 0 && (
-            <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded text-center">
-              <div className="text-xs text-gray-500">
-                📋 Không có phòng từ DB cho ca này
               </div>
             </div>
           )}

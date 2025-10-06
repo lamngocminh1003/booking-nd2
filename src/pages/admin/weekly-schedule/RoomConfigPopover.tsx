@@ -69,6 +69,7 @@ interface RoomConfigPopoverProps {
   // ✅ Thêm clinic schedules để check doctor conflicts (tất cả khoa)
   allCellClinicSchedules?: any[]; // Lịch khám trong cell hiện tại (tất cả khoa) - cho conflict detection
   cellClinicSchedules?: any[]; // Lịch khám trong cell hiện tại (chỉ khoa hiện tại) - cho hiển thị UI
+  onRoomRemoved?: (roomId: string) => void; // ✅ THÊM PROP MỚI
 }
 
 export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
@@ -93,6 +94,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     onRoomSwapped, // ✅ Nhận callback prop
     allCellClinicSchedules = [], // ✅ Nhận all clinic schedules data (tất cả khoa)
     cellClinicSchedules = [], // ✅ Nhận clinic schedules data (chỉ khoa hiện tại)
+    onRoomRemoved,
   }) => {
     // ✅ Redux hooks để lấy danh sách doctors
     const dispatch = useAppDispatch();
@@ -231,9 +233,22 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     );
 
     const handleRemove = useCallback(() => {
-      removeRoomFromShift(deptId, slotId, roomIndex);
-      setIsOpen(false);
-    }, [removeRoomFromShift, deptId, slotId, roomIndex]);
+      if (removeRoomFromShift && room) {
+        const roomId = normalizeRoomId(room);
+
+        // ✅ Gọi removeRoomFromShift trước
+        removeRoomFromShift(deptId, slotId, roomIndex);
+
+        // ✅ Notify parent component về việc xóa phòng
+        if (onRoomRemoved && roomId) {
+          onRoomRemoved(roomId);
+        }
+
+        setIsOpen(false);
+
+        console.log(`✅ Removed room ${roomId} at index ${roomIndex}`);
+      }
+    }, [removeRoomFromShift, room, deptId, slotId, roomIndex, onRoomRemoved]);
 
     // ✅ Reset về giờ mặc định từ shiftDefaults
     const handleResetToDefault = useCallback(() => {
@@ -2404,7 +2419,103 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                         </div>
                       </div>
                     )}
+                    {/* Số lượt khám theo phút */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Cấu hình lượt khám theo thời gian
+                      </Label>
 
+                      {/* Grid layout cho 3 trường input */}
+                      <div className="grid grid-cols-3 gap-3">
+                        {/* Số lượt khám */}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-gray-500">
+                            Số lượt khám
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min="1"
+                              max="50"
+                              value={currentTime.maxAppointments}
+                              onChange={(e) =>
+                                handleUpdate(
+                                  "appointmentCount",
+                                  parseInt(e.target.value) || 10
+                                )
+                              }
+                              className={`h-10 pr-12 ${
+                                isCustomTime
+                                  ? "border-orange-300 bg-orange-50"
+                                  : "bg-white"
+                              }`}
+                            />
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium">
+                              lượt
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Số lượng giữ chỗ */}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-gray-500">
+                            Số giữ chỗ
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="20"
+                              value={getHoldSlots(room)}
+                              onChange={(e) =>
+                                handleUpdate(
+                                  "holdSlot",
+                                  parseInt(e.target.value) || 0
+                                )
+                              }
+                              className={`h-10 pr-12 ${
+                                isCustomTime
+                                  ? "border-orange-300 bg-orange-50"
+                                  : "bg-white"
+                              }`}
+                            />
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium">
+                              slot
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Thời gian (phút) */}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-gray-500">
+                            Trong thời gian
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min="5"
+                              max="120"
+                              value={room.appointmentDuration || 60}
+                              onChange={(e) =>
+                                handleUpdate(
+                                  "appointmentDuration",
+                                  parseInt(e.target.value) || 60
+                                )
+                              }
+                              className={`h-10 pr-12 ${
+                                isCustomTime
+                                  ? "border-orange-300 bg-orange-50"
+                                  : "bg-white"
+                              }`}
+                            />
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium">
+                              phút
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     {/* Reset button */}
                     {isCustomTime && (
                       <div className="flex justify-end">
@@ -2421,7 +2532,59 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                     )}
                   </div>
                 </div>
+                <div
+                  className={`text-sm p-3 rounded-lg border ${
+                    isCustomTime
+                      ? "bg-orange-50 border-orange-200 text-orange-800"
+                      : "bg-blue-50 border-blue-200 text-blue-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        isCustomTime ? "bg-orange-500" : "bg-blue-500"
+                      }`}
+                    ></div>
+                    <span className="font-medium">
+                      📅 {currentTime.maxAppointments} lượt trong{" "}
+                      {room.appointmentDuration || 60} phút
+                    </span>
+                  </div>
 
+                  {/* Thông tin giữ chỗ */}
+                  {getHoldSlots(room) > 0 && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          isCustomTime ? "bg-orange-400" : "bg-blue-400"
+                        }`}
+                      ></div>
+                      <span className="font-medium">
+                        🔒 {getHoldSlots(room)} slot giữ chỗ
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-4 text-xs opacity-80">
+                    <span>
+                      Trung bình{" "}
+                      {Math.round(
+                        (room.appointmentDuration || 60) /
+                          currentTime.maxAppointments
+                      )}{" "}
+                      phút/lượt khám
+                    </span>
+                  </div>
+                </div>
+
+                {slotInfo && (
+                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border">
+                    💡 Mặc định cho ca này:{" "}
+                    <strong>{slotInfo.defaultMaxAppointments}/60p</strong>
+                    {" • "}
+                    <span>Giữ chỗ: {getHoldSlots(room)} slot</span>
+                  </div>
+                )}
                 {/* Action Buttons - Sticky footer */}
                 <div className="border-t bg-gray-50/50 p-4">
                   <div className="flex gap-3">
