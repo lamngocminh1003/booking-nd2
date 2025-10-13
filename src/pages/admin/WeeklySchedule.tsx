@@ -1877,9 +1877,6 @@ const WeeklySchedule = () => {
                 // ✅ Option 1: Nếu room đã có clinicScheduleId (được set từ copy DB)
                 if (room.clinicScheduleId && room.clinicScheduleId > 0) {
                   clinicScheduleId = room.clinicScheduleId;
-                  console.log(
-                    `✅ Found clinicScheduleId from room: ${clinicScheduleId}`
-                  );
                 }
                 // ✅ Option 2: Nếu room có originalScheduleId (copied from DB)
                 else if (
@@ -1887,9 +1884,6 @@ const WeeklySchedule = () => {
                   room.originalScheduleId > 0
                 ) {
                   clinicScheduleId = room.originalScheduleId;
-                  console.log(
-                    `✅ Found originalScheduleId from room: ${clinicScheduleId}`
-                  );
                 }
                 // ✅ Option 3: Tìm trong clinicSchedules bằng matching criteria
                 else {
@@ -1925,33 +1919,7 @@ const WeeklySchedule = () => {
 
                   if (matchingSchedule) {
                     clinicScheduleId = matchingSchedule.id || 0;
-                    console.log(
-                      `✅ Found matching schedule in clinicSchedules: ${clinicScheduleId}`,
-                      {
-                        room: room.name,
-                        date: slotDate.toISOString().slice(0, 10),
-                        examination: examinationId,
-                        department: deptId,
-                      }
-                    );
                   }
-                }
-
-                // ✅ Log để debug
-                if (clinicScheduleId === 0) {
-                  console.log("🆕 NEW CLINIC SCHEDULE - CREATE", {
-                    room: room.name,
-                    date: slotDate.toISOString().slice(0, 10),
-                    examination: examinationId,
-                    department: deptId,
-                    doctor: doctorId,
-                  });
-                } else {
-                  console.log("📝 EXISTING CLINIC SCHEDULE - UPDATE", {
-                    id: clinicScheduleId,
-                    room: room.name,
-                    date: slotDate.toISOString().slice(0, 10),
-                  });
                 }
 
                 // ✅ Tạo clinic schedule entry với ID
@@ -1983,22 +1951,6 @@ const WeeklySchedule = () => {
       // ✅ Phân loại CREATE vs UPDATE để log
       const createSchedules = clinicScheduleData.filter((s) => s.id === 0);
       const updateSchedules = clinicScheduleData.filter((s) => s.id > 0);
-
-      console.log("📊 Save Summary:", {
-        total: clinicScheduleData.length,
-        create: createSchedules.length,
-        update: updateSchedules.length,
-        createList: createSchedules.map((s) => ({
-          room: s.roomId,
-          date: s.dateInWeek.slice(0, 10),
-          dept: s.departmentHospitalId,
-        })),
-        updateList: updateSchedules.map((s) => ({
-          id: s.id,
-          room: s.roomId,
-          date: s.dateInWeek.slice(0, 10),
-        })),
-      });
 
       // ✅ Gọi API để lưu
       if (clinicScheduleData.length > 0) {

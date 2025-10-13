@@ -110,11 +110,6 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
   // ✅ Load data when modal opens or exam type changes
   useEffect(() => {
     if (open && selectedExamType) {
-      console.log(
-        "🚀 Loading service prices for exam type:",
-        selectedExamType.id
-      );
-
       // ✅ Fetch service prices by examTypeId
       dispatch(fetchExamTypeServicePricesByExamTypeId(selectedExamType.id));
 
@@ -132,7 +127,6 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
 
   // ✅ Current service prices (directly from Redux)
   const currentExamTypeServicePrices = useMemo(() => {
-    console.log("📊 Current service prices from Redux:", examTypeServicePrices);
     return examTypeServicePrices;
   }, [examTypeServicePrices]);
 
@@ -309,13 +303,6 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
   };
 
   const isLoading = examTypeServicePricesLoading || servicePricesLoading;
-
-  console.log("🔍 ServicePriceModal Debug:", {
-    selectedExamType,
-    currentExamTypeId,
-    servicePrices: examTypeServicePrices,
-    stats,
-  });
 
   return (
     <>

@@ -429,6 +429,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
           onWeekCloned={onWeekCloned}
           onCloneFromDB={onCloneFromDB}
           clinicSchedules={clinicSchedules}
+          selectedZone={selectedZone}
         />
       </CardContent>
     </Card>

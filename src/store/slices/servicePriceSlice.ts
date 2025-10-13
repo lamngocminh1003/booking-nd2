@@ -172,8 +172,6 @@ export const fetchExamTypeServicePricesByExamTypeId = createAsyncThunk(
     try {
       const response = await getExamTypeServicePricesByExamTypeId(examTypeId);
 
-      console.log("🔍 API Response for examTypeId", examTypeId, ":", response);
-
       // ✅ Extract servicePrices from response
       const data = response?.data?.data || response?.data;
 
@@ -301,8 +299,6 @@ const servicePriceSlice = createSlice({
           state.examTypeServicePricesLoading = false;
           state.examTypeServicePrices = action.payload.servicePrices || [];
           state.currentExamTypeId = action.payload.examTypeId;
-
-          console.log("✅ Stored service prices:", state.examTypeServicePrices);
         }
       )
       .addCase(

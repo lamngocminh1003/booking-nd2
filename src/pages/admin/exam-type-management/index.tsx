@@ -66,10 +66,6 @@ const ExamTypeManagement = () => {
     selectedExamTypeForServicePrice,
     setSelectedExamTypeForServicePrice,
   } = useExamTypeManagement();
-  console.log(
-    "selectedExamTypeForServicePrice",
-    selectedExamTypeForServicePrice
-  );
 
   return (
     <div className="p-6 space-y-6">
