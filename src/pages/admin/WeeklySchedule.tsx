@@ -178,30 +178,12 @@ const WeeklySchedule = () => {
   const [customClassificationColors, setCustomClassificationColors] = useState<
     Record<string, string>
   >({});
-
   // ✅ State để track việc đã populate clinic schedules chưa
   const [isClinicSchedulesPopulated, setIsClinicSchedulesPopulated] =
     useState(false);
 
   // ✅ State để force refresh UI khi cần thiết
   const [refreshCounter, setRefreshCounter] = useState(0);
-
-  // ✅ State để lưu thông tin week clone indicators
-  const [recentClonedWeeks, setRecentClonedWeeks] = useState<{
-    targetWeeks: string[];
-    sourceWeek: string;
-    roomCount: number;
-    timestamp: number;
-  } | null>(null);
-
-  // ✅ State để lưu thông tin xung đột
-  const [scheduleConflicts, setScheduleConflicts] = useState<{
-    doctorConflicts: any[];
-    roomConflicts: any[];
-  }>({
-    doctorConflicts: [],
-    roomConflicts: [],
-  });
 
   // ✅ Add missing ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -213,6 +195,8 @@ const WeeklySchedule = () => {
   const { list: zones = [], loading: zonesLoading } = useAppSelector(
     (state) => state.zone
   );
+  const [isSaving, setIsSaving] = useState(false);
+
   const { list: examinations = [], loading: examinationsLoading } =
     useAppSelector((state) => state.examination);
   const { list: allRooms = [], loading: roomsLoading } = useAppSelector(
@@ -598,112 +582,25 @@ const WeeklySchedule = () => {
 
       // Kiểm tra xung đột phòng khám theo dữ liệu thực tế
       const scheduleList = clinicSchedules as any[];
-      const roomConflictAnalysis = scheduleList.reduce(
-        (acc: any, schedule: any) => {
-          const key = `${schedule.dayInWeek}-${schedule.examinationId}-${schedule.roomId}`;
-          if (!acc[key]) {
-            acc[key] = [];
-          }
-          acc[key].push({
-            id: schedule.id,
-            doctorName: schedule.doctorName,
-            roomName: schedule.roomName,
-            specialty: schedule.specialtyName,
-            department: schedule.departmentHospitalName,
-          });
-          return acc;
-        },
-        {}
-      );
+      scheduleList.reduce((acc: any, schedule: any) => {
+        const key = `${schedule.dayInWeek}-${schedule.examinationId}-${schedule.roomId}`;
+        if (!acc[key]) {
+          acc[key] = [];
+        }
+        acc[key].push({
+          id: schedule.id,
+          doctorName: schedule.doctorName,
+          roomName: schedule.roomName,
+          specialty: schedule.specialtyName,
+          department: schedule.departmentHospitalName,
+        });
+        return acc;
+      }, {});
     }
     if (clinicSchedulesError) {
       console.error("❌ Clinic schedules error:", clinicSchedulesError);
     }
   }, [clinicSchedules, clinicSchedulesError]);
-
-  // ✅ Function to detect conflicts in clinic schedules
-  const detectScheduleConflicts = useCallback((schedules: any[]) => {
-    const conflicts = {
-      doctorConflicts: [] as any[],
-      roomConflicts: [] as any[],
-    };
-
-    // Group schedules by day and examination (sử dụng dữ liệu thực tế)
-    const scheduleGroups: Record<string, any[]> = {};
-
-    schedules.forEach((schedule: any) => {
-      const key = `${schedule.dayInWeek}-${schedule.examinationId}`;
-      if (!scheduleGroups[key]) {
-        scheduleGroups[key] = [];
-      }
-      scheduleGroups[key].push(schedule);
-    });
-
-    // Check for conflicts within each group
-    Object.entries(scheduleGroups).forEach(([groupKey, groupSchedules]) => {
-      const [dayInWeek, examinationId] = groupKey.split("-");
-
-      // Check doctor conflicts
-      const doctorMap: Record<number, any[]> = {};
-      groupSchedules.forEach((schedule: any) => {
-        if (!doctorMap[schedule.doctorId]) {
-          doctorMap[schedule.doctorId] = [];
-        }
-        doctorMap[schedule.doctorId].push(schedule);
-      });
-
-      // Find doctors with multiple schedules in same examination
-      Object.entries(doctorMap).forEach(([doctorId, doctorSchedules]) => {
-        if (doctorSchedules.length > 1) {
-          conflicts.doctorConflicts.push({
-            doctorId: parseInt(doctorId),
-            doctorName: doctorSchedules[0].doctorName,
-            dayInWeek,
-            examinationId: parseInt(examinationId),
-            examinationName: doctorSchedules[0].examinationName,
-            conflictingSchedules: doctorSchedules.map((s: any) => ({
-              id: s.id,
-              roomName: s.roomName,
-              departmentName: s.departmentHospitalName,
-              specialtyName: s.specialtyName,
-            })),
-          });
-        }
-      });
-
-      // Check room conflicts
-      const roomMap: Record<number, any[]> = {};
-      groupSchedules.forEach((schedule: any) => {
-        if (!roomMap[schedule.roomId]) {
-          roomMap[schedule.roomId] = [];
-        }
-        roomMap[schedule.roomId].push(schedule);
-      });
-
-      // Find rooms with multiple schedules in same examination
-      Object.entries(roomMap).forEach(([roomId, roomSchedules]) => {
-        if (roomSchedules.length > 1) {
-          conflicts.roomConflicts.push({
-            roomId: parseInt(roomId),
-            roomName: roomSchedules[0].roomName,
-            dayInWeek,
-            examinationId: parseInt(examinationId),
-            examinationName: roomSchedules[0].examinationName,
-            conflictingSchedules: roomSchedules.map((s: any) => ({
-              id: s.id,
-              doctorName: s.doctorName,
-              departmentName: s.departmentHospitalName,
-              specialtyName: s.specialtyName,
-            })),
-          });
-        }
-      });
-    });
-
-    return conflicts;
-  }, []);
-
-  // ✅ Debug trong useEffect
 
   // ✅ Convert specialties from departmentsByZone instead of allSpecialties
   const availableSpecialties = useMemo(() => {
@@ -1072,87 +969,6 @@ const WeeklySchedule = () => {
     );
   }, [availableRooms, selectedZone]);
 
-  // ✅ Helper function to check room and doctor conflicts
-  const checkConflicts = useCallback(
-    (deptId: string, slotId: string, roomId?: string, doctorId?: number) => {
-      if (!clinicSchedules || clinicSchedules.length === 0) {
-        return {
-          hasRoomConflict: false,
-          hasDoctorConflict: false,
-          conflictDetails: [],
-        };
-      }
-
-      // Parse slotId để lấy thông tin ngày và examination
-      let targetDate = "";
-      let targetExaminationId = "";
-
-      if (slotId.includes("-")) {
-        const parts = slotId.split("-");
-        if (parts.length >= 4) {
-          targetDate = `${parts[0]}-${parts[1]}-${parts[2]}`;
-          targetExaminationId = parts[3];
-        }
-      }
-
-      // Filter clinic schedules theo context hiện tại
-      const relevantSchedules = (clinicSchedules as any[]).filter(
-        (schedule) => {
-          const scheduleDate = schedule.dateInWeek?.slice(0, 10);
-          const dateMatch = scheduleDate === targetDate;
-          const examinationMatch =
-            schedule.examinationId?.toString() === targetExaminationId;
-          const departmentMatch =
-            schedule.departmentHospitalId?.toString() === deptId;
-
-          return dateMatch && examinationMatch && departmentMatch;
-        }
-      );
-
-      let hasRoomConflict = false;
-      let hasDoctorConflict = false;
-      const conflictDetails: any[] = [];
-
-      // Check room conflict
-      if (roomId) {
-        hasRoomConflict = relevantSchedules.some((schedule) => {
-          if (schedule.roomId?.toString() === roomId.toString()) {
-            conflictDetails.push({
-              type: "room",
-              schedule: schedule,
-              message: `Phòng ${schedule.roomName} đã có lịch khám`,
-            });
-            return true;
-          }
-          return false;
-        });
-      }
-
-      // Check doctor conflict
-      if (doctorId) {
-        hasDoctorConflict = relevantSchedules.some((schedule) => {
-          if (schedule.doctorId === doctorId) {
-            conflictDetails.push({
-              type: "doctor",
-              schedule: schedule,
-              message: `Bác sĩ ${schedule.doctorName} đã có lịch khám`,
-            });
-            return true;
-          }
-          return false;
-        });
-      }
-
-      return {
-        hasRoomConflict,
-        hasDoctorConflict,
-        conflictDetails,
-        relevantSchedules,
-      };
-    },
-    [clinicSchedules]
-  );
-
   // ✅ Helper to get used rooms in a specific slot
   const getUsedRoomsInSlot = (slotId: string) => {
     const usedRoomIds = new Set<string>();
@@ -1331,7 +1147,8 @@ const WeeklySchedule = () => {
 
     toast.success("Đã xóa phòng khỏi lịch khám");
   };
-
+  const [isSavingInProgress, setIsSavingInProgress] = useState(false);
+  const [shouldTrackChanges, setShouldTrackChanges] = useState(true);
   // ✅ Thêm hàm nhân bản phòng
   const handleCloneRooms = useCallback(
     (
@@ -1684,7 +1501,6 @@ const WeeklySchedule = () => {
     [scheduleData, timeSlots, shiftDefaults, examinations]
   );
 
-  // ✅ Update room config function
   const updateRoomConfig = (
     deptId: string,
     slotId: string,
@@ -1710,11 +1526,12 @@ const WeeklySchedule = () => {
         },
       };
     });
-
-    setScheduleChanges((prev) => ({
-      ...prev,
-      [cellKey]: { action: "update_room", roomIndex, updates },
-    }));
+    if (shouldTrackChanges && !isSavingInProgress) {
+      setScheduleChanges((prev) => ({
+        ...prev,
+        [cellKey]: { action: "update_room", roomIndex, updates },
+      }));
+    }
   };
 
   // ✅ Undo/Redo functions
@@ -1740,6 +1557,10 @@ const WeeklySchedule = () => {
 
   const handleSaveAll = async () => {
     try {
+      setIsSaving(true);
+      setIsSavingInProgress(true);
+      setShouldTrackChanges(false);
+
       // ✅ Helper function để format time thành "HH:mm:ss"
       const formatTimeToHHmmss = (timeString: string): string => {
         if (!timeString) return "07:30:00";
@@ -1926,7 +1747,6 @@ const WeeklySchedule = () => {
                 const scheduleEntry = {
                   // ✅ THÊM TRƯỜNG ID - QUAN TRỌNG!
                   id: clinicScheduleId, // ✅ 0 = CREATE, >0 = UPDATE
-
                   dateInWeek: slotDate.toISOString(),
                   total: room.appointmentCount || room.maxAppointments || 10,
                   spaceMinutes: room.appointmentDuration || 60,
@@ -1948,29 +1768,56 @@ const WeeklySchedule = () => {
         );
       });
 
-      // ✅ Phân loại CREATE vs UPDATE để log
-      const createSchedules = clinicScheduleData.filter((s) => s.id === 0);
-      const updateSchedules = clinicScheduleData.filter((s) => s.id > 0);
-
       // ✅ Gọi API để lưu
       if (clinicScheduleData.length > 0) {
-        await dispatch(addClinicSchedules(clinicScheduleData));
-        setScheduleChanges({});
-
-        // ✅ Toast với thông tin chi tiết
-        toast.success(
-          `✅ Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`,
-          {
-            description: `🆕 Thêm mới: ${createSchedules.length} • 📝 Cập nhật: ${updateSchedules.length}`,
-            duration: 5000,
-          }
+        const resultAction = await dispatch(
+          addClinicSchedules(clinicScheduleData)
         );
+
+        if (addClinicSchedules.fulfilled.match(resultAction)) {
+          // ✅ Sau khi lưu thành công
+          toast.success(
+            `✅ Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`
+          );
+
+          // ✅ Xóa state tạm (đánh dấu thay đổi)
+          setScheduleChanges({});
+          setScheduleData([] as any);
+          // ✅ Tạm ngưng thay đổi UI (tránh race condition)
+          setShouldTrackChanges(false);
+
+          // ✅ Reset biến local để tránh cộng dồn dữ liệu
+          clinicScheduleData.length = 0;
+
+          // ✅ Tải lại dữ liệu mới từ server để đồng bộ
+          const [year, weekStr] = selectedWeek.split("-W");
+          const week = parseInt(weekStr);
+          const yearNum = parseInt(year);
+
+          await dispatch(
+            fetchClinicSchedules({
+              Week: week,
+              Year: yearNum,
+              ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
+            })
+          );
+          // ✅ Nếu bạn muốn F5 hẳn (reload trang)
+          // window.location.reload();
+        } else {
+          // ✅ THÊM: Enable lại nếu save thất bại
+          setShouldTrackChanges(true);
+          setIsSavingInProgress(false);
+        }
       } else {
-        toast.warning("Không có dữ liệu để lưu");
+        toast.warning("⚠️ Không có dữ liệu để lưu");
       }
     } catch (error) {
-      console.error("❌ Error saving clinic schedules:", error);
-      toast.error("Lỗi khi lưu lịch phòng khám: " + (error as any).message);
+      // ✅ THÊM: Enable lại nếu có lỗi
+      setShouldTrackChanges(true);
+      setIsSavingInProgress(false);
+      console.error("Error:", error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -2538,14 +2385,6 @@ const WeeklySchedule = () => {
   // ✅ Thêm missing function handleWeekCloned
   const handleWeekCloned = useCallback(
     (targetWeeks: string[], sourceWeek: string, roomCount: number) => {
-      // ✅ Set week clone indicators
-      setRecentClonedWeeks({
-        targetWeeks,
-        sourceWeek,
-        roomCount,
-        timestamp: Date.now(),
-      });
-
       // ✅ Show indicators function
       const showClonedWeeksSequentially = () => {
         targetWeeks.forEach((targetWeek, index) => {
@@ -2589,11 +2428,6 @@ const WeeklySchedule = () => {
       };
 
       showClonedWeeksSequentially();
-
-      // ✅ Clear indicators after 15s
-      setTimeout(() => {
-        setRecentClonedWeeks(null);
-      }, 15000);
     },
     []
   );
@@ -2671,6 +2505,8 @@ const WeeklySchedule = () => {
         <WeeklyScheduleTable
           key={`schedule-table-${refreshCounter}`}
           searchFilteredDepartments={searchFilteredDepartments}
+          shouldTrackChanges={shouldTrackChanges}
+          isSavingInProgress={isSavingInProgress}
           timeSlots={timeSlots}
           viewMode={viewMode}
           selectedDay={selectedDay}
@@ -2742,124 +2578,6 @@ const WeeklySchedule = () => {
           selectedZone={selectedZone}
           zones={zones}
         />
-
-        {/* ✅ Conflict Alert Component */}
-        {(scheduleConflicts.doctorConflicts.length > 0 ||
-          scheduleConflicts.roomConflicts.length > 0) && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">!</span>
-              </div>
-              <h3 className="text-lg font-semibold text-red-800">
-                Cảnh báo xung đột lịch khám
-              </h3>
-              <div className="ml-auto text-sm text-red-600">
-                Tổng:{" "}
-                {scheduleConflicts.doctorConflicts.length +
-                  scheduleConflicts.roomConflicts.length}{" "}
-                xung đột
-              </div>
-            </div>
-
-            {scheduleConflicts.doctorConflicts.length > 0 && (
-              <div className="mb-4">
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {scheduleConflicts.doctorConflicts.map((conflict, index) => (
-                    <div
-                      key={index}
-                      className="bg-white border border-red-200 rounded p-3"
-                    >
-                      <div className="font-medium text-red-800">
-                        👨‍⚕️ {conflict.doctorName} (ID: {conflict.doctorId})
-                      </div>
-                      <div className="text-sm text-red-600 mb-2">
-                        📅 {conflict.dayInWeek} - {conflict.examinationName}
-                      </div>
-                      <div className="text-sm">
-                        <span className="font-medium">
-                          Các lịch trùng ({conflict.conflictingSchedules.length}
-                          ):
-                        </span>
-                        <ul className="ml-4 mt-1 space-y-1">
-                          {conflict.conflictingSchedules.map(
-                            (schedule: any, idx: number) => (
-                              <li
-                                key={idx}
-                                className="text-gray-700 flex items-center gap-2"
-                              >
-                                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-                                🏥 {schedule.roomName} - 🏢{" "}
-                                {schedule.departmentName} (
-                                {schedule.specialtyName})
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {scheduleConflicts.roomConflicts.length > 0 && (
-              <div>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {scheduleConflicts.roomConflicts.map((conflict, index) => (
-                    <div
-                      key={index}
-                      className="bg-white border border-red-200 rounded p-3"
-                    >
-                      <div className="font-medium text-red-800">
-                        🏥 {conflict.roomName} (ID: {conflict.roomId})
-                      </div>
-                      <div className="text-sm text-red-600 mb-2">
-                        📅 {conflict.dayInWeek} - {conflict.examinationName}
-                      </div>
-                      <div className="text-sm">
-                        <span className="font-medium">
-                          Các lịch trùng ({conflict.conflictingSchedules.length}
-                          ):
-                        </span>
-                        <ul className="ml-4 mt-1 space-y-1">
-                          {conflict.conflictingSchedules.map(
-                            (schedule: any, idx: number) => (
-                              <li
-                                key={idx}
-                                className="text-gray-700 flex items-center gap-2"
-                              >
-                                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-                                👨‍⚕️ {schedule.doctorName} - 🏢{" "}
-                                {schedule.departmentName} (
-                                {schedule.specialtyName})
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-              <div className="flex items-center gap-2 text-yellow-800">
-                <span className="text-lg">💡</span>
-                <span className="font-medium">Khuyến nghị:</span>
-              </div>
-              <ul className="ml-6 mt-2 text-sm text-yellow-700 space-y-1">
-                <li>
-                  • Điều chỉnh lịch để tránh bác sĩ và phòng khám bị trùng trong
-                  cùng ca
-                </li>
-                <li>• Kiểm tra lại thông tin khoa phòng và chuyên môn</li>
-                <li>• Phân bổ lại bác sĩ cho các ca khám khác nhau</li>
-              </ul>
-            </div>
-          </div>
-        )}
 
         <input
           ref={fileInputRef}

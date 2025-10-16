@@ -79,7 +79,6 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
   departments,
   timeSlots,
   shiftDefaults,
-  filteredRoomsByZone,
   scheduleData,
   allRooms,
   handlePreviousWeek,

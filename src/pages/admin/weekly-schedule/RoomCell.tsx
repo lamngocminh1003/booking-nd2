@@ -41,9 +41,13 @@ interface RoomSlot {
   notes?: string;
   zoneId?: number;
   zoneName?: string;
+  shouldTrackChanges?: boolean;
+  isSavingInProgress?: boolean;
 }
 
 interface RoomCellProps {
+  shouldTrackChanges?: boolean;
+  isSavingInProgress?: boolean;
   deptId: string;
   slotId: string;
   rooms: any[];
@@ -119,6 +123,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   timeSlots,
   usedRooms,
   allRooms,
+  shouldTrackChanges,
+  isSavingInProgress,
   getDoctorsBySpecialty,
   // ✅ Nhận props mới
   departmentsByZone,
@@ -1628,10 +1634,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               </Button>
             </div>
           )}
-
-          {/* ✅ Cập nhật RoomConfigPopover với callback */}
           <RoomConfigPopover
             key={`${room?.id || index}-${index}`}
+            shouldTrackChanges={shouldTrackChanges}
+            isSavingInProgress={isSavingInProgress}
+            autoHideAfterSave={true}
             room={room}
             getConflictInfo={getConflictInfo} // ✅ Truyền function getConflictInfo
             roomIndex={index}

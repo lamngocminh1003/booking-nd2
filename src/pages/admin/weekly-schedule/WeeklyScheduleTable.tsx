@@ -4,7 +4,8 @@ import { RoomCell } from "./RoomCell";
 
 interface WeeklyScheduleTableProps {
   selectedDepartment: string; // ✅ THÊM DÒNG NÀY
-
+  shouldTrackChanges?: boolean;
+  isSavingInProgress?: boolean;
   searchFilteredDepartments: Array<{ id: string; name: string }>;
   timeSlots: Array<any>;
   viewMode: "week" | "day";
@@ -57,10 +58,10 @@ interface WeeklyScheduleTableProps {
 
 export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   searchFilteredDepartments,
-  selectedDepartment, // ✅ THÊM DÒNG NÀY
-
   timeSlots,
   viewMode,
+  shouldTrackChanges,
+  isSavingInProgress,
   selectedDay,
   selectedWeek,
   scheduleData,
@@ -342,10 +343,9 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           // ✅ Thêm callback để refresh data sau khi copy từ DB
                           onDataUpdated={onDataUpdated}
                           // ✅ Thêm callback để handle room swap
-                          onRoomSwapped={(oldRoomId, newRoomId) => {
-                            // Data sẽ được cập nhật tự động thông qua updateRoomConfig
-                            // usedRooms sẽ được recalculate trong getUsedRoomsInSlot
-                          }}
+                          onRoomSwapped={(oldRoomId, newRoomId) => {}}
+                          shouldTrackChanges={shouldTrackChanges}
+                          isSavingInProgress={isSavingInProgress}
                         />
                       </td>
                     );

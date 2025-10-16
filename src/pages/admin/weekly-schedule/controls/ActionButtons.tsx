@@ -27,7 +27,6 @@ interface ActionButtonsProps {
 }
 
 export const ActionButtons: React.FC<ActionButtonsProps> = ({
-  triggerFileUpload,
   handleDownloadExcel,
   setShowShiftConfigDialog,
   setShowRoomClassificationDialog,

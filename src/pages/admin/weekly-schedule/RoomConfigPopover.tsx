@@ -33,6 +33,7 @@ import { useAppSelector, useAppDispatch } from "@/hooks/redux";
 import { fetchDoctors } from "@/store/slices/doctorSlice";
 
 interface RoomConfigPopoverProps {
+  schedule?: any;
   room: any;
   roomIndex: number;
   deptId: string;
@@ -76,10 +77,14 @@ interface RoomConfigPopoverProps {
   allCellClinicSchedules?: any[];
   cellClinicSchedules?: any[];
   onRoomRemoved?: (roomId: string) => void;
+  shouldTrackChanges?: boolean;
+  isSavingInProgress?: boolean;
+  autoHideAfterSave?: boolean;
 }
 
 export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
   ({
+    schedule,
     room,
     roomIndex,
     deptId,
@@ -98,6 +103,9 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     onRoomSwapped,
     allCellClinicSchedules = [],
     onRoomRemoved,
+    shouldTrackChanges = true,
+    isSavingInProgress = false,
+    autoHideAfterSave = false,
   }) => {
     // ✅ Redux hooks
     const dispatch = useAppDispatch();
@@ -121,6 +129,8 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [showValidationWarning, setShowValidationWarning] = useState(false);
     const [lastSyncedUsedRooms, setLastSyncedUsedRooms] = useState<string>("");
+    const [shouldHideAfterGlobalSave, setShouldHideAfterGlobalSave] =
+      useState(false);
 
     // ✅ Effects
     React.useEffect(() => {
@@ -156,6 +166,24 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
         }
       }
     }, [usedRooms, lastSyncedUsedRooms, isSwapping]);
+
+    // ✅ Monitor để tự động ẩn
+    React.useEffect(() => {
+      if (
+        shouldHideAfterGlobalSave && // Đã save xong
+        !isSavingInProgress && // Global save hoàn tất
+        shouldTrackChanges && // Tracking enabled lại
+        autoHideAfterSave // Được phép auto hide
+      ) {
+        setIsOpen(false); // ẨN POPOVER
+        setShouldHideAfterGlobalSave(false);
+      }
+    }, [
+      shouldHideAfterGlobalSave,
+      isSavingInProgress,
+      shouldTrackChanges,
+      autoHideAfterSave,
+    ]);
 
     React.useEffect(() => {
       setShowRoomSelector(false);

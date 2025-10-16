@@ -30,6 +30,7 @@ import { fetchRooms } from "@/store/slices/roomSlice"; // ✅ Thêm import
 import {
   addClinicSchedules,
   fetchClinicSchedules,
+  deleteClinicScheduleThunk,
 } from "@/store/slices/clinicScheduleSlice";
 interface ClinicScheduleEditButtonProps {
   schedule: any;
@@ -420,7 +421,7 @@ export const ClinicScheduleEditButton: React.FC<
     setShowValidationWarning(false);
   }, [schedule]);
 
-  const handleRemove = useCallback(() => {
+  const handleRemove = useCallback(async () => {
     if (
       window.confirm(
         `Bạn có chắc chắn muốn xóa lịch khám cho phòng "${schedule.roomName}"?`
@@ -428,8 +429,22 @@ export const ClinicScheduleEditButton: React.FC<
     ) {
       if (onScheduleRemoved) {
         onScheduleRemoved(scheduleIndex);
+        await dispatch(deleteClinicScheduleThunk(localSchedule.id)).unwrap();
+        // ✅ Parse current week để lấy parameters
+        const [currentYear, currentWeekStr] = selectedWeek.split("-W");
+        const currentWeekNum = parseInt(currentWeekStr);
+        const currentYearNum = parseInt(currentYear);
+
+        await dispatch(
+          fetchClinicSchedules({
+            Week: currentWeekNum,
+            Year: currentYearNum,
+            ZoneId: parseInt(selectedZone),
+          })
+        );
+
+        setIsEditMode(false);
       }
-      // ✅ Bỏ setIsOpen(false) vì không còn isOpen state
     }
   }, [onScheduleRemoved, scheduleIndex, schedule.roomName]);
 
