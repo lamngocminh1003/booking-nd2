@@ -7,6 +7,7 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
 } from "firebase/auth";
+import { registerDevice } from "@/hooks/getOrCreateDeviceId";
 import { useCapacitor } from "@/hooks/useCapacitor"; // hoặc đường dẫn đúng
 import { useDispatch } from "react-redux";
 import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
@@ -56,6 +57,9 @@ const Login = () => {
         status,
         user: user?.displayName || "",
       });
+      if (accessToken) {
+        await registerDevice();
+      }
 
       if (status === "Pending") {
         navigate("/profile");
@@ -66,7 +70,6 @@ const Login = () => {
           variant: "destructive",
         });
       } else if (status === "Active") {
-
         navigate("/");
         toast({
           title: "Đăng nhập thành công!",
@@ -111,7 +114,9 @@ const Login = () => {
         status,
         user: formData.email || "",
       });
-
+      if (accessToken) {
+        await registerDevice();
+      }
       if (status === "Pending") {
         navigate("/profile");
 

@@ -48,6 +48,7 @@ export const postJSON = async (endpoint: string, data: any) => {
 export const postJSONAuth = async (endpoint: string, data: any) => {
   try {
     const config = await createConfig();
+
     const url = `${backendURL}${endpoint}`;
     const response = await axios.post(url, data, config);
     return response.data;

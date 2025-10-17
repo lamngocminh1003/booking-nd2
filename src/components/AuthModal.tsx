@@ -14,6 +14,8 @@ import {
   createUserWithEmailAndPassword,
   User,
 } from "firebase/auth";
+import { registerDevice } from "@/hooks/getOrCreateDeviceId";
+
 import { Capacitor } from "@capacitor/core";
 import { useDispatch } from "react-redux";
 import { setAuth } from "@/store/slices/authSlice";
@@ -116,6 +118,9 @@ const AuthModal = ({
           status: status,
           user: user?.displayName || "",
         });
+        if (accessToken) {
+          await registerDevice();
+        }
       }
       toast({
         title: "Đăng nhập thành công!",
@@ -136,7 +141,6 @@ const AuthModal = ({
       const result = await signInWithPopup(auth, googleProvider);
       await getIdToken(result.user);
       const { status } = await getAuthStorage();
-      console.log("User status after Google login:", status);
 
       if (status === "pending") {
         navigate("/profile"); // Chuyển đến trang profile

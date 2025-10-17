@@ -19,26 +19,28 @@ import { getOrCreateDeviceId } from "@/hooks/getOrCreateDeviceId";
 import { removeAuthStorage, getAuthStorage } from "@/utils/authStorage";
 const Navigation = () => {
   const dispatch = useDispatch();
-  const [userLocal, setUserLocal] = useState<string | null>(null);
-
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [userLocal, setUserLocal] = useState<string | null>(null);
   useEffect(() => {
     const checkUser = async () => {
       const { user } = await getAuthStorage();
       setUserLocal(user);
     };
     checkUser();
-  }, [userLocal]);
+  }, []);
   const navigate = useNavigate();
   const handleLogout = async () => {
     try {
       await signOut(auth);
       try {
         const deviceId = await getOrCreateDeviceId();
-        await logoutService(deviceId);
+        const { refreshToken } = await getAuthStorage();
+
+        await logoutService(deviceId, refreshToken);
       } finally {
         dispatch(clearAuthUser()); // Cập nhật Redux
         await removeAuthStorage();
+        setUserLocal(null);
       }
       toast({
         title: "Đăng xuất thành công",

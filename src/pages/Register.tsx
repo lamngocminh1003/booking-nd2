@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createUserWithEmailAndPassword, User } from "firebase/auth";
+import { registerDevice } from "@/hooks/getOrCreateDeviceId";
 import { useDispatch } from "react-redux";
 import { setAuth } from "@/store/slices/authSlice";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,9 @@ const Register = () => {
           status: status,
           user: user?.displayName || "",
         });
+        if (accessToken) {
+          await registerDevice();
+        }
       }
 
       toast({

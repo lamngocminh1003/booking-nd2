@@ -39,7 +39,10 @@ const AdminHeader = () => {
       await signOut(auth);
       try {
         const deviceId = await getOrCreateDeviceId();
-        await logoutService(deviceId);
+
+        const { refreshToken } = await getAuthStorage();
+
+        await logoutService(deviceId, refreshToken);
       } finally {
         dispatch(clearAuthUser()); // Cập nhật Redux
         await removeAuthStorage();

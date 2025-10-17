@@ -207,7 +207,6 @@ const Profile = () => {
         alert("Không có dữ liệu trong clipboard.");
         return;
       }
-      console.log("Đã đọc dữ liệu từ clipboard:", value);
 
       const parsedData = await parseCCCDQR(value);
 

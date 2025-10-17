@@ -5,8 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider } from "react-redux";
 import { store } from "./store";
-import { registerDevice } from "@/hooks/getOrCreateDeviceId";
-import { useEffect } from "react";
 import Index from "./pages/Index";
 import Profile from "./pages/Profile";
 import Insurance from "./pages/Insurance";
@@ -72,9 +70,7 @@ function App() {
   const hideNav =
     ["/login", "/register"].includes(location.pathname) ||
     location.pathname.startsWith("/admin");
-  useEffect(() => {
-    registerDevice();
-  }, []);
+
   useAuthInitializer(); // Load token từ local hoặc secure storage
   useTokenRefresher();
   GoogleAuth.initialize(); // chạy 1 lần
