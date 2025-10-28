@@ -188,37 +188,36 @@ bg-green-50 with detailed info card
 
 ## 🔍 Debugging & Troubleshooting
 
-### Console Logs
-
-```javascript
-console.log("📋 Copy clinic schedule từ DB:", schedule);
-console.log("✅ Created room from DB:", newRoomFromDB);
-```
-
 ### Common Issues
 
 #### Copy Button Không Hiện
 
 ```
+
 ✅ Check: clinicScheduleStats có data không?
 ✅ Check: cellClinicSchedules.length > 0?
 ✅ Check: Component render đúng không?
+
 ```
 
 #### Copy Không Thành Công
 
 ```
+
 ✅ Check: addRoomToShift function hoạt động?
 ✅ Check: updateRoomConfig được gọi đúng?
 ✅ Check: roomInfo tìm thấy từ allRooms?
+
 ```
 
 #### Data Không Đúng
 
 ```
+
 ✅ Check: schedule object structure
 ✅ Check: field mapping từ DB
 ✅ Check: fallback values
+
 ```
 
 ## 📊 Technical Implementation

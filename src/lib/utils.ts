@@ -35,6 +35,17 @@ export const fetchData = async (endpoint: string) => {
     return error.response;
   }
 };
+export const getJSONAuth = async (endpoint: string) => {
+  try {
+    const url = `${backendURL}${endpoint}`;
+    const response = await axios.get(url, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return response;
+  } catch (error: any) {
+    return error.response;
+  }
+};
 export const postJSON = async (endpoint: string, data: any) => {
   try {
     const response = await axios.post(`${backendURL}${endpoint}`, data, {

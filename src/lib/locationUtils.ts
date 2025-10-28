@@ -15,12 +15,12 @@ export const getProvinceName = (
   provinces: Province[],
   provinceCode: string
 ): string => {
-  const province = provinces.find((p) => p.provinceCode === provinceCode);
+  const province = provinces?.find((p) => p.provinceCode === provinceCode);
   return province?.provinceName || "";
 };
 
 export const getWardName = (wards: Ward[], wardCode: string): string => {
-  const ward = wards.find((w) => w.wardCode === wardCode);
+  const ward = wards?.find((w) => w.wardCode === wardCode);
   return ward?.wardName || "";
 };
 

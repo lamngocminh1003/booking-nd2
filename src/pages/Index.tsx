@@ -1,27 +1,16 @@
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { getAuthStorage } from "@/utils/authStorage";
 import logo from "../assets/imgs/logo.png"; // Adjust the path as necessary
-
-import {
-  Calendar,
-  Heart,
-  Stethoscope,
-  Activity,
-  TestTube,
-  Brain,
-  Scissors,
-} from "lucide-react";
+import { Calendar, Heart, Stethoscope, Brain, Star } from "lucide-react";
 import { useSelector } from "react-redux";
-import { RootState } from "@/store"; // path đến store của bạn
+import { useAppDispatch } from "@/hooks/redux";
+import { RootState } from "@/store";
+import { fetchZones } from "@/store/slices/bookingCatalogSlice";
+
 const Index = () => {
   const [userLocal, setUserLocal] = useState<string | null>(null);
   useEffect(() => {
@@ -39,7 +28,30 @@ const Index = () => {
     } else if (mode === "register") {
       navigate("/register");
     }
-  };
+  }; // ✅ Add Redux hooks
+  const dispatch = useAppDispatch();
+  const { zones, loadingZones, error } = useSelector(
+    (state: RootState) => state.bookingCatalog
+  );
+  const { loading: authLoading } = useSelector(
+    (state: RootState) => state.auth
+  );
+  // ✅ Fetch zones data on component mount
+  useEffect(() => {
+    dispatch(fetchZones(true)); // Pass true to get only enabled zones
+  }, [dispatch]);
+
+  // ✅ Add error handling
+  if (error && !zones.length) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Lỗi tải dữ liệu: {error}</p>
+          <Button onClick={() => dispatch(fetchZones(true))}>Thử lại</Button>
+        </div>
+      </div>
+    );
+  }
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -53,7 +65,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
+      <section className="pt-32 pb-10 px-4">
         <div className="max-w-7xl mx-auto text-center">
           <div className="animate-fade-in">
             <Badge className="mb-6 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-4 py-2">
@@ -94,145 +106,254 @@ const Index = () => {
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/book-appointment">
-                  <Button
-                    size="lg"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg transition-all duration-300 hover:scale-105 w-full sm:w-auto"
-                  >
-                    <Calendar className="w-5 h-5 mr-2" />
-                    Đặt lịch khám ngay
-                  </Button>
-                </Link>
-                <Link to="/children">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-600 py-3 text-lg transition-all duration-300 w-full sm:w-auto"
-                  >
-                    <Heart className="w-5 h-5 mr-2" />
-                    Khám cho trẻ em
-                  </Button>
-                </Link>
-              </div>
+              <></>
             )}
           </div>
         </div>
       </section>
       <section className="py-20 px-4 bg-white/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Khám bệnh dễ dàng, an tâm chọn lựa
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Với các dịch vụ chất lượng cao từ đội ngũ y bác sĩ chuyên môn
-            </p>
-          </div>
+          <section className=" px-4 bg-white/50 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto">
+              <div className="text-center mb-16">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                  Các Khu Khám
+                </h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                  Chọn khu khám phù hợp với bạn để đặt lịch khám nhanh chóng và
+                  tiện lợi.
+                </p>
+              </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Stethoscope className="w-8 h-8 text-emerald-600" />
+              {/* ✅ Update loading section */}
+              {loadingZones ? (
+                <div className="grid md:grid-cols-2 gap-8 mb-20">
+                  {[1, 2].map((index) => (
+                    <Card key={index} className="animate-pulse">
+                      <div className="p-6 bg-gray-200 h-32"></div>
+                      <CardContent className="p-6">
+                        <div className="space-y-3">
+                          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                          <div className="h-8 bg-gray-200 rounded"></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <CardTitle className="text-emerald-900 text-xl">
-                  🩺 Khám Chuyên Khoa
-                </CardTitle>
-                <CardDescription className="text-base leading-relaxed">
-                  Tư vấn & chẩn đoán từ đội ngũ bác sĩ chuyên môn cao thuộc
-                  nhiều chuyên khoa khác nhau.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+              ) : zones.length > 0 ? (
+                // ✅ Actual zones display
+                <div className="grid md:grid-cols-2 gap-8 mb-20">
+                  {zones.map((zone, index) => (
+                    <Card
+                      key={zone.id}
+                      className="hover:shadow-xl transition-all duration-300 border-0 shadow-lg overflow-hidden"
+                    >
+                      <div
+                        className={`p-6 text-white ${
+                          index === 0
+                            ? "bg-gradient-to-br from-emerald-500 to-teal-600"
+                            : "bg-gradient-to-br from-blue-500 to-indigo-600"
+                        }`}
+                      >
+                        <h3 className="text-2xl font-bold mb-2">{zone.name}</h3>
+                        <p
+                          className={`flex items-start ${
+                            index === 0 ? "text-emerald-50" : "text-blue-50"
+                          }`}
+                        >
+                          <span className="mr-2">📍</span>
+                          {zone.address}
+                        </p>
+                      </div>
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          {zone.examTypes && zone.examTypes.length > 0 ? (
+                            zone.examTypes.map((examType, examIndex) => (
+                              <Link
+                                key={examType.id}
+                                to={`/booking-flow/${zone.id}/${examType.id}`}
+                                className="block"
+                              >
+                                <div
+                                  className={`flex items-start space-x-3 p-4 rounded-lg cursor-pointer hover:scale-105 transition-all duration-200 ${
+                                    examType.name === "Khám Tâm Lý"
+                                      ? "bg-emerald-50 hover:bg-emerald-100"
+                                      : examType.name === "Khám Dịch Vụ"
+                                      ? "bg-blue-50 hover:bg-blue-100"
+                                      : examType.name === "Khám Ưu Tiên"
+                                      ? "bg-purple-50 hover:bg-purple-100"
+                                      : examType.name ===
+                                        "Khu khám sức khỏe trẻ em"
+                                      ? "bg-pink-50 hover:bg-pink-100"
+                                      : examType.name ===
+                                        "Khu khám chất lượng cao"
+                                      ? "bg-purple-50 hover:bg-purple-100"
+                                      : "bg-gray-50 hover:bg-gray-100"
+                                  }`}
+                                >
+                                  {/* Icon dựa trên tên examType */}
+                                  {examType.name === "Khám Tâm Lý" ? (
+                                    <Brain className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-1" />
+                                  ) : examType.name === "Khám Dịch Vụ" ? (
+                                    <Stethoscope className="w-6 h-6 text-blue-600 flex-shrink-0 mt-1" />
+                                  ) : examType.name === "Khám Ưu Tiên" ? (
+                                    <Star className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
+                                  ) : examType.name ===
+                                    "Khu khám sức khỏe trẻ em" ? (
+                                    <Heart className="w-6 h-6 text-pink-600 flex-shrink-0 mt-1" />
+                                  ) : examType.name ===
+                                    "Khu khám chất lượng cao" ? (
+                                    <Star className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
+                                  ) : (
+                                    <Stethoscope className="w-6 h-6 text-blue-600 flex-shrink-0 mt-1" />
+                                  )}
 
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Activity className="w-8 h-8 text-emerald-600" />
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-900">
+                                      {examType.name}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                      {examType.description}
+                                    </p>
+
+                                    {/* ✅ FIXED: Hiển thị giá từ servicePrice (single object) */}
+                                    {examType.servicePrice ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        {/* ✅ Check if service is enabled */}
+                                        {examType.servicePrice.enable ? (
+                                          <Badge
+                                            variant="secondary"
+                                            className={`text-xs ${
+                                              examType.servicePrice.name.includes(
+                                                "[CLC]"
+                                              )
+                                                ? "bg-purple-100 text-purple-800"
+                                                : "bg-emerald-100 text-emerald-800"
+                                            }`}
+                                          >
+                                            {examType.servicePrice.name.includes(
+                                              "[CLC]"
+                                            ) && "CLC: "}
+                                            {examType.servicePrice.price.toLocaleString(
+                                              "vi-VN"
+                                            )}
+                                            đ
+                                          </Badge>
+                                        ) : (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs bg-gray-100 text-gray-500"
+                                          >
+                                            {examType.servicePrice.name} - Đang
+                                            tắt
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      // ✅ No service price available
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs bg-yellow-100 text-yellow-600"
+                                      >
+                                        Chưa có dịch vụ
+                                      </Badge>
+                                    )}
+
+                                    {/* ✅ Enhanced indicator với thông tin servicePrice */}
+                                    <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
+                                      <div className="flex items-center">
+                                        <Calendar className="w-3 h-3 mr-1" />
+                                        {examType.servicePrice?.enable
+                                          ? "Nhấn để đặt lịch khám"
+                                          : "Dịch vụ đang tắt"}
+                                      </div>
+
+                                      {/* ✅ Show appointment form type */}
+                                      {examType.appointmentFormName && (
+                                        <div className="flex items-center text-blue-500">
+                                          <Stethoscope className="w-3 h-3 mr-1" />
+                                          {examType.appointmentFormName}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* ✅ Additional service info */}
+                                    {examType.servicePrice && (
+                                      <div className="mt-1 text-xs text-gray-400">
+                                        Dịch vụ: {examType.servicePrice.name}
+                                        {examType.servicePrice.name.includes(
+                                          "[CLC]"
+                                        ) && (
+                                          <span className="ml-1 text-purple-600 font-medium">
+                                            (Chất lượng cao)
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* ✅ Price display on the right */}
+                                  {examType.servicePrice?.enable && (
+                                    <div className="text-right">
+                                      <div className="text-lg font-bold text-emerald-600">
+                                        {examType.servicePrice.price.toLocaleString(
+                                          "vi-VN"
+                                        )}
+                                        đ
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {examType.servicePrice.name.includes(
+                                          "[CLC]"
+                                        )
+                                          ? "CLC"
+                                          : "Thường"}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </Link>
+                            ))
+                          ) : (
+                            // Fallback nếu không có examTypes - Link đến zone
+                            <Link
+                              to={`/booking-flow?zoneId=${zone.id}`}
+                              className="block"
+                            >
+                              <div className="text-center py-4 hover:bg-gray-50 rounded-lg cursor-pointer transition-all duration-200">
+                                <p className="text-gray-500">
+                                  Nhấn để chọn loại khám
+                                </p>
+                              </div>
+                            </Link>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <CardTitle className="text-emerald-900 text-xl">
-                  🩹 Khám Tổng Quát
-                </CardTitle>
-                <CardDescription className="text-base leading-relaxed">
-                  Tầm soát sức khỏe định kỳ, phát hiện sớm nguy cơ bệnh lý để
-                  kịp thời điều trị.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <TestTube className="w-8 h-8 text-emerald-600" />
+              ) : (
+                // ✅ Empty state
+                <div className="text-center py-12">
+                  <div className="w-24 h-24 mx-auto mb-6 bg-gray-200 rounded-full flex items-center justify-center">
+                    <Stethoscope className="w-12 h-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-600 mb-2">
+                    Chưa có khu khám nào
+                  </h3>
+                  <p className="text-gray-500 mb-6">
+                    Hiện tại hệ thống chưa có khu khám nào được kích hoạt
+                  </p>
+                  <Button
+                    onClick={() => dispatch(fetchZones(true))}
+                    variant="outline"
+                  >
+                    Thử tải lại
+                  </Button>
                 </div>
-                <CardTitle className="text-emerald-900 text-xl">
-                  🧪 Xét Nghiệm Y Học
-                </CardTitle>
-                <CardDescription className="text-base leading-relaxed">
-                  Đa dạng dịch vụ xét nghiệm chính xác, nhanh chóng – hỗ trợ
-                  chẩn đoán hiệu quả.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Brain className="w-8 h-8 text-emerald-600" />
-                </div>
-                <CardTitle className="text-emerald-900 text-xl">
-                  🧠 Sức Khỏe Tinh Thần
-                </CardTitle>
-                <CardDescription className="text-base leading-relaxed">
-                  Hỗ trợ tâm lý – tư vấn & điều trị các vấn đề liên quan đến sức
-                  khỏe tinh thần.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Heart className="w-8 h-8 text-emerald-600" />
-                </div>
-                <CardTitle className="text-emerald-900 text-xl">
-                  🦷 Khám Nha Khoa
-                </CardTitle>
-                <CardDescription className="text-base leading-relaxed">
-                  Dịch vụ chăm sóc răng miệng toàn diện – từ thẩm mỹ đến điều
-                  trị chuyên sâu.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Scissors className="w-8 h-8 text-emerald-600" />
-                </div>
-                <CardTitle className="text-emerald-900 text-xl">
-                  🔪 Gói Phẫu Thuật
-                </CardTitle>
-                <CardDescription className="text-base leading-relaxed">
-                  Tư vấn, lên kế hoạch và thực hiện các ca phẫu thuật theo chuẩn
-                  y khoa hiện đại.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-
-          <div className="text-center mt-12">
-            <Link to="/services">
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 px-8 py-3 text-lg transition-all duration-300"
-              >
-                Xem tất cả dịch vụ
-              </Button>
-            </Link>
-          </div>
+              )}
+            </div>
+          </section>
         </div>
       </section>
     </div>

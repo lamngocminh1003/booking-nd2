@@ -30,7 +30,6 @@ import {
   Info,
   Trash2,
   AlertTriangle,
-  Edit,
   X,
   Check, // ✅ Already imported
   // Save, // ✅ Add this if you want Save icon instead of Check
@@ -85,7 +84,6 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
   const {
     examTypeServicePrices, // ✅ Now contains ServicePriceDetail[]
     examTypeServicePricesLoading,
-    currentExamTypeId,
     list: allServicePrices,
     loading: servicePricesLoading,
   } = useAppSelector((state) => state.servicePrice);
@@ -125,30 +123,56 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
     };
   }, [open, selectedExamType, dispatch]);
 
-  // ✅ Current service prices (directly from Redux)
+  // ✅ Update useMemo để filter enabled services
   const currentExamTypeServicePrices = useMemo(() => {
-    return examTypeServicePrices;
-  }, [examTypeServicePrices]);
+    if (!examTypeServicePrices?.servicePrice) {
+      return [];
+    }
 
-  // ✅ Available service prices for adding
-  const availableServicePrices = useMemo(() => {
-    const assignedServicePriceIds = currentExamTypeServicePrices.map(
-      (sp: any) => sp.id
+    // ✅ Chỉ lấy những servicePrice có enable = true
+    const enabledServices = examTypeServicePrices.servicePrice.filter(
+      (servicePrice) => servicePrice.enable === true
     );
-    return allServicePrices.filter(
-      (sp) => !assignedServicePriceIds.includes(sp.id)
-    );
-  }, [allServicePrices, currentExamTypeServicePrices]);
+
+    return enabledServices;
+  }, [examTypeServicePrices]);
 
   // ✅ Statistics
   const stats = useMemo(() => {
-    const total = currentExamTypeServicePrices.length;
-    const active = currentExamTypeServicePrices.filter(
-      (sp: any) => sp.enable
-    ).length;
+    const totalServices = examTypeServicePrices?.servicePrice?.length || 0;
+    const enabledServices = currentExamTypeServicePrices.length;
+    const disabledServices = totalServices - enabledServices;
 
-    return { total, active };
-  }, [currentExamTypeServicePrices]);
+    return {
+      total: enabledServices,
+      disabled: disabledServices,
+      allServices: totalServices,
+    };
+  }, [currentExamTypeServicePrices, examTypeServicePrices]);
+
+  // ✅ Available service prices for adding
+  const availableServicePrices = useMemo(() => {
+    // Lấy tất cả servicePrice IDs từ examType hiện tại
+    const assignedServicePriceIds =
+      examTypeServicePrices?.servicePrice?.map((sp) => sp.id) || [];
+
+    // Chỉ show những service price chưa được assign
+    return allServicePrices.filter(
+      (sp) => !assignedServicePriceIds.includes(sp.id)
+    );
+  }, [allServicePrices, examTypeServicePrices]);
+
+  // ✅ Add logic để check nếu đã có service price enabled
+  const hasEnabledServicePrice = useMemo(() => {
+    if (!examTypeServicePrices?.servicePrice) {
+      return false;
+    }
+
+    // ✅ Check if có bất kỳ service price nào đang enable = true
+    return examTypeServicePrices.servicePrice.some(
+      (servicePrice) => servicePrice.enable === true
+    );
+  }, [examTypeServicePrices]);
 
   // ✅ Handle delete service price
   const handleDeleteServicePrice = (
@@ -238,31 +262,30 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
 
   // ✅ Handle toggle service price status
   const handleToggleServicePrice = async (servicePrice: any) => {
-    if (!selectedExamType) return;
-
     try {
-      const payload: CreateUpdateExamTypeServicePrice = {
-        examTypeId: selectedExamType.id,
-        servicePriceId: servicePrice.id,
-        regularPrice: servicePrice.price || 0,
-        insurancePrice: 0,
-        vipPrice: 0,
-        enable: !servicePrice.enable,
-      };
+      // ✅ Gọi API để update enable status
+      await dispatch(
+        createOrUpdateExamTypeServicePriceThunk({
+          examTypeId: selectedExamType!.id,
+          servicePriceId: servicePrice.id,
+          regularPrice: servicePrice.price,
+          insurancePrice: 0,
+          vipPrice: 0,
+          enable: !servicePrice.enable, // ✅ Toggle enable status
+        })
+      ).unwrap();
 
-      await dispatch(createOrUpdateExamTypeServicePriceThunk(payload)).unwrap();
+      // ✅ Refresh data sau khi toggle
+      dispatch(fetchExamTypeServicePricesByExamTypeId(selectedExamType!.id));
 
       toast.success(
-        `Đã ${!servicePrice.enable ? "bật" : "tắt"} dịch vụ "${
-          servicePrice.name
-        }"`
+        servicePrice.enable
+          ? `Đã tắt dịch vụ "${servicePrice.name}"`
+          : `Đã bật dịch vụ "${servicePrice.name}"`
       );
-
-      // ✅ Refresh data
-      dispatch(fetchExamTypeServicePricesByExamTypeId(selectedExamType.id));
     } catch (error: any) {
       console.error("❌ Error toggling service price:", error);
-      toast.error(error?.message || "Lỗi khi cập nhật trạng thái dịch vụ!");
+      toast.error(error.message || "Lỗi khi thay đổi trạng thái dịch vụ");
     }
   };
 
@@ -337,7 +360,15 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
                 disabled={
                   isLoading ||
                   !selectedExamType ||
-                  availableServicePrices.length === 0
+                  availableServicePrices.length === 0 ||
+                  hasEnabledServicePrice // ✅ Disable nếu đã có service price enabled
+                }
+                title={
+                  hasEnabledServicePrice
+                    ? "Đã có dịch vụ đang hoạt động. Vui lòng tắt dịch vụ hiện tại trước khi thêm mới."
+                    : availableServicePrices.length === 0
+                    ? "Không có dịch vụ nào để thêm"
+                    : "Thêm dịch vụ mới"
                 }
               >
                 <Plus className="h-4 w-4" />
@@ -370,11 +401,6 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
                         <p className="text-2xl font-bold text-blue-600">
                           {stats.total}
                         </p>
-                        {stats.active !== stats.total && (
-                          <p className="text-xs text-green-600">
-                            {stats.active} đang hoạt động
-                          </p>
-                        )}
                       </div>
                     </div>
                   </Card>
@@ -551,19 +577,40 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
                     <div className="text-center space-y-3">
                       <DollarSign className="h-12 w-12 text-gray-400 mx-auto" />
                       <h3 className="font-medium text-gray-900">
-                        Chưa có dịch vụ nào
+                        Chưa có dịch vụ nào được kích hoạt
                       </h3>
                       <p className="text-sm text-gray-500">
-                        Hãy thêm dịch vụ đầu tiên cho khu khám này.
+                        {examTypeServicePrices?.servicePrice?.length > 0
+                          ? "Có dịch vụ đã được thêm nhưng đang tắt. Hãy kích hoạt để hiển thị."
+                          : "Hãy thêm dịch vụ đầu tiên cho khu khám này."}
                       </p>
-                      {availableServicePrices.length > 0 && (
+
+                      {/* ✅ Show different messages based on state */}
+                      {hasEnabledServicePrice ? (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-700 font-medium">
+                            ⚠️ Đã có dịch vụ đang hoạt động
+                          </p>
+                          <p className="text-xs text-yellow-600 mt-1">
+                            Vui lòng tắt dịch vụ hiện tại trước khi thêm dịch vụ
+                            mới
+                          </p>
+                        </div>
+                      ) : availableServicePrices.length > 0 ? (
                         <Button
                           onClick={() => setShowAddForm(true)}
                           className="gap-2"
+                          disabled={hasEnabledServicePrice}
                         >
                           <Plus className="h-4 w-4" />
-                          Thêm Dịch vụ Đầu Tiên
+                          Thêm Dịch vụ
                         </Button>
+                      ) : (
+                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <p className="text-sm text-gray-600">
+                            Không có dịch vụ nào để thêm
+                          </p>
+                        </div>
                       )}
                     </div>
                   </Card>
@@ -772,15 +819,23 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
               <div className="text-sm text-gray-500">
                 <div className="flex items-center gap-6">
                   <span>
-                    <strong>{stats.total}</strong> dịch vụ
-                    {stats.active !== stats.total && (
-                      <span className="text-green-600 ml-1">
-                        ({stats.active} hoạt động)
-                      </span>
+                    <strong>{stats.total}</strong> dịch vụ hoạt động
+                    {hasEnabledServicePrice && (
+                      <span className="text-green-600 ml-1">✓</span>
                     )}
                   </span>
                   <span>
-                    <strong>{availableServicePrices.length}</strong> có thể thêm
+                    <strong>
+                      {hasEnabledServicePrice
+                        ? 0
+                        : availableServicePrices.length}
+                    </strong>{" "}
+                    có thể thêm
+                    {hasEnabledServicePrice && (
+                      <span className="text-yellow-600 ml-1">
+                        (Tắt dịch vụ hiện tại để thêm mới)
+                      </span>
+                    )}
                   </span>
                 </div>
               </div>

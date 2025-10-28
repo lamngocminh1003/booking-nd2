@@ -48,6 +48,8 @@ import PrivateRoute from "@/components/PrivateRoute";
 import SpecialtyManagement from "./pages/admin/SpecialtyManagement";
 import ServicePriceManagement from "./pages/admin/ServicePriceManagement";
 import ExamTypeManagement from "./pages/admin/exam-type-management/index";
+import BookingFlow from "./pages/BookingFlow";
+
 function AppWrapper() {
   return (
     <Provider store={store}>
@@ -125,6 +127,14 @@ function App() {
           element={
             <PrivateRoute>
               <BookAppointment />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/booking-flow/:zoneId/:examTypeId"
+          element={
+            <PrivateRoute>
+              <BookingFlow />
             </PrivateRoute>
           }
         />

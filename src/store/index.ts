@@ -15,6 +15,8 @@ import servicePriceSlice from "./slices/servicePriceSlice";
 import roomSlice from "./slices/roomSlice";
 import examTypeSlice from "./slices/examTypeSlice"; // ✅ Thêm import
 import clinicScheduleSlice from "./slices/clinicScheduleSlice"; // ✅ Thêm import clinic schedule
+import bookingCatalogSlice from "./slices/bookingCatalogSlice";
+import hospitalDirectorySlice from "./slices/hospitalDirectorySlice";
 export const store = configureStore({
   reducer: {
     user: userSlice,
@@ -30,6 +32,8 @@ export const store = configureStore({
     specialty: specialtySlice,
     servicePrice: servicePriceSlice,
     room: roomSlice,
+    bookingCatalog: bookingCatalogSlice,
+    hospitalDirectory: hospitalDirectorySlice,
     examType: examTypeSlice, // ✅ Thêm vào reducer
     clinicSchedule: clinicScheduleSlice, // ✅ Thêm clinic schedule reducer
     zone: zoneSlice, // Ensure zoneSlice is imported and added here

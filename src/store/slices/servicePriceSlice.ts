@@ -72,16 +72,27 @@ export interface CreateUpdateExamTypeServicePrice {
   enable: boolean;
 }
 
+// ✅ Update interface để match với API response
+export interface ExamTypeServicePriceResponse {
+  id: number;
+  name: string;
+  description: string;
+  enable: boolean;
+  zoneId: number;
+  appointmentFormId: number;
+  servicePrice: ServicePriceDetail[]; // ✅ Array of service prices
+}
+
 interface ServicePriceState {
   list: ServicePrice[];
   loading: boolean;
   error: string | null;
 
-  // ✅ Updated state structure
-  examTypeServicePrices: ServicePriceDetail[];
+  // ✅ Updated state structure để lưu full exam type data
+  examTypeServicePrices: ExamTypeServicePriceResponse | null;
   examTypeServicePricesLoading: boolean;
   examTypeServicePricesError: string | null;
-  currentExamTypeId: number | null; // ✅ Track current exam type
+  currentExamTypeId: number | null;
 }
 
 const initialState: ServicePriceState = {
@@ -89,8 +100,8 @@ const initialState: ServicePriceState = {
   loading: false,
   error: null,
 
-  // ✅ Initialize new state
-  examTypeServicePrices: [],
+  // ✅ Initialize với null thay vì empty array
+  examTypeServicePrices: null,
   examTypeServicePricesLoading: false,
   examTypeServicePricesError: null,
   currentExamTypeId: null,
@@ -172,15 +183,19 @@ export const fetchExamTypeServicePricesByExamTypeId = createAsyncThunk(
     try {
       const response = await getExamTypeServicePricesByExamTypeId(examTypeId);
 
-      // ✅ Extract servicePrices from response
+      // ✅ Extract data from nested response structure
       const data = response?.data?.data || response?.data;
+
+      if (!data) {
+        throw new Error("No data received from API");
+      }
 
       return {
         examTypeId,
-        servicePrices: data?.servicePrices || [],
-        examTypeData: data, // ✅ Keep full exam type data
+        examTypeData: data, // Full exam type data including servicePrice array
       };
     } catch (err: any) {
+      console.error("❌ Error fetching exam type service prices:", err);
       return rejectWithValue(
         err.message || "Lỗi lấy danh sách dịch vụ theo khu khám"
       );
@@ -238,9 +253,45 @@ const servicePriceSlice = createSlice({
   reducers: {
     // ✅ Clear exam type service prices
     clearExamTypeServicePrices: (state) => {
-      state.examTypeServicePrices = [];
+      state.examTypeServicePrices = null;
       state.examTypeServicePricesError = null;
       state.currentExamTypeId = null;
+    },
+
+    // ✅ Add action để toggle service price enable/disable
+    toggleServicePriceEnable: (
+      state,
+      action: PayloadAction<{ servicePriceId: number }>
+    ) => {
+      if (state.examTypeServicePrices?.servicePrice) {
+        const servicePrice = state.examTypeServicePrices.servicePrice.find(
+          (sp) => sp.id === action.payload.servicePriceId
+        );
+        if (servicePrice) {
+          servicePrice.enable = !servicePrice.enable;
+        }
+      }
+    },
+
+    // ✅ Add action để update service price
+    updateServicePriceInExamType: (
+      state,
+      action: PayloadAction<{
+        servicePriceId: number;
+        updates: Partial<ServicePriceDetail>;
+      }>
+    ) => {
+      if (state.examTypeServicePrices?.servicePrice) {
+        const index = state.examTypeServicePrices.servicePrice.findIndex(
+          (sp) => sp.id === action.payload.servicePriceId
+        );
+        if (index !== -1) {
+          state.examTypeServicePrices.servicePrice[index] = {
+            ...state.examTypeServicePrices.servicePrice[index],
+            ...action.payload.updates,
+          };
+        }
+      }
     },
   },
   extraReducers: (builder) => {
@@ -292,29 +343,29 @@ const servicePriceSlice = createSlice({
           state,
           action: PayloadAction<{
             examTypeId: number;
-            servicePrices: ServicePriceDetail[];
-            examTypeData: any;
+            examTypeData: ExamTypeServicePriceResponse;
           }>
         ) => {
           state.examTypeServicePricesLoading = false;
-          state.examTypeServicePrices = action.payload.servicePrices || [];
+          state.examTypeServicePrices = action.payload.examTypeData;
           state.currentExamTypeId = action.payload.examTypeId;
         }
       )
       .addCase(
         fetchExamTypeServicePricesByExamTypeId.rejected,
         (state, action) => {
+          console.error(
+            "❌ Redux: Failed to load exam type service prices:",
+            action.payload
+          );
+
           state.examTypeServicePricesLoading = false;
           state.examTypeServicePricesError = action.payload as string;
+          state.examTypeServicePrices = null;
         }
       )
-      .addCase(
-        createOrUpdateExamTypeServicePriceThunk.fulfilled,
-        (state, action: PayloadAction<ExamTypeServicePrice>) => {
-          // ✅ Refresh data after create/update
-          // Component should call fetchExamTypeServicePricesByExamTypeId again
-        }
-      )
+
+      // ✅ Handle delete success
       .addCase(
         deleteExamTypeServicePriceThunk.fulfilled,
         (
@@ -322,13 +373,21 @@ const servicePriceSlice = createSlice({
           action: PayloadAction<{ examTypeId: number; servicePriceId: number }>
         ) => {
           // ✅ Remove from local state
-          state.examTypeServicePrices = state.examTypeServicePrices.filter(
-            (item) => item.id !== action.payload.servicePriceId
-          );
+          if (state.examTypeServicePrices?.servicePrice) {
+            state.examTypeServicePrices.servicePrice =
+              state.examTypeServicePrices.servicePrice.filter(
+                (item) => item.id !== action.payload.servicePriceId
+              );
+          }
         }
       );
   },
 });
 
-export const { clearExamTypeServicePrices } = servicePriceSlice.actions;
+export const {
+  clearExamTypeServicePrices,
+  toggleServicePriceEnable,
+  updateServicePriceInExamType,
+} = servicePriceSlice.actions;
+
 export default servicePriceSlice.reducer;

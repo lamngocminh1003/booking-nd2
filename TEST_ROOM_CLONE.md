@@ -60,7 +60,6 @@
 // Trong WeeklyScheduleTable hoặc parent component
 const handleCloneRooms = (rooms: any[], targetSlots: string[]) => {
   // Logic clone rooms sang các slot đích
-  console.log("Clone rooms:", rooms, "to slots:", targetSlots);
 
   // Ví dụ implementation:
   targetSlots.forEach((targetSlotId) => {
