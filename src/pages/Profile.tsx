@@ -80,8 +80,6 @@ const Profile = () => {
 
   const {
     patientList,
-    patientInfo, // Keep for backward compatibility
-    loadingPatientList, // ✅ Use correct loading state
     loadingPatient,
     error: patientError,
   } = useAppSelector((state) => state.bookingCatalog);
