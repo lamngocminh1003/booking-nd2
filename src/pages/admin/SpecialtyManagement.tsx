@@ -4,13 +4,13 @@ import {
   fetchSpecialties,
   addSpecialty,
   updateSpecialtyThunk,
+  deleteSpecialtyThunk,
 } from "@/store/slices/specialtySlice";
 import { RootState } from "@/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
 import {
   Table,
   TableBody,
@@ -26,8 +26,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { Trash2, Edit } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -42,6 +54,7 @@ export default function SpecialtyManagement() {
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSpecialty, setEditingSpecialty] = useState<any>(null);
+  const [deletingSpecialty, setDeletingSpecialty] = useState<any>(null);
 
   // Debounce search
   useEffect(() => {
@@ -99,6 +112,23 @@ export default function SpecialtyManagement() {
       dispatch(fetchSpecialties() as any);
     } catch (error) {
       toast.error("Có lỗi xảy ra!");
+    }
+  };
+
+  const handleDelete = async (specialty: any) => {
+    try {
+      await dispatch(deleteSpecialtyThunk(specialty.id) as any);
+      toast.success(`Xóa chuyên khoa "${specialty.name}" thành công!`);
+      dispatch(fetchSpecialties() as any);
+      setDeletingSpecialty(null);
+
+      // Reset page if current page becomes empty
+      const newTotalPages = Math.ceil((filteredList.length - 1) / PAGE_SIZE);
+      if (page > newTotalPages && newTotalPages > 0) {
+        setPage(newTotalPages);
+      }
+    } catch (error) {
+      toast.error("Có lỗi xảy ra khi xóa chuyên khoa!");
     }
   };
 
@@ -193,7 +223,7 @@ export default function SpecialtyManagement() {
                 <TableHead className="w-[250px]">Tên chuyên khoa</TableHead>
                 <TableHead className="w-[300px]">Mô tả</TableHead>
                 <TableHead className="w-[120px]">Trạng thái</TableHead>
-                <TableHead className="w-[100px] sticky right-0 bg-white">
+                <TableHead className="w-[120px] sticky right-0 bg-white">
                   Thao tác
                 </TableHead>
               </TableRow>
@@ -230,17 +260,55 @@ export default function SpecialtyManagement() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="w-[100px] sticky right-0 bg-white">
+                  <TableCell className="w-[120px] sticky right-0 bg-white">
                     <div className="flex gap-2">
                       <Button
                         size="sm"
+                        variant="outline"
                         onClick={() => {
                           setEditingSpecialty(specialty);
                           setIsDialogOpen(true);
                         }}
+                        className="h-8 w-8 p-0"
                       >
-                        Sửa
+                        <Edit className="h-4 w-4" />
                       </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Bạn có chắc chắn muốn xóa chuyên khoa{" "}
+                              <span className="font-semibold">
+                                "{specialty.name}"
+                              </span>
+                              ?<br />
+                              <span className="text-red-600">
+                                Hành động này không thể hoàn tác!
+                              </span>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Hủy</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(specialty)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Xóa
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
                 </TableRow>

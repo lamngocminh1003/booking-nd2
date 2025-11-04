@@ -11,6 +11,8 @@ import {
   Copyright,
   Public,
 } from "@mui/icons-material";
+import mapImage from "../../assets/map.png";
+
 const Footer = () => {
   const { isNative } = useCapacitor();
   if (isNative) return null; // Ẩn footer trong app mobile
@@ -125,19 +127,27 @@ const Footer = () => {
           </p>
         </div>
 
-        {/* Cột 3: Google Map */}
+        {/* Cột 3: Map Image with Google Maps Link */}
         <div className="md:col-span-1 lg:col-span-1">
-          <iframe
-            src="https://maps.googleapis.com/maps/api/js/StaticMapService.GetMapImage?1m2&1i13361112&2i7883049&2e1&3u16&4m2&1u455&2u320&5m6&1e0&5svi&6sus&10b1&12b1&14i47083502&8e1&client=google-maps-embed&token=39673"
-            width="100%"
-            height="300"
-            style={{ border: 0 }}
-            allowFullScreen=""
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            className="rounded shadow-md min-h-[250px]"
-            title="Vị trí Bệnh viện Nhi Đồng 2 - 14 Lý Tự Trọng, Phường Sài Gòn, TP.HCM"
-          ></iframe>
+          <a
+            href="https://www.google.com/maps/place/B%E1%BB%87nh+vi%E1%BB%87n+Nhi+%C4%90%E1%BB%93ng+2/@10.7805227,106.7006618,17z/data=!3m1!4b1!4m6!3m5!1s0x31752f49a8134407:0x8b3ac844e0a002a4!8m2!3d10.7805174!4d106.7032367!16s%2Fg%2F1v8w_p4f?entry=ttu&g_ep=EgoyMDI1MTAyOS4yIKXMDSoASAFQAw%3D%3D"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block relative group"
+          >
+            <img
+              src={mapImage}
+              alt="Vị trí Bệnh viện Nhi Đồng 2 - 14 Lý Tự Trọng, Phường Sài Gòn, TP.HCM"
+              className="w-full h-[300px] object-cover rounded shadow-md min-h-[250px] transition-opacity duration-300 group-hover:opacity-80"
+            />
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 rounded flex items-center justify-center">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white bg-opacity-90 px-4 py-2 rounded-lg">
+                <p className="text-gray-800 font-semibold text-sm">
+                  Xem trên Google Maps
+                </p>
+              </div>
+            </div>
+          </a>
         </div>
       </div>
 

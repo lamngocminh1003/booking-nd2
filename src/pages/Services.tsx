@@ -24,7 +24,6 @@ import {
   Loader2,
   ExternalLink,
 } from "lucide-react";
-import logo from "../assets/imgs/logo.png";
 import blouseImg from "../assets/imgs/blouse.png";
 
 // ✅ Add type definitions for statistics
