@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -14,16 +13,19 @@ import {
   Search,
   Calendar,
   FileText,
-  ArrowRight,
+  Download,
   X,
   Loader2,
   ChevronLeft,
   ChevronRight,
   Clock,
-  User,
-  BookOpen,
-  Stethoscope,
-  Activity,
+  DollarSign,
+  Receipt,
+  Pill,
+  Syringe,
+  Bed,
+  FileCheck,
+  ExternalLink,
 } from "lucide-react";
 import logo from "../assets/imgs/logo.png";
 
@@ -32,6 +34,7 @@ interface Post {
   title: string;
   content: string;
   thumbnail: string;
+  files: string;
   slug: string;
   isActive: boolean;
   displayTime: string;
@@ -51,7 +54,7 @@ interface ApiResponse {
   };
 }
 
-const MedicalProcedures = () => {
+const PriceList = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ const MedicalProcedures = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const POSTS_PER_PAGE = 6;
+  const POSTS_PER_PAGE = 12;
 
   // ✅ Fetch posts from API
   useEffect(() => {
@@ -69,11 +72,11 @@ const MedicalProcedures = () => {
         setError(null);
 
         const response = await fetch(
-          `https://benhviennhi.org.vn/api/post?page=${currentPage}&pageSize=${POSTS_PER_PAGE}&keyword=${searchTerm}&groupCategorySlug=thu-tuc-kham-benh&slug=&isActive=true`
+          `https://benhviennhi.org.vn/api/post?page=${currentPage}&pageSize=${POSTS_PER_PAGE}&keyword=${searchTerm}&groupCategorySlug=bang-gia-kham-chua-benh&slug=&isActive=true`
         );
 
         if (!response.ok) {
-          throw new Error("Không thể tải thông tin thủ tục khám bệnh");
+          throw new Error("Không thể tải thông tin bảng giá");
         }
 
         const data: ApiResponse = await response.json();
@@ -118,65 +121,15 @@ const MedicalProcedures = () => {
     let plainText = text.replace(/<[^>]*>/g, "");
 
     // Decode HTML entities
-    const htmlEntities: { [key: string]: string } = {
-      "&aacute;": "á",
-      "&agrave;": "à",
-      "&acirc;": "â",
-      "&atilde;": "ã",
-      "&eacute;": "é",
-      "&egrave;": "è",
-      "&ecirc;": "ê",
-      "&iacute;": "í",
-      "&igrave;": "ì",
-      "&icirc;": "î",
-      "&oacute;": "ó",
-      "&ograve;": "ò",
-      "&ocirc;": "ô",
-      "&otilde;": "õ",
-      "&uacute;": "ú",
-      "&ugrave;": "ù",
-      "&ucirc;": "û",
-      "&yacute;": "ý",
-      "&ygrave;": "ỳ",
-      "&Aacute;": "Á",
-      "&Agrave;": "À",
-      "&Acirc;": "Â",
-      "&Atilde;": "Ã",
-      "&Eacute;": "É",
-      "&Egrave;": "È",
-      "&Ecirc;": "Ê",
-      "&Iacute;": "Í",
-      "&Igrave;": "Ì",
-      "&Icirc;": "Î",
-      "&Oacute;": "Ó",
-      "&Ograve;": "Ò",
-      "&Ocirc;": "Ô",
-      "&Otilde;": "Õ",
-      "&Uacute;": "Ú",
-      "&Ugrave;": "Ù",
-      "&Ucirc;": "Û",
-      "&Yacute;": "Ý",
-      "&Ygrave;": "Ỳ",
-      "&amp;": "&",
-      "&lt;": "<",
-      "&gt;": ">",
-      "&quot;": '"',
-      "&apos;": "'",
-      "&nbsp;": " ",
-    };
-
-    // Replace HTML entities
-    Object.keys(htmlEntities).forEach((entity) => {
-      const regex = new RegExp(entity, "g");
-      plainText = plainText.replace(regex, htmlEntities[entity]);
-    });
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = plainText;
+    plainText = textarea.value;
 
     // Clean up extra whitespace
     plainText = plainText.replace(/\s+/g, " ").trim();
 
     if (plainText.length <= maxLength) return plainText;
 
-    // Find the last space before maxLength to avoid cutting words
     const truncated = plainText.substring(0, maxLength);
     const lastSpaceIndex = truncated.lastIndexOf(" ");
 
@@ -187,21 +140,32 @@ const MedicalProcedures = () => {
     return truncated + "...";
   };
 
-  const getPostIcon = (title: string) => {
+  const getPriceIcon = (title: string) => {
     const lowerTitle = title.toLowerCase();
-    if (lowerTitle.includes("phẫu thuật") || lowerTitle.includes("mổ")) {
-      return <Activity className="w-5 h-5 text-blue-600" />;
+    if (lowerTitle.includes("thuốc")) {
+      return <Pill className="w-5 h-5 text-blue-600" />;
     }
-    if (lowerTitle.includes("bác sĩ") || lowerTitle.includes("danh sách")) {
-      return <User className="w-5 h-5 text-emerald-600" />;
+    if (lowerTitle.includes("vắc-xin") || lowerTitle.includes("vaccine")) {
+      return <Syringe className="w-5 h-5 text-green-600" />;
     }
-    if (lowerTitle.includes("chuẩn bị") || lowerTitle.includes("quy trình")) {
-      return <BookOpen className="w-5 h-5 text-purple-600" />;
+    if (lowerTitle.includes("giường") || lowerTitle.includes("phòng")) {
+      return <Bed className="w-5 h-5 text-purple-600" />;
     }
-    if (lowerTitle.includes("bệnh lý") || lowerTitle.includes("điều trị")) {
-      return <Stethoscope className="w-5 h-5 text-red-600" />;
+    if (lowerTitle.includes("viện phí") || lowerTitle.includes("dịch vụ")) {
+      return <Receipt className="w-5 h-5 text-emerald-600" />;
     }
-    return <FileText className="w-5 h-5 text-gray-600" />;
+    if (lowerTitle.includes("vật tư")) {
+      return <FileCheck className="w-5 h-5 text-orange-600" />;
+    }
+    return <DollarSign className="w-5 h-5 text-gray-600" />;
+  };
+
+  const getFiles = (filesString: string) => {
+    try {
+      return JSON.parse(filesString) as string[];
+    } catch {
+      return [];
+    }
   };
 
   // ✅ Pagination Controls Component
@@ -227,7 +191,6 @@ const MedicalProcedures = () => {
             if (totalPages <= 5) {
               pageIndex = index + 1;
             } else {
-              // Show pages around current page
               const start = Math.max(1, currentPage - 2);
               const end = Math.min(totalPages, start + 4);
               const adjustedStart = Math.max(1, end - 4);
@@ -250,20 +213,6 @@ const MedicalProcedures = () => {
               </Button>
             );
           })}
-
-          {totalPages > 5 && currentPage < totalPages - 2 && (
-            <>
-              <span className="text-emerald-600 px-1">...</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(totalPages)}
-                className="w-10 h-8 p-0 text-sm border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-              >
-                {totalPages}
-              </Button>
-            </>
-          )}
         </div>
 
         <Button
@@ -282,90 +231,132 @@ const MedicalProcedures = () => {
     );
   };
 
-  // ✅ Post Card Component
-  const PostCard = ({ post }: { post: Post }) => (
-    <Card className="group hover:shadow-lg transition-all duration-300 border-gray-200 h-full flex flex-col">
-      <div className="relative overflow-hidden rounded-t-lg">
-        <img
-          src={
-            post.thumbnail
-              ? `https://benhviennhi.org.vn${post.thumbnail}`
-              : logo
-          }
-          alt={post.title}
-          className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.src = logo;
-          }}
-        />
+  // ✅ Price Card Component
+  const PriceCard = ({ post }: { post: Post }) => {
+    const files = getFiles(post.files);
 
-        <div className="absolute top-3 left-3">
-          <Badge
-            variant="secondary"
-            className="bg-emerald-600/90 text-white shadow-md backdrop-blur-sm hover:text-black"
-          >
-            {getPostIcon(post.title)}
-            <span className="ml-1">Thủ tục</span>
-          </Badge>
-        </div>
-      </div>
-
-      <CardHeader className="flex-1 p-4">
-        <CardTitle className="text-lg text-gray-900 group-hover:text-emerald-600 transition-colors leading-tight mb-2">
-          <div
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              lineHeight: "1.4",
+    return (
+      <Card className="group hover:shadow-lg transition-all duration-300 border-gray-200 h-full flex flex-col">
+        <div className="relative overflow-hidden rounded-t-lg">
+          <img
+            src={
+              post.thumbnail
+                ? `https://benhviennhi.org.vn${post.thumbnail}`
+                : logo
+            }
+            alt={post.title}
+            className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = logo;
             }}
-          >
-            {post.title}
+          />
+          <div className="absolute top-3 left-3">
+            <Badge
+              variant="secondary"
+              className="bg-emerald-600/90 text-white shadow-md backdrop-blur-sm"
+            >
+              {getPriceIcon(post.title)}
+              <span className="ml-1">Bảng giá</span>
+            </Badge>
           </div>
-        </CardTitle>
-        <CardDescription className="text-gray-600 text-sm leading-relaxed">
-          <div
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              lineHeight: "1.5",
-            }}
-          >
-            {truncateText(post.content, 140)}
-          </div>
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="pt-0 p-4">
-        <div className="flex flex-row justify-between items-center text-xs text-gray-500 mb-4">
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            <span>Ngày đăng: {formatDate(post.displayTime)}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            <span>Cập nhật: {formatDate(post.updatedAt)}</span>
-          </div>
+          {files.length > 0 && (
+            <div className="absolute top-3 right-3">
+              <Badge
+                variant="secondary"
+                className="bg-blue-600/90 text-white shadow-md backdrop-blur-sm"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                {files.length} file
+              </Badge>
+            </div>
+          )}
         </div>
 
-        <a
-          href={`https://benhviennhi.org.vn/kham-chua-benh/thu-tuc-kham-benh/${post.slug}?page=1`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:shadow-md transition-all text-sm py-2">
-            Xem chi tiết
-            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </a>
-      </CardContent>
-    </Card>
-  );
+        <CardHeader className="flex-1 p-4">
+          <CardTitle className="text-lg text-gray-900 group-hover:text-emerald-600 transition-colors leading-tight mb-2">
+            <div
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                lineHeight: "1.4",
+              }}
+            >
+              {post.title}
+            </div>
+          </CardTitle>
+          <CardDescription className="text-gray-600 text-sm leading-relaxed">
+            <div
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                lineHeight: "1.5",
+              }}
+            >
+              {truncateText(post.content, 140)}
+            </div>
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="pt-0 p-4">
+          <div className="flex justify-between items-center text-xs text-gray-500 mb-4">
+            <div className="flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              <span>Ngày đăng: {formatDate(post.displayTime)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              <span>Cập nhật: {formatDate(post.updatedAt)}</span>
+            </div>
+          </div>
+
+          {/* Download Files */}
+          {files.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs text-gray-600 mb-2 font-medium">
+                Tài liệu đính kèm:
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {files.slice(0, 2).map((file, index) => (
+                  <a
+                    key={index}
+                    href={`https://benhviennhi.org.vn${file}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-md hover:bg-blue-100 transition-colors flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    PDF {index + 1}
+                  </a>
+                ))}
+                {files.length > 2 && (
+                  <span className="text-xs text-gray-500 px-2 py-1">
+                    +{files.length - 2} file khác
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <a
+            href={`https://benhviennhi.org.vn/kham-chua-benh/bang-gia-kham-chua-benh/${post.slug}?page=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:shadow-md transition-all text-sm py-2">
+              Xem chi tiết
+              <ExternalLink className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </a>
+        </CardContent>
+      </Card>
+    );
+  };
 
   // ✅ Loading state
   if (loading) {
@@ -377,7 +368,7 @@ const MedicalProcedures = () => {
               <div className="text-center">
                 <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-emerald-600" />
                 <p className="text-gray-600 text-lg">
-                  Đang tải thông tin thủ tục khám bệnh...
+                  Đang tải thông tin bảng giá...
                 </p>
               </div>
             </div>
@@ -395,7 +386,7 @@ const MedicalProcedures = () => {
           <div className="max-w-6xl mx-auto">
             <div className="text-center py-20">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <FileText className="w-8 h-8 text-red-500" />
+                <DollarSign className="w-8 h-8 text-red-500" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
                 Không thể tải dữ liệu
@@ -426,11 +417,11 @@ const MedicalProcedures = () => {
               className="w-16 h-16 mx-auto mb-4"
             />
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Thủ Tục Khám Bệnh
+              Bảng Giá Khám Chữa Bệnh
             </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Hướng dẫn chi tiết các thủ tục khám bệnh, quy trình điều trị và
-              thông tin cần thiết cho bệnh nhân
+              Thông tin chi tiết về giá dịch vụ y tế, thuốc, vắc-xin và các chi
+              phí khám chữa bệnh tại Bệnh viện Nhi Đồng 2
             </p>
           </div>
 
@@ -440,7 +431,7 @@ const MedicalProcedures = () => {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Tìm kiếm thủ tục khám bệnh..."
+                  placeholder="Tìm kiếm bảng giá..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -465,10 +456,10 @@ const MedicalProcedures = () => {
               <h2 className="text-2xl font-bold text-gray-900">
                 {searchTerm
                   ? `Kết quả tìm kiếm: "${searchTerm}"`
-                  : "Tất cả thủ tục"}
+                  : "Tất cả bảng giá"}
               </h2>
               <Badge variant="outline" className="text-lg px-3 py-1">
-                {posts.length} bài viết
+                {posts.length} bảng giá
               </Badge>
             </div>
             {currentPage > 1 && (
@@ -480,14 +471,14 @@ const MedicalProcedures = () => {
         </div>
       </div>
 
-      {/* Posts Grid */}
+      {/* Price Cards Grid */}
       <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {posts.length > 0 ? (
             <>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {posts.map((post) => (
-                  <PostCard key={post.id} post={post} />
+                  <PriceCard key={post.id} post={post} />
                 ))}
               </div>
 
@@ -497,7 +488,7 @@ const MedicalProcedures = () => {
           ) : (
             <div className="text-center py-12 bg-white/50 rounded-lg">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-gray-400" />
+                <DollarSign className="w-8 h-8 text-gray-400" />
               </div>
               <h4 className="text-lg font-semibold text-gray-600 mb-2">
                 Không tìm thấy kết quả
@@ -505,14 +496,74 @@ const MedicalProcedures = () => {
               <p className="text-gray-500">
                 {searchTerm
                   ? "Thử thay đổi từ khóa tìm kiếm"
-                  : "Hiện tại chưa có thủ tục khám bệnh nào"}
+                  : "Hiện tại chưa có bảng giá nào"}
               </p>
             </div>
           )}
+
+          {/* Quick Categories */}
+          <div className="mt-16">
+            <h3 className="text-2xl font-bold text-center text-gray-900 mb-8">
+              Danh mục bảng giá
+            </h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card
+                className="text-center p-6 bg-blue-50 border-blue-200 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSearchTerm("thuốc")}
+              >
+                <Pill className="w-12 h-12 mx-auto mb-4 text-blue-600" />
+                <h4 className="text-lg font-semibold text-blue-800 mb-2">
+                  Giá thuốc
+                </h4>
+                <p className="text-blue-600 text-sm">
+                  Bảng giá thuốc trong và ngoài trú
+                </p>
+              </Card>
+
+              <Card
+                className="text-center p-6 bg-green-50 border-green-200 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSearchTerm("vắc-xin")}
+              >
+                <Syringe className="w-12 h-12 mx-auto mb-4 text-green-600" />
+                <h4 className="text-lg font-semibold text-green-800 mb-2">
+                  Giá vắc-xin
+                </h4>
+                <p className="text-green-600 text-sm">
+                  Bảng giá các loại vắc-xin
+                </p>
+              </Card>
+
+              <Card
+                className="text-center p-6 bg-purple-50 border-purple-200 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSearchTerm("giường")}
+              >
+                <Bed className="w-12 h-12 mx-auto mb-4 text-purple-600" />
+                <h4 className="text-lg font-semibold text-purple-800 mb-2">
+                  Giá giường bệnh
+                </h4>
+                <p className="text-purple-600 text-sm">
+                  Chi phí giường và phòng bệnh
+                </p>
+              </Card>
+
+              <Card
+                className="text-center p-6 bg-emerald-50 border-emerald-200 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSearchTerm("viện phí")}
+              >
+                <Receipt className="w-12 h-12 mx-auto mb-4 text-emerald-600" />
+                <h4 className="text-lg font-semibold text-emerald-800 mb-2">
+                  Viện phí
+                </h4>
+                <p className="text-emerald-600 text-sm">
+                  Giá dịch vụ khám chữa bệnh
+                </p>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default MedicalProcedures;
+export default PriceList;

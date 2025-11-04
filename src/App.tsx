@@ -42,6 +42,7 @@ import ServiceDetail from "./pages/ServiceDetail";
 import Doctors from "./pages/Doctors";
 import DoctorDetail from "./pages/DoctorDetail";
 import MedicalProcedures from "./pages/MedicalProcedures";
+import PriceList from "./pages/PriceList";
 import Contact from "./pages/Contact";
 import ZoneManagement from "./pages/admin/ZoneManagement";
 import PrivateRoute from "@/components/PrivateRoute";
@@ -169,7 +170,8 @@ function App() {
         <Route path="/services" element={<Services />} />
         <Route path="/services/:id" element={<ServiceDetail />} />
         <Route path="/doctors" element={<Doctors />} />
-        <Route path="/medical-procedure" element={<MedicalProcedures />} />
+        <Route path="/medical-procedure" element={<MedicalProcedures />} />{" "}
+        <Route path="/price-list" element={<PriceList />} />
         <Route path="/contact" element={<Contact />} />
         {/* Admin Routes */}
         <Route path="*" element={<NotFound />} />
