@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAppSelector } from "@/hooks/redux";
 import {
   Card,
   CardContent,
@@ -43,44 +44,44 @@ interface Appointment {
 }
 
 const Appointments = () => {
-  const [appointments] = useState<Appointment[]>([
-    {
-      id: "1",
-      childName: "Nguyễn Hoàng An",
-      doctorName: "BS. Trần Văn Nam",
-      specialty: "Nhi khoa tổng quát",
-      date: "2024-06-15",
-      time: "09:00",
-      status: "confirmed",
-      location: "Phòng 201, Tầng 2",
-      notes: "Khám định kỳ",
-    },
-    {
-      id: "2",
-      childName: "Nguyễn Hoàng Minh",
-      doctorName: "BS. Lê Thị Hoa",
-      specialty: "Tim mạch nhi",
-      date: "2024-06-20",
-      time: "14:30",
-      status: "pending",
-      location: "Phòng 305, Tầng 3",
-      notes: "Kiểm tra tim mạch",
-    },
-    {
-      id: "3",
-      childName: "Nguyễn Hoàng An",
-      doctorName: "BS. Nguyễn Minh Tâm",
-      specialty: "Hô hấp nhi",
-      date: "2024-05-25",
-      time: "10:00",
-      status: "completed",
-      location: "Phòng 102, Tầng 1",
-      notes: "Khám ho, sốt",
-    },
-  ]);
+  const { appointments: reduxAppointments } = useAppSelector(
+    (state) => state.appointments
+  );
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const { toast } = useToast();
-
+  useEffect(() => {
+    if (reduxAppointments.length > 0) {
+      setAppointments(
+        reduxAppointments.map((apt) => ({
+          id: apt.id,
+          childName: apt.childName,
+          doctorName: apt.doctorName,
+          specialty: apt.specialty,
+          date: apt.date,
+          time: apt.time,
+          status: apt.status,
+          location: apt.location || "Phòng khám",
+          notes: apt.notes,
+        }))
+      );
+    } else {
+      // Fallback to mock data if no appointments in store
+      setAppointments([
+        {
+          id: "1",
+          childName: "Nguyễn Hoàng An",
+          doctorName: "BS. Trần Văn Nam",
+          specialty: "Nhi khoa tổng quát",
+          date: "2024-06-15",
+          time: "09:00",
+          status: "confirmed",
+          location: "Phòng 201, Tầng 2",
+          notes: "Khám định kỳ",
+        },
+      ]);
+    }
+  }, [reduxAppointments]);
   const getStatusColor = (status: string) => {
     switch (status) {
       case "confirmed":

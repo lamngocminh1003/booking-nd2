@@ -469,7 +469,7 @@ const ChildProfileModal = ({
             <div className="flex items-start gap-2">
               <span className="text-green-600 font-medium">✓</span>
               <div>
-                <strong>Thông tin mẹ:</strong> {userInfo.fullName} -{" "}
+                <strong>Thông tin mẹ:</strong> {userInfo.fullName} -
                 {userInfo.phoneNumber} - CCCD: {userInfo.cccd}
               </div>
             </div>
@@ -478,7 +478,7 @@ const ChildProfileModal = ({
             <div className="flex items-start gap-2">
               <span className="text-blue-600 font-medium">✓</span>
               <div>
-                <strong>Thông tin bố:</strong> {userInfo.fullName} -{" "}
+                <strong>Thông tin bố:</strong> {userInfo.fullName} -
                 {userInfo.phoneNumber} - CCCD: {userInfo.cccd}
               </div>
             </div>
@@ -487,7 +487,7 @@ const ChildProfileModal = ({
           <div className="flex items-start gap-2">
             <span className="text-green-600 font-medium">✓</span>
             <div>
-              <strong>Địa chỉ:</strong> {userInfo.address} (Mã tỉnh:{" "}
+              <strong>Địa chỉ:</strong> {userInfo.address} (Mã tỉnh:
               {userInfo.provinceCode}, Mã phường: {userInfo.wardCode})
             </div>
           </div>
@@ -588,13 +588,13 @@ const ChildProfileModal = ({
                     Hồ sơ người lớn
                   </h3>
                   <p className="text-sm text-red-700">
-                    Bệnh nhân <strong>{initialData?.fullName}</strong> đã{" "}
+                    Bệnh nhân <strong>{initialData?.fullName}</strong> đã
                     <strong>
                       {
                         calculateAgeFromDate(
                           initialData?.dateOfBirth?.split("T")[0] || ""
                         ).age
-                      }{" "}
+                      }
                       tuổi
                     </strong>
                     .
@@ -805,19 +805,17 @@ const ChildProfileModal = ({
                                   isAgeValid ? "text-blue-600" : "text-red-600"
                                 }
                               >
-                                🎂 Tuổi hiện tại: <strong>{currentAge}</strong>{" "}
+                                🎂 Tuổi hiện tại: <strong>{currentAge}</strong>
                                 tuổi
                                 {isAgeValid ? (
                                   <>
                                     {currentAge < 6 && (
                                       <span className="text-green-600">
-                                        {" "}
                                         → Tự động chọn "Trẻ dưới 6 tuổi"
                                       </span>
                                     )}
                                     {currentAge >= 6 && currentAge < 18 && (
                                       <span className="text-purple-600">
-                                        {" "}
                                         → Tự động chọn "Học sinh"
                                       </span>
                                     )}
@@ -1054,7 +1052,7 @@ const ChildProfileModal = ({
                               {/* ✅ Show auto-selection explanation only if valid */}
                               {isAutoSelected && isAgeValid && (
                                 <FormDescription className="text-green-600 text-xs">
-                                  ✅ Đã tự động chọn dựa trên tuổi ({currentAge}{" "}
+                                  ✅ Đã tự động chọn dựa trên tuổi ({currentAge}
                                   tuổi). Bạn có thể thay đổi nếu cần.
                                 </FormDescription>
                               )}
@@ -1872,7 +1870,7 @@ const ChildProfileModal = ({
                                 ✓
                               </span>
                               <div>
-                                <strong>Thông tin mẹ:</strong>{" "}
+                                <strong>Thông tin mẹ:</strong>
                                 {userInfo.fullName} - {userInfo.phoneNumber} -
                                 CCCD: {userInfo.cccd}
                               </div>
@@ -1884,7 +1882,7 @@ const ChildProfileModal = ({
                                 ✓
                               </span>
                               <div>
-                                <strong>Thông tin bố:</strong>{" "}
+                                <strong>Thông tin bố:</strong>
                                 {userInfo.fullName} - {userInfo.phoneNumber} -
                                 CCCD: {userInfo.cccd}
                               </div>
@@ -1896,7 +1894,7 @@ const ChildProfileModal = ({
                             </span>
                             <div>
                               <strong>Địa chỉ:</strong> {userInfo.address} (Mã
-                              tỉnh: {userInfo.provinceCode}, Mã phường:{" "}
+                              tỉnh: {userInfo.provinceCode}, Mã phường:
                               {userInfo.wardCode})
                             </div>
                           </div>

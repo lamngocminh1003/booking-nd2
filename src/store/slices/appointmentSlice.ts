@@ -1,16 +1,22 @@
-
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface Appointment {
   id: string;
   childId: string;
+  childName: string;
   doctorId: string;
   doctorName: string;
   specialty: string;
   date: string;
   time: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  status: "pending" | "confirmed" | "cancelled" | "completed";
   notes?: string;
+  location?: string;
+  childWeight?: string;
+  childHeight?: string;
+  childStatus?: string;
+  childSymptom?: string;
+  childRequiredInformation?: string;
 }
 
 interface AppointmentState {
@@ -26,7 +32,7 @@ const initialState: AppointmentState = {
 };
 
 const appointmentSlice = createSlice({
-  name: 'appointments',
+  name: "appointments",
   initialState,
   reducers: {
     setLoading: (state, action: PayloadAction<boolean>) => {
@@ -38,17 +44,33 @@ const appointmentSlice = createSlice({
     addAppointment: (state, action: PayloadAction<Appointment>) => {
       state.appointments.push(action.payload);
     },
-    updateAppointment: (state, action: PayloadAction<Partial<Appointment> & { id: string }>) => {
-      const index = state.appointments.findIndex(apt => apt.id === action.payload.id);
+    updateAppointment: (
+      state,
+      action: PayloadAction<Partial<Appointment> & { id: string }>
+    ) => {
+      const index = state.appointments.findIndex(
+        (apt) => apt.id === action.payload.id
+      );
       if (index !== -1) {
-        state.appointments[index] = { ...state.appointments[index], ...action.payload };
+        state.appointments[index] = {
+          ...state.appointments[index],
+          ...action.payload,
+        };
       }
     },
     removeAppointment: (state, action: PayloadAction<string>) => {
-      state.appointments = state.appointments.filter(apt => apt.id !== action.payload);
+      state.appointments = state.appointments.filter(
+        (apt) => apt.id !== action.payload
+      );
     },
   },
 });
 
-export const { setLoading, setError, addAppointment, updateAppointment, removeAppointment } = appointmentSlice.actions;
+export const {
+  setLoading,
+  setError,
+  addAppointment,
+  updateAppointment,
+  removeAppointment,
+} = appointmentSlice.actions;
 export default appointmentSlice.reducer;

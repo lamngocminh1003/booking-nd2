@@ -304,7 +304,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
                                       : "text-gray-900"
                                   }`}
                                 >
-                                  {day.dayName} ({day.date}){" "}
+                                  {day.dayName} ({day.date})
                                   {isToday && "(Hôm nay)"}
                                 </span>
                                 {day.shifts?.some((s: any) => s.isCustom) && (
@@ -332,7 +332,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
                                         : undefined
                                     }
                                   >
-                                    {shift.period?.toUpperCase() || "CA"}:{" "}
+                                    {shift.period?.toUpperCase() || "CA"}:
                                     {shift.time}
                                     {shift.isCustom && " *"}
                                   </span>
@@ -402,7 +402,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
           <CardContent className="p-3">
             <div className="text-sm">
               <div className="font-medium text-blue-600 mb-2">
-                📍{" "}
+                📍
                 {zoneOptions?.find((z) => z.id === selectedZone)?.name || "N/A"}
               </div>
               <div className="grid grid-cols-3 gap-4 text-xs">

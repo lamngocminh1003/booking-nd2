@@ -752,12 +752,12 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
                   </span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Tổng cộng:{" "}
+                  Tổng cộng:
                   <span className="font-medium">
                     {(cloneSource === "database"
                       ? dbScheduleCount
                       : currentWeekRoomCount) * selectedWeeks.length}
-                  </span>{" "}
+                  </span>
                   lượt sẽ được tạo
                 </div>
               </div>

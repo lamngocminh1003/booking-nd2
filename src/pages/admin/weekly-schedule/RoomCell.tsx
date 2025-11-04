@@ -1486,8 +1486,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                   <div className="w-4 h-4 mx-auto mb-1 opacity-50">🏠</div>
                   <p>Không có phòng nào trong khu vực này</p>
                   <p className="text-xs mt-1">
-                    Có {allRooms?.length || 0} phòng,{" "}
-                    {availableSpecialties?.length || 0} chuyên khoa,{" "}
+                    Có {allRooms?.length || 0} phòng,
+                    {availableSpecialties?.length || 0} chuyên khoa,
                     {availableDoctors?.length || 0} bác sĩ
                   </p>
                 </>
@@ -1835,8 +1835,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                     <Clock className="w-2.5 h-2.5" />
                                     <span className="font-medium">
                                       {schedule.timeStart?.slice(0, 5) ||
-                                        currentSlotInfo?.startTime}{" "}
-                                      -{" "}
+                                        currentSlotInfo?.startTime}
+                                      -
                                       {schedule.timeEnd?.slice(0, 5) ||
                                         currentSlotInfo?.endTime}
                                     </span>
@@ -2000,8 +2000,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                   <Clock className="w-2.5 h-2.5" />
                                   <span className="font-medium">
                                     {schedule.timeStart?.slice(0, 5) ||
-                                      currentSlotInfo?.startTime}{" "}
-                                    -{" "}
+                                      currentSlotInfo?.startTime}
+                                    -
                                     {schedule.timeEnd?.slice(0, 5) ||
                                       currentSlotInfo?.endTime}
                                   </span>

@@ -356,7 +356,6 @@ const Reports = () => {
         {/* Patients Tab */}
         <TabsContent value="patients" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {" "}
             <Card>
               <CardHeader>
                 <CardTitle>Xu hướng bệnh nhân mới</CardTitle>

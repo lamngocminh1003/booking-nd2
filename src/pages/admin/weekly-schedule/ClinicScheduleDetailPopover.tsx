@@ -441,7 +441,7 @@ export const ClinicScheduleDetailPopover: React.FC<
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-medium">
-                              {slot.startSlot?.slice(0, 5)} -{" "}
+                              {slot.startSlot?.slice(0, 5)} -
                               {slot.endSlot?.slice(0, 5)}
                             </span>
                             <Badge

@@ -56,7 +56,7 @@ export const ExamTypeTable: React.FC<ExamTypeTableProps> = ({
               <TableHead>Khu Vực</TableHead>
               <TableHead>Mô tả</TableHead>
               <TableHead>Trạng thái</TableHead>
-              <TableHead>Khoa/Phòng</TableHead>{" "}
+              <TableHead>Khoa/Phòng</TableHead>
               <TableHead>Gía dịch vụ</TableHead>
               <TableHead>Thao tác</TableHead>
             </TableRow>
@@ -109,7 +109,7 @@ export const ExamTypeTable: React.FC<ExamTypeTableProps> = ({
                         <Building2 className="h-3 w-3" />
                       )}
                     </Button>
-                  </TableCell>{" "}
+                  </TableCell>
                   <TableCell>
                     <Button
                       variant="outline"
@@ -155,8 +155,8 @@ export const ExamTypeTable: React.FC<ExamTypeTableProps> = ({
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Hiển thị {(currentPage - 1) * PAGE_SIZE + 1} đến{" "}
-            {Math.min(currentPage * PAGE_SIZE, filteredCount)} trong tổng số{" "}
+            Hiển thị {(currentPage - 1) * PAGE_SIZE + 1} đến
+            {Math.min(currentPage * PAGE_SIZE, filteredCount)} trong tổng số
             {filteredCount} bản ghi
           </p>
           <div className="flex items-center gap-2">

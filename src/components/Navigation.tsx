@@ -93,7 +93,7 @@ const Navigation = () => {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center space-x-1 text-gray-600 hover:text-emerald-600 transition-colors">
-                  <span>Dịch vụ</span>
+                  <span>Khám chữ bệnh</span>
                   <ChevronDown className="w-4 h-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-white">
@@ -108,13 +108,13 @@ const Navigation = () => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/services/general" className="w-full">
-                      Khám Tổng Quát
+                    <Link to="/doctors" className="w-full">
+                      Đội Ngũ Chuyên Gia
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/services/laboratory" className="w-full">
-                      Xét Nghiệm Y Học
+                    <Link to="/medical-procedure" className="w-full">
+                      Thủ tục khám bệnh
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -134,52 +134,6 @@ const Navigation = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-
-              {/* Doctors Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center space-x-1 text-gray-600 hover:text-emerald-600 transition-colors">
-                  <span>Bác sĩ</span>
-                  <ChevronDown className="w-4 h-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-white">
-                  <DropdownMenuItem asChild>
-                    <Link to="/doctors" className="w-full">
-                      Tất cả bác sĩ
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/doctors?specialty=pediatrics" className="w-full">
-                      Nhi khoa
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/doctors?specialty=cardiology" className="w-full">
-                      Tim mạch
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/doctors?specialty=neurology" className="w-full">
-                      Thần kinh
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/doctors?specialty=dermatology"
-                      className="w-full"
-                    >
-                      Da liễu
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/doctors?specialty=orthopedics"
-                      className="w-full"
-                    >
-                      Chấn thương chỉnh hình
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
               <Link
                 to="/contact"
                 className="text-gray-600 hover:text-emerald-600 transition-colors"
@@ -192,7 +146,6 @@ const Navigation = () => {
             <div className="hidden md:flex items-center space-x-4">
               {!userLocal ? (
                 <>
-                  {" "}
                   <Button
                     variant="ghost"
                     className="text-emerald-600 hover:bg-emerald-500"
@@ -205,7 +158,7 @@ const Navigation = () => {
                     onClick={() => handleAuthClick("register")}
                   >
                     Đăng ký
-                  </Button>{" "}
+                  </Button>
                 </>
               ) : (
                 <>
@@ -215,7 +168,6 @@ const Navigation = () => {
                       <ChevronDown className="w-4 h-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-56 bg-white">
-                      {" "}
                       <DropdownMenuItem asChild>
                         <Link to="/notifications" className="w-full">
                           Thông báo
@@ -224,16 +176,6 @@ const Navigation = () => {
                       <DropdownMenuItem asChild>
                         <Link to="/appointments" className="w-full">
                           Lịch hẹn khám
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link to="/children" className="w-full">
-                          Hồ sơ bệnh nhi
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link to="/insurance" className="w-full">
-                          Bảo hiểm y tế
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>

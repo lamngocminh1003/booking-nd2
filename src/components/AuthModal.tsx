@@ -415,11 +415,11 @@ const AuthModal = ({
                 </Button>
 
                 <div className="text-center text-sm text-gray-600">
-                  Bằng việc đăng ký, bạn đồng ý với{" "}
+                  Bằng việc đăng ký, bạn đồng ý với
                   <a href="#" className="text-emerald-600 hover:underline">
                     Điều khoản sử dụng
-                  </a>{" "}
-                  và{" "}
+                  </a>
+                  và
                   <a href="#" className="text-emerald-600 hover:underline">
                     Chính sách bảo mật
                   </a>

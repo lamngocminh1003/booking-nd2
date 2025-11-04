@@ -1007,9 +1007,9 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                           <div className="flex items-center gap-2 text-blue-700">
                             <Clock className="w-4 h-4" />
                             <span>
-                              Giờ ca khám:{" "}
+                              Giờ ca khám:
                               <strong>
-                                {slotInfo.defaultStartTime} -{" "}
+                                {slotInfo.defaultStartTime} -
                                 {slotInfo.defaultEndTime}
                               </strong>
                             </span>
@@ -1022,10 +1022,9 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                             <div className="flex items-center gap-2 text-orange-700 bg-orange-50 p-2 rounded-lg">
                               <Settings className="w-4 h-4" />
                               <span>
-                                Giờ riêng:{" "}
+                                Giờ riêng:
                                 <strong>
-                                  {currentTime.startTime} -{" "}
-                                  {currentTime.endTime}
+                                  {currentTime.startTime} -{currentTime.endTime}
                                 </strong>
                               </span>
                               <Badge
@@ -1342,7 +1341,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                       <div className="flex items-center gap-2 text-sm text-amber-800">
                                         <AlertTriangle className="w-4 h-4" />
                                         <span className="font-medium">
-                                          Có{" "}
+                                          Có
                                           {conflictedRooms.length +
                                             duplicatedRooms.length}
                                           /{totalRooms} phòng không thể chọn
@@ -1523,7 +1522,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                             <div className="text-xs text-red-700 bg-red-100 p-2 rounded">
                                               <strong>
                                                 Lý do không thể chọn:
-                                              </strong>{" "}
+                                              </strong>
                                               {r.disabledReason}
                                             </div>
                                           </div>
@@ -2158,7 +2157,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                         <div className="flex items-center gap-2">
                           {room.selectedExamType ? (
                             <Badge variant="outline" className="text-xs">
-                              {availableSpecialtiesForSelectedExamType.length}{" "}
+                              {availableSpecialtiesForSelectedExamType.length}
                               khoa
                             </Badge>
                           ) : (
@@ -2265,7 +2264,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                                   Không có chuyên khoa
                                 </div>
                                 <div className="text-xs text-gray-600 mt-1">
-                                  Loại khám{" "}
+                                  Loại khám
                                   <strong>{room.selectedExamType}</strong> hiện
                                   không có chuyên khoa nào
                                 </div>
@@ -2599,7 +2598,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
                         }`}
                       ></div>
                       <span className="font-medium">
-                        📅 {currentTime.maxAppointments} lượt trong{" "}
+                        📅 {currentTime.maxAppointments} lượt trong
                         {room.appointmentDuration || 60} phút
                       </span>
                     </div>
@@ -2619,11 +2618,11 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
 
                     <div className="flex flex-wrap gap-4 text-xs opacity-80">
                       <span>
-                        Trung bình{" "}
+                        Trung bình
                         {Math.round(
                           (room.appointmentDuration || 60) /
                             currentTime.maxAppointments
-                        )}{" "}
+                        )}
                         phút/lượt khám
                       </span>
                     </div>
@@ -2631,7 +2630,7 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
 
                   {slotInfo && (
                     <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border">
-                      💡 Mặc định cho ca này:{" "}
+                      💡 Mặc định cho ca này:
                       <strong>{slotInfo.defaultMaxAppointments}/60p</strong>
                       {" • "}
                       <span>Giữ chỗ: {getHoldSlots(room)} slot</span>

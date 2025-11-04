@@ -178,7 +178,7 @@ export const WeeklyScheduleLegend: React.FC<WeeklyScheduleLegendProps> = ({
                         : exam.workSession === "evening"
                         ? "Tối"
                         : "Ca khám"}
-                      : {exam.startTime?.slice(0, 5)} -{" "}
+                      : {exam.startTime?.slice(0, 5)} -
                       {exam.endTime?.slice(0, 5)}
                     </span>
                   </div>

@@ -763,7 +763,7 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
                                     <span className="text-xl font-bold text-blue-800">
                                       {servicePrice.price?.toLocaleString(
                                         "vi-VN"
-                                      )}{" "}
+                                      )}
                                       VNĐ
                                     </span>
                                   </div>
@@ -829,7 +829,7 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
                       {hasEnabledServicePrice
                         ? 0
                         : availableServicePrices.length}
-                    </strong>{" "}
+                    </strong>
                     có thể thêm
                     {hasEnabledServicePrice && (
                       <span className="text-yellow-600 ml-1">
@@ -859,10 +859,10 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
               Xác nhận xóa dịch vụ
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa dịch vụ{" "}
+              Bạn có chắc chắn muốn xóa dịch vụ
               <span className="font-semibold text-red-600">
                 "{deleteConfirm.servicePrice?.servicePriceName}"
-              </span>{" "}
+              </span>
               khỏi khu khám này?
               <br />
               <br />

@@ -659,8 +659,8 @@ export const ClinicScheduleCloneDialog: React.FC<
                                 <div className="text-gray-500 text-xs ml-2 shrink-0">
                                   {slot.timeStart?.slice(0, 5) ||
                                     slot.startTime?.slice(0, 5) ||
-                                    "00:00"}{" "}
-                                  -{" "}
+                                    "00:00"}
+                                  -
                                   {slot.timeEnd?.slice(0, 5) ||
                                     slot.endTime?.slice(0, 5) ||
                                     "00:00"}
@@ -690,7 +690,7 @@ export const ClinicScheduleCloneDialog: React.FC<
           <div className="border-t p-4 bg-gray-50">
             <div className="flex items-center justify-between">
               <div className="text-xs text-gray-600">
-                Sẽ copy {selectedClinicSchedules.size} phòng sang{" "}
+                Sẽ copy {selectedClinicSchedules.size} phòng sang
                 {targetSlots.size} ca
               </div>
               <div className="flex gap-2">

@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Home, ArrowLeft, Heart } from "lucide-react";
@@ -25,23 +24,23 @@ const NotFound = () => {
               Trang không tìm thấy
             </h2>
             <p className="text-gray-600 leading-relaxed">
-              Rất tiếc, trang bạn đang tìm kiếm không tồn tại hoặc đã bị di chuyển. 
-              Vui lòng kiểm tra lại đường dẫn hoặc quay về trang chủ.
+              Rất tiếc, trang bạn đang tìm kiếm không tồn tại hoặc đã bị di
+              chuyển. Vui lòng kiểm tra lại đường dẫn hoặc quay về trang chủ.
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="space-y-3">
-            <Button 
+            <Button
               className="w-full bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => navigate('/')}
+              onClick={() => navigate("/")}
             >
               <Home className="w-4 h-4 mr-2" />
               Về trang chủ
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               className="w-full border-emerald-600 text-emerald-600 hover:bg-emerald-50"
               onClick={() => navigate(-1)}
             >
@@ -53,8 +52,11 @@ const NotFound = () => {
           {/* Help Text */}
           <div className="mt-8 pt-6 border-t border-gray-100">
             <p className="text-sm text-gray-500">
-              Cần hỗ trợ? Liên hệ với chúng tôi qua{" "}
-              <a href="tel:1900123456" className="text-emerald-600 hover:underline">
+              Cần hỗ trợ? Liên hệ với chúng tôi qua
+              <a
+                href="tel:1900123456"
+                className="text-emerald-600 hover:underline"
+              >
                 1900 123 456
               </a>
             </p>

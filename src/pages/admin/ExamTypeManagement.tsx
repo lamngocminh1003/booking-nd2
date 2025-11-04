@@ -598,12 +598,12 @@ const ExamTypeManagement = () => {
         {/* Results info và Pagination giữ nguyên như cũ */}
         <div className="text-sm text-gray-500 mt-2 flex items-center gap-4">
           <span>
-            Hiển thị {paginatedExamTypes.length} / {filteredExamTypes.length}{" "}
+            Hiển thị {paginatedExamTypes.length} / {filteredExamTypes.length}
             khu khám
           </span>
           {zoneFilter !== "all" && (
             <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-              Khu vực:{" "}
+              Khu vực:
               {zones?.find((z) => z.id.toString() === zoneFilter)?.name}
             </span>
           )}
@@ -613,8 +613,8 @@ const ExamTypeManagement = () => {
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
             <p className="text-sm text-muted-foreground">
-              Hiển thị {(currentPage - 1) * PAGE_SIZE + 1} đến{" "}
-              {Math.min(currentPage * PAGE_SIZE, filteredExamTypes.length)}{" "}
+              Hiển thị {(currentPage - 1) * PAGE_SIZE + 1} đến
+              {Math.min(currentPage * PAGE_SIZE, filteredExamTypes.length)}
               trong tổng số {filteredExamTypes.length} bản ghi
             </p>
             <div className="flex items-center gap-2">
@@ -665,8 +665,8 @@ const ExamTypeManagement = () => {
             <DialogDescription>
               {selectedZoneForDepartments && (
                 <>
-                  Khu khám: <strong>{selectedZoneForDepartments.name}</strong> -{" "}
-                  Khu vực:{" "}
+                  Khu khám: <strong>{selectedZoneForDepartments.name}</strong> -
+                  Khu vực:
                   <strong>{selectedZoneForDepartments.zoneName}</strong>
                 </>
               )}
@@ -789,12 +789,12 @@ const ExamTypeManagement = () => {
               <div className="text-sm text-gray-500">
                 {selectedZoneDepartments.length > 0 && (
                   <>
-                    Tổng: {selectedZoneDepartments.length} khoa phòng -{" "}
+                    Tổng: {selectedZoneDepartments.length} khoa phòng -
                     {selectedZoneDepartments.reduce(
                       (sum, dept) => sum + (dept.examTypes?.length || 0),
                       0
-                    )}{" "}
-                    loại khám -{" "}
+                    )}
+                    loại khám -
                     {selectedZoneDepartments.reduce(
                       (sum, dept) =>
                         sum +
@@ -804,7 +804,7 @@ const ExamTypeManagement = () => {
                           0
                         ) || 0),
                       0
-                    )}{" "}
+                    )}
                     chuyên khoa
                   </>
                 )}

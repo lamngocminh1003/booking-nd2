@@ -830,7 +830,7 @@ export const ClinicScheduleEditButton: React.FC<
                   <div className="flex items-center gap-2 text-blue-700">
                     <Clock className="w-4 h-4" />
                     <span>
-                      Giờ ca khám:{" "}
+                      Giờ ca khám:
                       <strong>
                         {slotInfo.defaultStartTime} - {slotInfo.defaultEndTime}
                       </strong>
@@ -844,7 +844,7 @@ export const ClinicScheduleEditButton: React.FC<
                     <div className="flex items-center gap-2 text-orange-700 bg-orange-50 p-2 rounded-lg">
                       <Settings className="w-4 h-4" />
                       <span>
-                        Giờ riêng:{" "}
+                        Giờ riêng:
                         <strong>
                           {currentTime.startTime} - {currentTime.endTime}
                         </strong>
@@ -1552,7 +1552,7 @@ export const ClinicScheduleEditButton: React.FC<
                           Không có chuyên khoa
                         </div>
                         <div className="text-xs text-gray-600 mt-1">
-                          Loại khám{" "}
+                          Loại khám
                           <strong>{localSchedule.examTypeName}</strong> hiện
                           không có chuyên khoa nào
                         </div>
@@ -1812,7 +1812,7 @@ export const ClinicScheduleEditButton: React.FC<
                   {/* Thời gian (phút) */}
                   <div className="space-y-2">
                     <Label className="text-xs text-gray-500">
-                      Trong thời gian{" "}
+                      Trong thời gian
                     </Label>
                     <div className="relative">
                       <Input
@@ -1869,7 +1869,7 @@ export const ClinicScheduleEditButton: React.FC<
                   }`}
                 ></div>
                 <span className="font-medium">
-                  📅 {currentTime.maxAppointments} lượt trong{" "}
+                  📅 {currentTime.maxAppointments} lượt trong
                   {localSchedule.spaceMinutes || 30} phút/lượt
                 </span>
               </div>
@@ -1896,7 +1896,7 @@ export const ClinicScheduleEditButton: React.FC<
 
             {slotInfo && (
               <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border">
-                💡 Mặc định cho ca này:{" "}
+                💡 Mặc định cho ca này:
                 <strong>{slotInfo.defaultMaxAppointments} lượt</strong>
                 {" • "}
                 <span>
