@@ -3,6 +3,7 @@ import { Device } from "@capacitor/device";
 import { v4 as uuidv4 } from "uuid";
 import { getSecureItem, setSecureItem } from "@/lib/storage";
 import { getFcmToken } from "@/lib/firebase-messaging";
+import { postJSONAuth, postJSON } from "@/lib/utils"; // ✅ Import utils functions
 
 // 1. Lấy hoặc tạo deviceId
 export async function getOrCreateDeviceId(): Promise<string> {
@@ -27,13 +28,16 @@ export async function getOrCreateDeviceId(): Promise<string> {
   return deviceId;
 }
 
-// 2. Lấy platform
 export async function getPlatform(): Promise<string> {
+  let platform = "web";
+
   if (Capacitor.isNativePlatform()) {
     const info = await Device.getInfo();
-    return info.platform;
+    platform = info.platform || "Web";
   }
-  return "web";
+
+  // ✅ Viết hoa chữ cái đầu
+  return platform.charAt(0).toUpperCase() + platform.slice(1).toLowerCase();
 }
 
 // 3. Lấy tên thiết bị
@@ -45,7 +49,7 @@ export async function getDeviceName(): Promise<string> {
   return navigator.userAgent;
 }
 
-// 4. Gửi API đăng ký thiết bị
+// 4. Gửi API đăng ký thiết bị - ✅ SỬ DỤNG AXIOS
 export async function registerDevice() {
   const [deviceId, deviceToken, platform, deviceName] = await Promise.all([
     getOrCreateDeviceId(),
@@ -54,27 +58,50 @@ export async function registerDevice() {
     getDeviceName(),
   ]);
 
-  if (!deviceToken) {
-    console.warn("FCM token không khả dụng. Bỏ qua gửi thiết bị.");
-    return;
-  }
-
-  const payload = {
-    deviceId,
-    deviceToken,
-    platform,
-    deviceName,
-    isActive: true,
-  };
-
   try {
-    await fetch("/api/user-device/create-or-update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    console.log("Đăng ký thiết bị thành công:", payload);
+    const [deviceId, deviceToken, platform, deviceName] = await Promise.all([
+      getOrCreateDeviceId(),
+      getFcmToken(), // từ firebase-messaging.ts
+      getPlatform(),
+      getDeviceName(),
+    ]);
+
+    const payload = {
+      deviceId,
+      deviceToken: deviceToken || null, // ✅ Empty string nếu không có FCM token
+      platform,
+      deviceName,
+      isActive: true,
+    };
+
+    // ✅ SỬ DỤNG postJSONAuth (với Bearer token)
+    const response = await postJSONAuth(
+      "/api/user-device/create-or-update",
+      payload
+    );
+
+    return response;
   } catch (error) {
-    console.error("Lỗi gọi API registerDevice:", error);
+    console.error("❌ Device registration failed:", error);
+
+    // ✅ Enhanced error handling
+    if (error?.message) {
+      console.error("Error message:", error.message);
+    }
+
+    if (error?.code) {
+      console.error("Error code:", error.code);
+    }
+
+    // ✅ Handle specific errors
+    if (error?.status === 401) {
+      console.error("🔒 Authentication failed - user needs to login");
+    } else if (error?.status === 403) {
+      console.error("🚫 Permission denied");
+    } else if (error?.status >= 500) {
+      console.error("🔥 Server error - try again later");
+    }
+
+    throw error;
   }
 }

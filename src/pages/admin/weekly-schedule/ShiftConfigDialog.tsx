@@ -200,7 +200,7 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
                     {/* ✅ Hiển thị giờ gốc */}
                     {isModified && (
                       <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                        <strong>Giờ gốc:</strong> {shift.originalStartTime} -{" "}
+                        <strong>Giờ gốc:</strong> {shift.originalStartTime} -
                         {shift.originalEndTime}
                       </div>
                     )}
@@ -276,12 +276,12 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
                     </div>
 
                     <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                      Thời gian: {shiftData?.startTime || shift.startTime} -{" "}
+                      Thời gian: {shiftData?.startTime || shift.startTime} -
                       {shiftData?.endTime || shift.endTime} (
                       {calculateDuration(
                         shiftData?.startTime || shift.startTime,
                         shiftData?.endTime || shift.endTime
-                      )}{" "}
+                      )}
                       phút)
                     </div>
 

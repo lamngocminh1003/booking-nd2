@@ -330,11 +330,11 @@ const History = () => {
                                                   Liều: {prescription.dosage}
                                                 </div>
                                                 <div>
-                                                  Tần suất:{" "}
+                                                  Tần suất:
                                                   {prescription.frequency}
                                                 </div>
                                                 <div>
-                                                  Thời gian:{" "}
+                                                  Thời gian:
                                                   {prescription.duration}
                                                 </div>
                                               </div>

@@ -19,7 +19,7 @@ export interface ExamTypePayload {
 
 // ✅ Updated interface to match actual API response
 export interface ExamZoneDetails {
-  departmentHospitals: {
+  departmentHospitals?: {
     sepicalties: {
       id: number;
       name: string;
@@ -32,15 +32,15 @@ export interface ExamZoneDetails {
     enable: boolean;
     departmentHospital_Id_Postgresql: number;
   }[];
-  id: number;
-  zoneId: number;
-  zoneName: string;
-  name: string;
-  description: string;
-  enable: boolean;
-  appointmentFormId: number;
-  appointmentFormKey: string;
-  appointmentFormName: string;
+  id?: number;
+  zoneId?: number;
+  zoneName?: string;
+  name?: string;
+  description?: string;
+  enable?: boolean;
+  appointmentFormId?: number;
+  appointmentFormKey?: string;
+  appointmentFormName?: string;
 }
 
 // ✅ Add type for Redux state structure (if it's different)
@@ -74,4 +74,11 @@ export interface ExamTypeSpecialtyPayload {
   specialtyId: number;
   departmentHospitalId: number;
   enable: boolean;
+}
+
+// ✅ Nếu chưa có, thêm interface cho selectedExamTypeForServicePrice
+export interface SelectedExamTypeForServicePrice {
+  id: number;
+  name: string;
+  zoneName: string;
 }

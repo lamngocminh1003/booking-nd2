@@ -433,7 +433,7 @@ export const AddSpecialtyModal: React.FC<AddSpecialtyModalProps> = ({
                 <div className="flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   <span>
-                    Khoa phòng "{selectedDepartment?.name}" đã có{" "}
+                    Khoa phòng "{selectedDepartment?.name}" đã có
                     {existingSpecialtyIds.size} chuyên khoa
                   </span>
                 </div>

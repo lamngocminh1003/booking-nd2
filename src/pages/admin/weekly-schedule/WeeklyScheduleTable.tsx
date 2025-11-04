@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { format, startOfISOWeek, addWeeks, addDays } from "date-fns";
 import { RoomCell } from "./RoomCell";
 
 interface WeeklyScheduleTableProps {
+  selectedDepartment: string; // ✅ THÊM DÒNG NÀY
+  shouldTrackChanges?: boolean;
+  isSavingInProgress?: boolean;
   searchFilteredDepartments: Array<{ id: string; name: string }>;
   timeSlots: Array<any>;
   viewMode: "week" | "day";
@@ -58,6 +60,8 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   searchFilteredDepartments,
   timeSlots,
   viewMode,
+  shouldTrackChanges,
+  isSavingInProgress,
   selectedDay,
   selectedWeek,
   scheduleData,
@@ -90,49 +94,6 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
   // ✅ Nhận callback để refresh data
   onDataUpdated,
 }) => {
-  const getWeekDateRange = (weekString: string) => {
-    try {
-      const [year, weekStr] = weekString.split("-W");
-      const weekNum = parseInt(weekStr);
-      const yearNum = parseInt(year);
-
-      // ✅ Kiểm tra valid values
-      if (isNaN(weekNum) || isNaN(yearNum)) {
-        throw new Error("Invalid week format");
-      }
-
-      // ✅ Use startOfISOWeek to get accurate Monday for ISO week
-      const januaryFirst = new Date(yearNum, 0, 1); // Jan 1st of the year
-      const mondayOfWeek = startOfISOWeek(addWeeks(januaryFirst, weekNum - 1));
-
-      // ✅ Friday is 4 days after Monday
-      const fridayOfWeek = addDays(mondayOfWeek, 4);
-
-      const result = {
-        startDate: format(mondayOfWeek, "dd/MM"),
-        endDate: format(fridayOfWeek, "dd/MM"),
-        weekNum,
-        mondayDate: mondayOfWeek,
-        fridayDate: fridayOfWeek,
-      };
-
-      return result;
-    } catch (error) {
-      console.error("Error parsing week:", error);
-      // ✅ Fallback to current week
-      const now = new Date();
-      return {
-        startDate: format(now, "dd/MM"),
-        endDate: format(now, "dd/MM"),
-        weekNum: 1,
-        mondayDate: now,
-        fridayDate: now,
-      };
-    }
-  };
-
-  const weekRange = getWeekDateRange(selectedWeek);
-
   // ✅ Helper function để lấy giờ hiển thị với safety checks
   const getDisplayTime = (slot: any) => {
     if (!slot) {
@@ -327,6 +288,7 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                     const slotId = slot?.id || "";
                     const cellKey = `${deptId}-${slotId}`;
                     const rooms = scheduleData?.[deptId]?.[slotId]?.rooms || [];
+
                     const hasChanges = scheduleChanges?.[cellKey] !== undefined;
                     const isEditing = editingCell === cellKey;
                     const displayTime = getDisplayTime(slot);
@@ -381,10 +343,9 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                           // ✅ Thêm callback để refresh data sau khi copy từ DB
                           onDataUpdated={onDataUpdated}
                           // ✅ Thêm callback để handle room swap
-                          onRoomSwapped={(oldRoomId, newRoomId) => {
-                            // Data sẽ được cập nhật tự động thông qua updateRoomConfig
-                            // usedRooms sẽ được recalculate trong getUsedRoomsInSlot
-                          }}
+                          onRoomSwapped={(oldRoomId, newRoomId) => {}}
+                          shouldTrackChanges={shouldTrackChanges}
+                          isSavingInProgress={isSavingInProgress}
                         />
                       </td>
                     );

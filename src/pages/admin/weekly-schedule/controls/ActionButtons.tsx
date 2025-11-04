@@ -27,7 +27,6 @@ interface ActionButtonsProps {
 }
 
 export const ActionButtons: React.FC<ActionButtonsProps> = ({
-  triggerFileUpload,
   handleDownloadExcel,
   setShowShiftConfigDialog,
   setShowRoomClassificationDialog,
@@ -43,15 +42,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
     <>
       {/* Excel Import/Export */}
       <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={triggerFileUpload}
-          className="h-9 gap-2"
-        >
-          <Upload className="w-4 h-4" />
-          Tải lên Excel
-        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -126,11 +116,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
         >
           <Save className="w-4 h-4 mr-2" />
           Lưu tất cả ({Object.keys(scheduleChanges || {}).length})
-        </Button>
-
-        <Button variant="outline" size="sm" className="h-9">
-          <Filter className="w-4 h-4 mr-2" />
-          Bộ lọc
         </Button>
       </div>
     </>

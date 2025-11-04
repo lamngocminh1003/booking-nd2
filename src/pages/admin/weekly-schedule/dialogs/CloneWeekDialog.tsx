@@ -65,14 +65,14 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
   onWeekCloned,
   onCloneFromDB, // ✅ Sử dụng prop này
   clinicSchedules = [],
-  selectedZone = "all",
+  selectedZone,
 }) => {
   // ✅ Thêm dispatch
   const dispatch = useDispatch<AppDispatch>();
 
   // ✅ Thêm state để chọn nguồn dữ liệu
-  const [cloneSource, setCloneSource] = useState<"memory" | "database">(
-    "memory"
+  const [cloneSource, setCloneSource] = useState<"database" | "memory">(
+    "database"
   );
   const [selectedWeeks, setSelectedWeeks] = useState<string[]>([]);
   const [cloneOptions, setCloneOptions] = useState<CloneOptions>({
@@ -320,8 +320,6 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
     }
   };
 
-  // ✅ Cập nhật handleClone để gọi fetchClinicSchedules với parameters
-
   // ✅ Cập nhật handleClone để sử dụng Redux actions với parameters
   const handleClone = async () => {
     if (selectedWeeks.length === 0) {
@@ -369,9 +367,7 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
           allCleanFormatSchedules.push(...cleanFormat);
         });
 
-        const addResult = await dispatch(
-          addClinicSchedules(allCleanFormatSchedules)
-        ).unwrap();
+        await dispatch(addClinicSchedules(allCleanFormatSchedules)).unwrap();
 
         // ✅ Parse current week để lấy parameters
         const [currentYear, currentWeekStr] = currentWeek.split("-W");
@@ -385,21 +381,6 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
             ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
           })
         );
-
-        // ✅ Refresh cho từng tuần đích đã tạo với selectedZone
-        for (const targetWeek of selectedWeeks) {
-          const [targetYear, targetWeekStr] = targetWeek.split("-W");
-          const targetWeekNum = parseInt(targetWeekStr);
-          const targetYearNum = parseInt(targetYear);
-
-          await dispatch(
-            fetchClinicSchedules({
-              Week: targetWeekNum,
-              Year: targetYearNum,
-              ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
-            })
-          );
-        }
 
         // ✅ Gọi callback nếu có (để update UI hoặc thông báo)
         if (onCloneFromDB) {
@@ -525,27 +506,6 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
             <div className="space-y-3">
               <div className="flex items-center space-x-2">
                 <Checkbox
-                  id="source-memory"
-                  checked={cloneSource === "memory"}
-                  onCheckedChange={(checked) =>
-                    checked && setCloneSource("memory")
-                  }
-                />
-                <label
-                  htmlFor="source-memory"
-                  className="text-sm cursor-pointer flex-1"
-                >
-                  <div className="font-medium">
-                    Từ bộ nhớ (Schedule hiện tại)
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {currentWeekRoomCount} phòng đã cấu hình trong giao diện
-                  </div>
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
                   id="source-database"
                   checked={cloneSource === "database"}
                   onCheckedChange={(checked) =>
@@ -558,8 +518,7 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
                 >
                   <div className="font-medium">Từ cơ sở dữ liệu</div>
                   <div className="text-xs text-gray-600">
-                    {dbScheduleCount} lịch khám đã lưu ({dbRoomCount} phòng khác
-                    nhau)
+                    {dbScheduleCount} lịch khám có sẵn
                   </div>
                   {/* ✅ Hiển thị chi tiết theo ngày */}
                   {dbScheduleCount > 0 && (
@@ -702,9 +661,6 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
                   className="text-sm cursor-pointer"
                 >
                   Sao chép chuyên khoa đã chọn
-                  {cloneSource === "database" && (
-                    <span className="text-xs text-blue-600 ml-1">(từ DB)</span>
-                  )}
                 </label>
               </div>
 
@@ -724,9 +680,6 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
                   className="text-sm cursor-pointer"
                 >
                   Sao chép bác sĩ đã phân công
-                  {cloneSource === "database" && (
-                    <span className="text-xs text-blue-600 ml-1">(từ DB)</span>
-                  )}
                 </label>
               </div>
 
@@ -746,9 +699,6 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
                   className="text-sm cursor-pointer"
                 >
                   Sao chép cài đặt thời gian và số lượng khám
-                  {cloneSource === "database" && (
-                    <span className="text-xs text-blue-600 ml-1">(từ DB)</span>
-                  )}
                 </label>
               </div>
 
@@ -802,12 +752,12 @@ export const CloneWeekDialog: React.FC<CloneWeekDialogProps> = ({
                   </span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Tổng cộng:{" "}
+                  Tổng cộng:
                   <span className="font-medium">
                     {(cloneSource === "database"
                       ? dbScheduleCount
                       : currentWeekRoomCount) * selectedWeeks.length}
-                  </span>{" "}
+                  </span>
                   lượt sẽ được tạo
                 </div>
               </div>

@@ -178,7 +178,7 @@ export const WeeklyScheduleLegend: React.FC<WeeklyScheduleLegendProps> = ({
                         : exam.workSession === "evening"
                         ? "Tối"
                         : "Ca khám"}
-                      : {exam.startTime?.slice(0, 5)} -{" "}
+                      : {exam.startTime?.slice(0, 5)} -
                       {exam.endTime?.slice(0, 5)}
                     </span>
                   </div>
@@ -188,26 +188,6 @@ export const WeeklyScheduleLegend: React.FC<WeeklyScheduleLegendProps> = ({
                   Chưa có ca khám nào
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* ✅ Usage Guide - di chuyển xuống dưới */}
-        <div className="mt-6 pt-4 border-t">
-          <h4 className="font-medium mb-3 flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Hướng dẫn sử dụng
-          </h4>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1 text-xs text-gray-600">
-              <div>• Click vào ô trống để thêm phòng</div>
-              <div>• Click vào phòng đã có để cấu hình</div>
-              <div>• Chấm xanh: có thay đổi chưa lưu</div>
-            </div>
-            <div className="space-y-1 text-xs text-gray-600">
-              <div>• Sử dụng Ctrl+Z để hoàn tác</div>
-              <div>• Xuất Excel để backup dữ liệu</div>
-              <div>• Cấu hình màu sắc phòng qua nút cài đặt</div>
             </div>
           </div>
         </div>

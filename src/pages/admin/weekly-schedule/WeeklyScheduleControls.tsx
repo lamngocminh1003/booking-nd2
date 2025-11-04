@@ -79,7 +79,6 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
   departments,
   timeSlots,
   shiftDefaults,
-  filteredRoomsByZone,
   scheduleData,
   allRooms,
   handlePreviousWeek,
@@ -221,7 +220,6 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
   };
 
   const currentZoneRoomCount = getCurrentZoneRoomCount();
-  const totalUsedRooms = getTotalUsedRooms();
   const weekDays = getWeekDays();
 
   return (
@@ -306,7 +304,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
                                       : "text-gray-900"
                                   }`}
                                 >
-                                  {day.dayName} ({day.date}){" "}
+                                  {day.dayName} ({day.date})
                                   {isToday && "(Hôm nay)"}
                                 </span>
                                 {day.shifts?.some((s: any) => s.isCustom) && (
@@ -334,7 +332,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
                                         : undefined
                                     }
                                   >
-                                    {shift.period?.toUpperCase() || "CA"}:{" "}
+                                    {shift.period?.toUpperCase() || "CA"}:
                                     {shift.time}
                                     {shift.isCustom && " *"}
                                   </span>
@@ -404,7 +402,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
           <CardContent className="p-3">
             <div className="text-sm">
               <div className="font-medium text-blue-600 mb-2">
-                📍{" "}
+                📍
                 {zoneOptions?.find((z) => z.id === selectedZone)?.name || "N/A"}
               </div>
               <div className="grid grid-cols-3 gap-4 text-xs">
@@ -412,18 +410,6 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
                   <span className="text-gray-500">Tổng phòng:</span>
                   <span className="font-medium ml-1">
                     {currentZoneRoomCount}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Đã sử dụng:</span>
-                  <span className="font-medium ml-1 text-orange-600">
-                    {totalUsedRooms}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Còn lại:</span>
-                  <span className="font-medium ml-1 text-green-600">
-                    {Math.max(0, currentZoneRoomCount - totalUsedRooms)}
                   </span>
                 </div>
               </div>
@@ -442,6 +428,7 @@ export const WeeklyScheduleControls: React.FC<WeeklyScheduleControlsProps> = ({
           onWeekCloned={onWeekCloned}
           onCloneFromDB={onCloneFromDB}
           clinicSchedules={clinicSchedules}
+          selectedZone={selectedZone}
         />
       </CardContent>
     </Card>

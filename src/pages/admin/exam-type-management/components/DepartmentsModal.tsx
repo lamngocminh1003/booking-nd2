@@ -550,11 +550,11 @@ export const DepartmentsModal: React.FC<DepartmentsModalProps> = ({
               Xác nhận xóa chuyên khoa
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa chuyên khoa{" "}
+              Bạn có chắc chắn muốn xóa chuyên khoa
               <span className="font-semibold text-red-600">
                 "{deleteConfirm.specialty?.name}"
-              </span>{" "}
-              khỏi khoa phòng{" "}
+              </span>
+              khỏi khoa phòng
               <span className="font-semibold">
                 "{deleteConfirm.specialty?.departmentName}"
               </span>

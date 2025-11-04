@@ -80,19 +80,6 @@ const DoctorDetail = () => {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
       <div className="pt-20 pb-10 px-4">
         <div className="max-w-6xl mx-auto">
-          {/* Back Button */}
-          <div className="mb-6">
-            <Link to="/doctors">
-              <Button
-                variant="outline"
-                className="border-emerald-600 text-emerald-600"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Quay lại danh sách bác sĩ
-              </Button>
-            </Link>
-          </div>
-
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-8">

@@ -22,7 +22,7 @@ export const WeeklyScheduleHeader: React.FC<WeeklyScheduleHeaderProps> = ({
       <div>
         <h1 className="text-2xl font-bold">Lịch phân ban khoa khám bệnh</h1>
         <p className="text-blue-500 mt-2">
-          Quản lý lịch khám bệnh theo tuần - Tuần {weekRange.weekNum} năm{" "}
+          Quản lý lịch khám bệnh theo tuần - Tuần {weekRange.weekNum} năm
           {selectedWeek.split("-W")[0]}
         </p>
         <p className="text-sm text-blue-700 font-medium mt-1">

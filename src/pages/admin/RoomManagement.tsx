@@ -335,7 +335,7 @@ export default function RoomManagement() {
             Hiển thị {pagedList.length} / {filteredList.length} phòng
             {selectedZone !== "all" && (
               <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                Khu:{" "}
+                Khu:
                 {zoneList.find((z) => z.id.toString() === selectedZone)?.name}
               </span>
             )}

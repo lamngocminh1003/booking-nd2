@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createUserWithEmailAndPassword, User } from "firebase/auth";
+import { registerDevice } from "@/hooks/getOrCreateDeviceId";
 import { useDispatch } from "react-redux";
 import { setAuth } from "@/store/slices/authSlice";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,9 @@ const Register = () => {
           status: status,
           user: user?.displayName || "",
         });
+        if (accessToken) {
+          await registerDevice();
+        }
       }
 
       toast({
@@ -238,11 +242,11 @@ const Register = () => {
 
         {/* Điều khoản */}
         <div className="text-center text-sm text-gray-600">
-          Bằng việc đăng ký, bạn đồng ý với{" "}
+          Bằng việc đăng ký, bạn đồng ý với
           <Link to="/terms" className="text-emerald-600 hover:underline">
             Điều khoản sử dụng
-          </Link>{" "}
-          và{" "}
+          </Link>
+          và
           <Link to="/privacy" className="text-emerald-600 hover:underline">
             Chính sách bảo mật
           </Link>
