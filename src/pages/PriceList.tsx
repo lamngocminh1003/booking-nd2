@@ -255,17 +255,17 @@ const PriceList = () => {
           <div className="absolute top-3 left-3">
             <Badge
               variant="secondary"
-              className="bg-emerald-600/90 text-white shadow-md backdrop-blur-sm"
+              className="bg-emerald-100/90  shadow-md backdrop-blur-sm hover:text-gray-900"
             >
               {getPriceIcon(post.title)}
-              <span className="ml-1">Bảng giá</span>
+              <span className="ml-1 hover:text-gray-900">Bảng giá</span>
             </Badge>
           </div>
           {files.length > 0 && (
             <div className="absolute top-3 right-3">
               <Badge
                 variant="secondary"
-                className="bg-blue-600/90 text-white shadow-md backdrop-blur-sm"
+                className="bg-blue-100/90 text-gray-900 shadow-md backdrop-blur-sm"
               >
                 <Download className="w-3 h-3 mr-1" />
                 {files.length} file
