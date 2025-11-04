@@ -122,16 +122,6 @@ const Navigation = () => {
                       Bảng gía khám chữa bệnh
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/services/dental" className="w-full">
-                      Khám Nha Khoa
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/services/surgery" className="w-full">
-                      Gói Phẫu Thuật
-                    </Link>
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <Link
