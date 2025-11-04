@@ -40,7 +40,6 @@ import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 import Services from "./pages/Services";
 import ServiceDetail from "./pages/ServiceDetail";
 import Doctors from "./pages/Doctors";
-import DoctorDetail from "./pages/DoctorDetail";
 import MedicalProcedures from "./pages/MedicalProcedures";
 import PriceList from "./pages/PriceList";
 import Contact from "./pages/Contact";

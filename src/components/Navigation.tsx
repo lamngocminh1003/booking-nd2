@@ -118,8 +118,8 @@ const Navigation = () => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/services/mental" className="w-full">
-                      Sức Khỏe Tinh Thần
+                    <Link to="/price-list" className="w-full">
+                      Bảng gía khám chữa bệnh
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
