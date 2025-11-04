@@ -26,7 +26,7 @@ const Footer = () => {
               color="success"
               className=" mb-1 mr-1"
             />
-            Địa chỉ: 14 Lý Tự Trọng, Phường Bến Nghé, Quận 1, TP. HCM
+            Địa chỉ: 14 Lý Tự Trọng, Phường Sài Gòn, TP. HCM
           </p>
           <p className="mt-2">
             <Phone fontSize="small" color="success" className=" mb-1 mr-1" />
@@ -41,7 +41,7 @@ const Footer = () => {
             >
               &nbsp; benhviennhi@benhviennhi.org.vn
             </a>
-          </p>{" "}
+          </p>
           <p>
             <Public fontSize="small" color="success" className=" mb-1 mr-1" />
             Website:
@@ -53,7 +53,7 @@ const Footer = () => {
           <p className="font-semibold">Phản ánh, đóng góp ý kiến:</p>
           <p>
             <Email fontSize="small" color="success" className=" mb-1 mr-1" />
-            Email:{" "}
+            Email:
             <a
               href="mailto:benhviennhi@benhviennhi.org.vn"
               className="underline"
@@ -83,7 +83,6 @@ const Footer = () => {
         <div className="flex flex-col space-y-2">
           <h3 className="text-lg font-bold mb-2">1. KHÁM BỆNH THEO YÊU CẦU</h3>
           <p>
-            {" "}
             <Phone fontSize="small" color="success" className=" mb-1 mr-1" />
             Điện thoại: (028) 38295723 (Số nội bộ 429)
           </p>
@@ -100,7 +99,6 @@ const Footer = () => {
 
           <h3 className="text-lg font-bold mb-2">2. ĐẶT HẸN KHÁM TÂM LÝ</h3>
           <p className="font-semibold">
-            {" "}
             <Medication
               fontSize="small"
               color="success"
@@ -109,7 +107,6 @@ const Footer = () => {
             Khám bệnh Theo yêu cầu:
           </p>
           <p>
-            {" "}
             <Phone fontSize="small" color="success" className=" mb-1 mr-1" />
             Điện thoại: 1900 1215 – Bấm phím 1 (Từ 7g00 đến 19g00)
           </p>
@@ -131,12 +128,15 @@ const Footer = () => {
         {/* Cột 3: Google Map */}
         <div className="md:col-span-1 lg:col-span-1">
           <iframe
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3919.4980402630873!2d106.69690267503768!3d10.772461859283655!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31752f482c409aa1%3A0x177087c8e844cdb6!2zQsOqbmggdmnDqm4gTmhpIMSRw7RuZyAy!5e0!3m2!1svi!2s!4v1700000000000!5m2!1svi!2s"
+            src="https://maps.googleapis.com/maps/api/js/StaticMapService.GetMapImage?1m2&1i13361112&2i7883049&2e1&3u16&4m2&1u455&2u320&5m6&1e0&5svi&6sus&10b1&12b1&14i47083502&8e1&client=google-maps-embed&token=39673"
             width="100%"
-            height="100%"
-            allowFullScreen
+            height="300"
+            style={{ border: 0 }}
+            allowFullScreen=""
             loading="lazy"
-            className="rounded shadow-md"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="rounded shadow-md min-h-[250px]"
+            title="Vị trí Bệnh viện Nhi Đồng 2 - 14 Lý Tự Trọng, Phường Sài Gòn, TP.HCM"
           ></iframe>
         </div>
       </div>

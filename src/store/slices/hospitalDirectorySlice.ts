@@ -58,7 +58,7 @@ const hospitalDirectorySlice = createSlice({
       })
       .addCase(getListNation.fulfilled, (state, action) => {
         state.loading.nation = false;
-        state.nations = action.payload || [];
+        state.nations = action?.payload?.data?.data || [];
       })
       .addCase(getListNation.rejected, (state, action) => {
         state.loading.nation = false;
@@ -72,7 +72,7 @@ const hospitalDirectorySlice = createSlice({
       })
       .addCase(getListJob.fulfilled, (state, action) => {
         state.loading.job = false;
-        state.jobs = action.payload || [];
+        state.jobs = action?.payload?.data?.data || [];
       })
       .addCase(getListJob.rejected, (state, action) => {
         state.loading.job = false;
@@ -86,7 +86,7 @@ const hospitalDirectorySlice = createSlice({
       })
       .addCase(getListGender.fulfilled, (state, action) => {
         state.loading.gender = false;
-        state.genders = action.payload || [];
+        state.genders = action?.payload?.data?.data || [];
       })
       .addCase(getListGender.rejected, (state, action) => {
         state.loading.gender = false;

@@ -18,8 +18,8 @@ const registerLocal = (
 const refreshAccessToken = (refreshToken: string) =>
   postJSON("/api/auth/refresh-token", { refreshToken });
 
-const logoutService = (deviceId: string) =>
-  postJSONAuth("/api/auth/logout", { deviceId });
+const logoutService = (deviceId: string, refreshToken: string) =>
+  postJSONAuth("/api/auth/logout", { deviceId, refreshToken });
 const createOrUpdateUserInfo = (data) =>
   postJSONAuth("/api/user-info/create-or-update", data);
 

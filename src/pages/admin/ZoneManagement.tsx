@@ -59,7 +59,7 @@ export default function ZoneManagement() {
   const filteredList = useMemo(
     () =>
       list.filter((zone) =>
-        zone.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+        zone?.name?.toLowerCase().includes(debouncedSearch.toLowerCase())
       ),
     [list, debouncedSearch]
   );
@@ -117,7 +117,10 @@ export default function ZoneManagement() {
   };
 
   function handleDelete(id: number): void {
-    throw new Error("Function not implemented.");
+    if (window.confirm("Bạn có chắc chắn muốn xóa khu vực này?")) {
+      dispatch(deleteZoneThunk(id) as any);
+      toast.success("Xóa khu vực thành công!");
+    }
   }
 
   return (

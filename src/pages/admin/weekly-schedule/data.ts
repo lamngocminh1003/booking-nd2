@@ -1,4 +1,11 @@
-import { format, addWeeks, startOfYear, getISOWeek } from "date-fns";
+import {
+  format,
+  addWeeks,
+  startOfYear,
+  getISOWeek,
+  startOfISOWeek,
+  addDays,
+} from "date-fns";
 
 export interface ShiftSlot {
   rooms: RoomSlot[];
@@ -46,13 +53,13 @@ export const getWeeksList = (): WeekOption[] => {
     for (let week = 1; week <= weekCount; week++) {
       const weekValue = `${year}-W${week.toString().padStart(2, "0")}`;
 
-      // Calculate Monday of this week
-      const mondayOfWeek = addWeeks(startOfYearDate, week - 1);
+      // ✅ Calculate Monday of this ISO week accurately
+      const januaryFirst = new Date(year, 0, 1);
+      const mondayOfWeek = startOfISOWeek(addWeeks(januaryFirst, week - 1));
+      const fridayOfWeek = addDays(mondayOfWeek, 4);
+
       const startDate = format(mondayOfWeek, "dd/MM");
-      const endDate = format(
-        addWeeks(mondayOfWeek, 0).setDate(mondayOfWeek.getDate() + 4),
-        "dd/MM"
-      );
+      const endDate = format(fridayOfWeek, "dd/MM");
 
       const isCurrent = year === currentYear && week === currentWeek;
       const isPast =
@@ -293,5 +300,5 @@ export const defaultShiftConfig = {
     maxAppointments: 12,
   },
   breakTime: "12:00",
-  appointmentDuration: 15, // minutes
+  appointmentDuration: 10, // minutes
 };

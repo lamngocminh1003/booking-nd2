@@ -1,6 +1,5 @@
 import { fetchData } from "@/lib/utils";
-const fetchListNation = () => fetchData("/api/HospitalDircetory/GetListNation");
-const fetchListJob = () => fetchData(`/api/HospitalDircetory/GetListJob`);
-const fetchListGender = () => fetchData(`/api/HospitalDircetory/GetListGender`);
-
+const fetchListNation = () => fetchData("/api/hospital-dircetory/nations");
+const fetchListJob = () => fetchData(`/api/hospital-dircetory/jobs`);
+const fetchListGender = () => fetchData(`/api/hospital-dircetory/genders`);
 export { fetchListNation, fetchListJob, fetchListGender };

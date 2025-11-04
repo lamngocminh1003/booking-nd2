@@ -4,13 +4,13 @@ import {
   fetchSpecialties,
   addSpecialty,
   updateSpecialtyThunk,
-  deleteSpecialtyThunk,
 } from "@/store/slices/specialtySlice";
 import { RootState } from "@/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+
 import {
   Table,
   TableBody,
@@ -129,10 +129,13 @@ export default function SpecialtyManagement() {
                 placeholder="Tên chuyên khoa"
                 required
               />
-              <Input
+              <Textarea
+                id="description"
                 name="description"
                 defaultValue={editingSpecialty?.description}
-                placeholder="Mô tả"
+                placeholder="Nhập mô tả chi tiết về chuyên khoa..."
+                rows={5}
+                className="resize-none min-h-[120px]"
               />
 
               <Button type="submit">
@@ -201,7 +204,14 @@ export default function SpecialtyManagement() {
                   <TableCell className="w-[80px]">{specialty.id}</TableCell>
                   <TableCell className="w-[250px]">{specialty.name}</TableCell>
                   <TableCell className="w-[300px]">
-                    {specialty.description || (
+                    {specialty.description ? (
+                      <div
+                        className="max-w-xs text-sm leading-relaxed"
+                        dangerouslySetInnerHTML={{
+                          __html: specialty.description.replace(/\n/g, "<br>"),
+                        }}
+                      />
+                    ) : (
                       <span className="text-gray-400">-</span>
                     )}
                   </TableCell>

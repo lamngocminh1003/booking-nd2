@@ -41,22 +41,15 @@ const DoctorManagement = () => {
   const dispatch = useAppDispatch();
 
   // ✅ Debug log
-  useEffect(() => {
-    console.log("📋 Doctor Management Debug:", {
-      doctors: doctors?.length || 0,
-      loading,
-      error,
-      sample: doctors?.[0],
-    });
-  }, [doctors, loading, error]);
+  useEffect(() => {}, [doctors, loading, error]);
 
   const filteredDoctors =
     doctors?.filter(
       (doctor) =>
-        doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        doctor.name?.toLowerCase().includes(searchTerm?.toLowerCase()) ||
         (doctor.doctor_IdEmployee_Postgresql || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
+          ?.toLowerCase()
+          .includes(searchTerm?.toLowerCase())
     ) || [];
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -146,8 +139,6 @@ const DoctorManagement = () => {
                   <TableRow>
                     <TableHead>Họ tên</TableHead>
                     <TableHead>Mã bác sĩ</TableHead>
-                    <TableHead>Chuyên khoa</TableHead>
-                    <TableHead>Khoa</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -162,16 +153,6 @@ const DoctorManagement = () => {
                             {doctor.doctor_IdEmployee_Postgresql ||
                               doctor.code ||
                               "N/A"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {doctor.specialtyName || "Chưa xác định"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {doctor.departmentName || "Chưa xác định"}
                           </div>
                         </TableCell>
                       </TableRow>

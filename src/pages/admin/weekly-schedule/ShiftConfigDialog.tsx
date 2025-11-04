@@ -81,7 +81,7 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
         endTime: shift.originalEndTime, // ✅ Sử dụng giờ gốc
         maxAppointments:
           shift.workSession === "sáng"
-            ? 15
+            ? 10
             : shift.workSession === "chiều"
             ? 12
             : 10,
@@ -92,7 +92,7 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
 
     // Thêm các settings chung
     defaultConfig.breakTime = "12:00";
-    defaultConfig.appointmentDuration = 15;
+    defaultConfig.appointmentDuration = 10;
 
     setTempDefaults(defaultConfig);
     toast.success("Đã đặt lại về cấu hình gốc từ ca khám!");
@@ -200,7 +200,7 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
                     {/* ✅ Hiển thị giờ gốc */}
                     {isModified && (
                       <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                        <strong>Giờ gốc:</strong> {shift.originalStartTime} -{" "}
+                        <strong>Giờ gốc:</strong> {shift.originalStartTime} -
                         {shift.originalEndTime}
                       </div>
                     )}
@@ -276,12 +276,12 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
                     </div>
 
                     <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                      Thời gian: {shiftData?.startTime || shift.startTime} -{" "}
+                      Thời gian: {shiftData?.startTime || shift.startTime} -
                       {shiftData?.endTime || shift.endTime} (
                       {calculateDuration(
                         shiftData?.startTime || shift.startTime,
                         shiftData?.endTime || shift.endTime
-                      )}{" "}
+                      )}
                       phút)
                     </div>
 
@@ -334,12 +334,12 @@ export const ShiftConfigDialog: React.FC<ShiftConfigDialogProps> = ({
                     type="number"
                     min="5"
                     max="60"
-                    value={tempDefaults?.appointmentDuration || 15}
+                    value={tempDefaults?.appointmentDuration || 10}
                     onChange={(e) =>
                       updateShiftConfig(
                         "",
                         "appointmentDuration",
-                        parseInt(e.target.value) || 15
+                        parseInt(e.target.value) || 10
                       )
                     }
                     className="h-8"

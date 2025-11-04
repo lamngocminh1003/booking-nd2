@@ -7,6 +7,7 @@ import {
   fetchExamsByZone, // ✅ Thay đổi import
   clearError,
 } from "@/store/slices/examTypeSlice";
+import { fetchExamTypeServicePricesByExamTypeId } from "@/store/slices/servicePriceSlice"; // ✅ New import
 import { fetchZones } from "@/store/slices/zoneSlice";
 import { toast } from "sonner";
 import type { ExamTypeWithZone, ExamTypePayload } from "../components/types";
@@ -44,6 +45,15 @@ export const useExamTypeManagement = () => {
     name: string;
     zoneName: string;
   } | null>(null);
+
+  // ✅ NEW: Service Price Modal states
+  const [showServicePriceModal, setShowServicePriceModal] = useState(false);
+  const [selectedExamTypeForServicePrice, setSelectedExamTypeForServicePrice] =
+    useState<{
+      id: number;
+      name: string;
+      zoneName: string;
+    } | null>(null);
 
   const [formData, setFormData] = useState<Partial<ExamTypeWithZone>>({
     name: "",
@@ -157,7 +167,6 @@ export const useExamTypeManagement = () => {
         zoneName: examType.zoneName || "N/A",
       });
 
-      console.log(`🏥 Fetching exam details for examType ${examType.id}...`);
       await dispatch(fetchExamsByZone(examType.id)).unwrap();
       setShowDepartmentsModal(true);
       toast.success(`Đã tải thông tin chi tiết cho ${examType.name}`);
@@ -168,7 +177,23 @@ export const useExamTypeManagement = () => {
       );
     }
   };
+  // ✅ NEW: Service Prices handler
+  const handleViewServicePrices = async (examType: ExamTypeWithZone) => {
+    try {
+      setSelectedExamTypeForServicePrice({
+        id: examType.id,
+        name: examType.name,
+        zoneName: examType.zoneName || "N/A",
+      });
+      await dispatch(
+        fetchExamTypeServicePricesByExamTypeId(examType.id)
+      ).unwrap();
 
+      setShowServicePriceModal(true);
+    } catch (error) {
+      console.error("❌ Error fetching exam details:", error);
+    }
+  };
   const handleFormChange = (field: keyof ExamTypeWithZone, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -236,12 +261,6 @@ export const useExamTypeManagement = () => {
     }
   };
 
-  const handleRefresh = () => {
-    dispatch(fetchExamTypes(true));
-    dispatch(fetchZones());
-    toast.success("Đã làm mới dữ liệu!");
-  };
-
   // ✅ Updated refresh function
   const handleRefreshDepartments = async () => {
     if (!selectedZoneForDepartments) {
@@ -250,9 +269,6 @@ export const useExamTypeManagement = () => {
     }
 
     try {
-      console.log(
-        `🔄 Refreshing exam details for examType ${selectedZoneForDepartments.id}...`
-      );
       await dispatch(fetchExamsByZone(selectedZoneForDepartments.id)).unwrap();
       toast.success("Đã làm mới thông tin chi tiết!");
     } catch (error: any) {
@@ -292,7 +308,6 @@ export const useExamTypeManagement = () => {
     // CRUD operations
     handleCreateClick,
     handleEditClick,
-    handleRefresh,
 
     // Modals
     showCreateDialog,
@@ -301,6 +316,10 @@ export const useExamTypeManagement = () => {
     setShowEditDialog,
     showDepartmentsModal,
     setShowDepartmentsModal,
+
+    // ✅ NEW: Service Price Modal
+    showServicePriceModal,
+    setShowServicePriceModal,
 
     // Form
     formData,
@@ -311,10 +330,13 @@ export const useExamTypeManagement = () => {
     // Departments
     handleViewDepartments,
     selectedZoneForDepartments,
-    selectedZoneExamData, // ✅ Thay đổi từ selectedZoneDepartments
+    selectedZoneExamData,
     zoneDataLoading,
-
-    // ✅ Updated function
     handleRefreshDepartments,
+
+    // ✅ NEW: Service Prices
+    handleViewServicePrices,
+    selectedExamTypeForServicePrice,
+    setSelectedExamTypeForServicePrice,
   };
 };

@@ -118,7 +118,10 @@ export default function ExaminationManagement() {
   };
 
   function handleDelete(id: number): void {
-    throw new Error("Function not implemented.");
+    if (window.confirm("Bạn có chắc chắn muốn xóa ca khám này?")) {
+      dispatch(deleteExaminationThunk(id) as any);
+      toast.success("Xóa ca khám thành công!");
+    }
   }
 
   return (
