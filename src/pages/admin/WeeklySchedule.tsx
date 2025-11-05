@@ -1769,16 +1769,49 @@ const WeeklySchedule = () => {
       });
 
       // ✅ Gọi API để lưu
+      // ✅ Cập nhật phần xử lý API call với error handling chi tiết
+      // ✅ Gọi API để lưu
+      // ✅ Cập nhật phần xử lý API call với error handling chi tiết
+      // ✅ Gọi API để lưu
       if (clinicScheduleData.length > 0) {
         const resultAction = await dispatch(
           addClinicSchedules(clinicScheduleData)
         );
+        console.log("resultAction", resultAction, "<<<<< resultAction");
 
         if (addClinicSchedules.fulfilled.match(resultAction)) {
-          // ✅ Sau khi lưu thành công
-          toast.success(
-            `✅ Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`
-          );
+          // ✅ Xử lý khi thành công hoàn toàn
+          const payload = resultAction.payload;
+
+          // ✅ Kiểm tra xem có partial success không
+          if (payload && typeof payload === "object") {
+            // ✅ Nếu API trả về bulk result với failed items
+            if (payload.failedCount && payload.failedCount > 0) {
+              const successCount = payload.successCount || 0;
+              const failedCount = payload.failedCount;
+              const errors = payload.errors || [];
+
+              toast.warning(
+                `⚠️ Lưu một phần thành công: ${successCount}/${clinicScheduleData.length} lịch phòng khám`,
+                {
+                  description: `${failedCount} lịch bị lỗi: ${errors
+                    .slice(0, 2)
+                    .join("; ")}${errors.length > 2 ? "..." : ""}`,
+                  duration: 6000,
+                }
+              );
+            } else {
+              // ✅ Hoàn toàn thành công
+              toast.success(
+                `✅ Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`
+              );
+            }
+          } else {
+            // ✅ Fallback nếu không có thông tin chi tiết
+            toast.success(
+              `✅ Đã lưu ${clinicScheduleData.length} lịch phòng khám thành công!`
+            );
+          }
 
           // ✅ Xóa state tạm (đánh dấu thay đổi)
           setScheduleChanges({});
@@ -1801,15 +1834,142 @@ const WeeklySchedule = () => {
               ...(selectedZone !== "all" && { ZoneId: parseInt(selectedZone) }),
             })
           );
-          // ✅ Nếu bạn muốn F5 hẳn (reload trang)
-          // window.location.reload();
+        } else if (addClinicSchedules.rejected.match(resultAction)) {
+          // ✅ XỬ LÝ KHI API THẤT BẠI HOÀN TOÀN (rejected case)
+          const error = resultAction.error;
+          const payload = resultAction.payload; // Chứa error message từ our service
+
+          console.error("❌ Failed to save clinic schedules:", {
+            error,
+            payload,
+          });
+
+          // ✅ Lấy error message từ payload (từ ClinicScheduleService)
+          let errorMessage = "Lỗi không xác định khi lưu lịch phòng khám";
+          let errorDetails = "";
+          let bulkErrorInfo = null;
+
+          if (typeof payload === "string") {
+            // ✅ Payload chứa error message từ service
+            errorMessage = payload;
+
+            // ✅ Parse error nếu có format "Tạo lịch khám thất bại: X/Y lịch bị lỗi. Chi tiết: ..."
+            const bulkMatch = payload.match(
+              /(\d+)\/(\d+) lịch bị lỗi\. Chi tiết: (.+)/
+            );
+            if (bulkMatch) {
+              const [, failed, total, details] = bulkMatch;
+              bulkErrorInfo = {
+                failed: parseInt(failed),
+                total: parseInt(total),
+                success: parseInt(total) - parseInt(failed),
+                details: details,
+              };
+
+              errorMessage = `Lưu thất bại: ${failed}/${total} lịch phòng khám`;
+              errorDetails = details;
+            }
+            // ✅ Parse multiple errors separated by semicolon
+            else if (payload.includes(";")) {
+              const errors = payload.split(";").filter((e) => e.trim());
+              const uniqueErrors = [...new Set(errors)].slice(0, 3); // Remove duplicates, take first 3
+
+              errorMessage = `${uniqueErrors.length} lỗi được phát hiện`;
+              errorDetails = uniqueErrors.join("; ");
+
+              if (errors.length > 3) {
+                errorDetails += `... và ${errors.length - 3} lỗi khác`;
+              }
+            }
+          } else if (error?.message) {
+            // ✅ Fallback to error.message
+            errorMessage = error.message;
+          }
+
+          // ✅ Phân tích lỗi để đưa ra gợi ý
+          let errorSuggestion = "Vui lòng kiểm tra dữ liệu và thử lại";
+          if (errorDetails.includes("Chuyên khoa không tồn tại")) {
+            errorSuggestion =
+              "Vui lòng chọn chuyên khoa hợp lệ cho các phòng khám";
+          } else if (errorDetails.includes("Bác sĩ không tồn tại")) {
+            errorSuggestion = "Vui lòng chọn bác sĩ hợp lệ cho các phòng khám";
+          } else if (errorDetails.includes("Phòng không tồn tại")) {
+            errorSuggestion = "Vui lòng kiểm tra thông tin phòng khám";
+          } else if (errorDetails.includes("trùng lặp")) {
+            errorSuggestion = "Có lịch khám trùng lặp, vui lòng kiểm tra lại";
+          }
+
+          // ✅ Hiển thị toast error với thông tin chi tiết
+          toast.error(`❌ ${errorMessage}`, {
+            description: errorDetails || errorSuggestion,
+            duration: Math.min(10000, 4000 + (errorDetails?.length || 0) * 30), // Dynamic duration
+          });
+
+          // ✅ Enable lại tracking và reset saving state
+          setShouldTrackChanges(true);
+          setIsSavingInProgress(false);
+
+          // ✅ Detailed logging cho debug
+          console.group("📊 Save Clinic Schedules Error Analysis");
+          console.log("❌ Error Type: API Rejected");
+          console.log("📄 Payload:", payload);
+          console.log("⚠️ Error Object:", error);
+          console.log("📊 Bulk Info:", bulkErrorInfo);
+          console.log("📝 Data Sent:", clinicScheduleData);
+
+          // ✅ Phân tích từng item có vấn đề
+          if (clinicScheduleData.length > 0) {
+            console.log("🔍 Phân tích dữ liệu:");
+            console.table(
+              clinicScheduleData.map((item, index) => {
+                const issues = [];
+                if (!item.specialtyId || item.specialtyId === 0)
+                  issues.push("Thiếu specialty");
+                if (!item.doctorId || item.doctorId === 0)
+                  issues.push("Thiếu doctor");
+                if (!item.examTypeId || item.examTypeId === 0)
+                  issues.push("Thiếu examType");
+                if (!item.roomId || item.roomId === 0)
+                  issues.push("Thiếu room");
+
+                return {
+                  STT: index + 1,
+                  ID: item.id || "NEW",
+                  NgàyTrongTuần: item.dateInWeek?.slice(0, 10),
+                  PhòngID: item.roomId,
+                  ChuyênKhoaID: item.specialtyId,
+                  BácSĩID: item.doctorId,
+                  KhoaID: item.departmentHospitalId,
+                  LoạiKhámID: item.examTypeId,
+                  CaKhámID: item.examinationId,
+                  VấnĐề: issues.length > 0 ? issues.join(", ") : "OK",
+                };
+              })
+            );
+          }
+          console.groupEnd();
         } else {
-          // ✅ THÊM: Enable lại nếu save thất bại
+          // ✅ XỬ LÝ TRƯỜNG HỢP PENDING HOẶC UNKNOWN STATE
+          console.warn("⚠️ Unexpected action state:", resultAction);
+
+          toast.error("❌ Trạng thái lưu không xác định", {
+            description: "Vui lòng kiểm tra kết quả và thử lại nếu cần",
+            duration: 5000,
+          });
+
+          // ✅ Enable lại tracking
           setShouldTrackChanges(true);
           setIsSavingInProgress(false);
         }
       } else {
-        toast.warning("⚠️ Không có dữ liệu để lưu");
+        // ✅ Không có dữ liệu để lưu
+        toast.warning("⚠️ Không có dữ liệu để lưu", {
+          description: "Vui lòng thêm ít nhất một phòng khám vào lịch",
+          duration: 4000,
+        });
+
+        // ✅ Reset saving state
+        setIsSavingInProgress(false);
       }
     } catch (error) {
       // ✅ THÊM: Enable lại nếu có lỗi

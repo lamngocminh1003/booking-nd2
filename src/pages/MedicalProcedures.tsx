@@ -77,7 +77,6 @@ const MedicalProcedures = () => {
         }
 
         const data: ApiResponse = await response.json();
-        console.log(data);
 
         const postsData = data?.data?.data || [];
         const meta = data?.data?.meta || {

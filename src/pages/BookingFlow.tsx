@@ -43,15 +43,28 @@ import {
   type GroupedSpecialtyResponse,
   type ServicePrice,
   type YouMed_PatientCreateDto,
+  createOnlineRegistrationThunk,
 } from "@/store/slices/bookingCatalogSlice";
 import { useAppSelector, useAppDispatch } from "@/hooks/redux";
 import ChildProfileModal from "@/components/modals/ChildProfileModal";
 import { getUserInfo } from "@/store/slices/locationSlice";
 import { toast } from "@/components/ui/use-toast"; // ✅ Add missing toast import
-import { addAppointment } from "@/store/slices/appointmentSlice";
+import type { AddOnlineRegistrationDto } from "@/services/BookingCatalogService";
+import {
+  saveRegistrationSession,
+  getRegistrationSession,
+  clearRegistrationSession,
+  isSessionExpired,
+} from "@/utils/registrationSession";
+import PendingRegistrationWarning from "@/components/booking/PendingRegistrationWarning";
 const BookingFlow = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  // ✅ Get params from URL
+  const { zoneId: zoneIdParam, examTypeId: examTypeIdParam } = useParams<{
+    zoneId: string;
+    examTypeId: string;
+  }>(); // ✅ Get Redux state
   const {
     zones,
     specialties,
@@ -64,22 +77,20 @@ const BookingFlow = () => {
     error,
     error: patientError,
   } = useSelector((state: RootState) => state.bookingCatalog);
-
-  // ✅ Get params from URL
-  const { zoneId: zoneIdParam, examTypeId: examTypeIdParam } = useParams<{
-    zoneId: string;
-    examTypeId: string;
-  }>(); // ✅ Get Redux state
   const {
     userInfo,
     provinces,
     wards,
     loading: locationLoading,
   } = useAppSelector((state) => state.location);
+  const { loadingRegistration } = useSelector(
+    (state: RootState) => state.bookingCatalog
+  );
 
-  // ✅ Get childId from URL if provided
   const searchParams = new URLSearchParams(window.location.search);
   const childIdFromUrl = searchParams.get("childId");
+  const [pendingSession, setPendingSession] = useState<any>(null);
+  const [showPendingWarning, setShowPendingWarning] = useState(false);
   const [editingChild, setEditingChild] = useState<any>(null);
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [childWeight, setChildWeight] = useState<string>("");
@@ -88,8 +99,20 @@ const BookingFlow = () => {
   const [childSymptom, setChildSymptom] = useState<string>("");
   const [childRequiredInformation, setChildRequiredInformation] =
     useState<string>("");
+  const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
+  const availableDoctors = useMemo(() => {
+    const doctors = groupedSpecialty.map((schedule) => ({
+      id: schedule.doctorId,
+      name: schedule.doctorName,
+    }));
 
-  // ✅ Updated state management - proper order
+    const uniqueDoctors = doctors.filter(
+      (doctor, index, self) =>
+        index === self.findIndex((d) => d.id === doctor.id)
+    );
+
+    return uniqueDoctors.sort((a, b) => a.name.localeCompare(b.name));
+  }, [groupedSpecialty]);
   const [selectedZone, setSelectedZone] = useState<number | null>(() => {
     if (zoneIdParam && !isNaN(parseInt(zoneIdParam))) {
       return parseInt(zoneIdParam);
@@ -109,12 +132,9 @@ const BookingFlow = () => {
       return null;
     }
   );
-
   const [selectedSpecialty, setSelectedSpecialty] = useState<number | null>(
     null
   );
-
-  // ✅ Changed to number to match patientList id type
   const [selectedChild, setSelectedChild] = useState<number | null>(() => {
     if (childIdFromUrl && !isNaN(parseInt(childIdFromUrl))) {
       return parseInt(childIdFromUrl);
@@ -128,8 +148,6 @@ const BookingFlow = () => {
   );
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  // ✅ Add modal state for creating new child profile
   const [isChildModalOpen, setIsChildModalOpen] = useState(false);
   const zoneRef = useRef<HTMLDivElement>(null);
   const examTypeRef = useRef<HTMLDivElement>(null);
@@ -139,16 +157,6 @@ const BookingFlow = () => {
   const scheduleRef = useRef<HTMLDivElement>(null);
   const confirmButtonRef = useRef<HTMLDivElement>(null); // ✅ Thêm ref mới
 
-  // ✅ Function để scroll đến bước hiện tại
-  const scrollToStep = (ref: React.RefObject<HTMLDivElement>) => {
-    if (ref.current) {
-      ref.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-        inline: "nearest",
-      });
-    }
-  };
   // ✅ Get unique dates from groupedSpecialty for filter options
   const availableDates = useMemo(() => {
     const dates = groupedSpecialty.map((schedule) => schedule.date);
@@ -158,11 +166,22 @@ const BookingFlow = () => {
 
   // ✅ Filter schedules by selected date
   const filteredSchedules = useMemo(() => {
-    if (!selectedDate) return groupedSpecialty;
-    return groupedSpecialty.filter(
-      (schedule) => schedule.date === selectedDate
-    );
-  }, [groupedSpecialty, selectedDate]);
+    let filtered = groupedSpecialty;
+
+    // Filter by date
+    if (selectedDate) {
+      filtered = filtered.filter((schedule) => schedule.date === selectedDate);
+    }
+
+    // Filter by doctor
+    if (selectedDoctor) {
+      filtered = filtered.filter(
+        (schedule) => schedule.doctorId?.toString() === selectedDoctor
+      );
+    }
+
+    return filtered;
+  }, [groupedSpecialty, selectedDate, selectedDoctor]);
 
   // ✅ Updated data calculations
   const currentZone = zones.find((z) => z.id === selectedZone);
@@ -181,14 +200,42 @@ const BookingFlow = () => {
       ? currentExamType.servicePrice
       : null;
   }, [currentExamType]);
-  // ✅ Auto-scroll effects cho từng bước
+  const hasValidUrlParams = useMemo(() => {
+    return (
+      selectedZone !== null &&
+      selectedExamType !== null &&
+      (specialties.length > 0 || loadingSpecialties) // Still loading specialties is valid
+    );
+  }, [selectedZone, selectedExamType, specialties.length, loadingSpecialties]);
+  const scrollToStep = (ref: React.RefObject<HTMLDivElement>) => {
+    if (ref.current) {
+      ref.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+        inline: "nearest",
+      });
+    }
+  };
   useEffect(() => {
     // Scroll đến bước chọn ExamType khi Zone được chọn
     if (selectedZone && examTypeRef.current) {
       setTimeout(() => scrollToStep(examTypeRef), 300);
     }
   }, [selectedZone]);
-
+  useEffect(() => {
+    const session = getRegistrationSession();
+    if (session && !isSessionExpired(session)) {
+      setPendingSession(session);
+      setShowPendingWarning(true);
+    } else if (session && isSessionExpired(session)) {
+      clearRegistrationSession();
+      toast({
+        title: "Phiên đăng ký đã hết hạn ⏰",
+        description: "Vui lòng đăng ký lại lịch khám mới.",
+        variant: "destructive",
+      });
+    }
+  }, []);
   useEffect(() => {
     // Scroll đến bước chọn Child khi Specialty được chọn
     if (selectedSpecialty && childRef.current) {
@@ -290,14 +337,12 @@ const BookingFlow = () => {
       availableExamTypes.length === 1 &&
       availableExamTypes[0].servicePrice?.enable
     ) {
-      console.log("Auto-selecting single exam type:", availableExamTypes[0]);
       setSelectedExamType(availableExamTypes[0].id);
     }
   }, [selectedZone, selectedExamType, availableExamTypes]);
   // ✅ Update availability check
   const hasAvailableService = !!currentServicePrice;
   useEffect(() => {
-    // Scroll đến bước chọn Specialty khi ExamType được chọn và có specialty
     if (
       selectedExamType &&
       hasAvailableService &&
@@ -305,9 +350,7 @@ const BookingFlow = () => {
       specialtyRef.current
     ) {
       setTimeout(() => scrollToStep(specialtyRef), 300);
-    }
-    // Nếu không có specialty thì scroll đến bước chọn child
-    else if (
+    } else if (
       selectedExamType &&
       hasAvailableService &&
       specialties.length === 0 &&
@@ -329,7 +372,6 @@ const BookingFlow = () => {
       specialties.length === 1 &&
       !selectedSpecialty
     ) {
-      console.log("Auto-selecting single specialty:", specialties[0]);
       setSelectedSpecialty(specialties[0].id);
     }
   }, [selectedExamType, loadingSpecialties, specialties, selectedSpecialty]);
@@ -345,7 +387,6 @@ const BookingFlow = () => {
       patientList.length === 1 &&
       !selectedChild
     ) {
-      console.log("Auto-selecting single patient:", patientList[0]);
       setSelectedChild(patientList[0].id);
     }
   }, [
@@ -416,17 +457,6 @@ const BookingFlow = () => {
     return calculatedAge;
   };
 
-  // ✅ Handle child profile creation success
-  const handleChildCreated = (newChildId: number) => {
-    console.log("New child created with ID:", newChildId);
-    // Refresh patient list to include the new child
-    dispatch(fetchPatientInfoByUserLogin());
-    // Auto-select the newly created child
-    setSelectedChild(newChildId);
-    // Close modal
-    setIsChildModalOpen(false);
-  };
-
   // ✅ Show loading state while fetching zones
   if (loadingZones) {
     return (
@@ -452,8 +482,6 @@ const BookingFlow = () => {
   }
   const handleChildModalSubmit = async (data: any) => {
     try {
-      console.log("Child profile data:", data);
-
       const patientDto: YouMed_PatientCreateDto = {
         id: editingChild?.id || 0,
         patientId: editingChild?.patientId || null,
@@ -525,29 +553,97 @@ const BookingFlow = () => {
 
   // ✅ Add edit child handler for the cards
   const handleEditChild = (patient: any) => {
-    console.log("Editing child:", patient);
     setEditingChild(patient);
     setSelectedChildId(patient.id);
     setIsChildModalOpen(true);
   };
-  // ✅ Check for valid URL params
-  const hasValidUrlParams = useMemo(() => {
-    return (
-      selectedZone !== null &&
-      selectedExamType !== null &&
-      (specialties.length > 0 || loadingSpecialties) // Still loading specialties is valid
-    );
-  }, [selectedZone, selectedExamType, specialties.length, loadingSpecialties]);
+  // ✅ Xử lý khi tiếp tục thanh toán
+  const handleContinuePayment = () => {
+    if (pendingSession) {
+      navigate("/payment", {
+        state: {
+          registrationData: {
+            id: pendingSession.registrationId,
+            base64QrCode: pendingSession.qrCodeBase64,
+            orderId: pendingSession.orderId,
+          },
+          appointmentData: pendingSession.appointmentData,
+          patientData: pendingSession.patientData,
+          scheduleData: pendingSession.scheduleData,
+          slotData: pendingSession.slotData,
+          serviceData: pendingSession.serviceData,
+        },
+      });
+    }
+  };
 
-  // ✅ Check for pre-selected info
-  const hasPreSelectedInfo = useMemo(() => {
-    return (
-      selectedZone !== null &&
-      selectedExamType !== null &&
-      (!specialties || specialties.length === 0) &&
-      patientList.length === 0
-    );
-  }, [selectedZone, selectedExamType, specialties, patientList.length]);
+  // ✅ Xử lý khi bắt đầu đặt lịch mới
+  const handleStartNewBooking = () => {
+    clearRegistrationSession();
+    setPendingSession(null);
+    setShowPendingWarning(false);
+
+    // Reset tất cả states
+    setSelectedZone(null);
+    setSelectedExamType(null);
+    setSelectedSpecialty(null);
+    setSelectedChild(null);
+    setSelectedAppointment(null);
+    setSelectedSlot(null);
+    setChildWeight("");
+    setChildHeight("");
+    setChildSymptom("");
+    setChildRequiredInformation("");
+
+    toast({
+      title: "Đã xóa lịch khám cũ ✅",
+      description: "Bạn có thể đặt lịch khám mới ngay bây giờ.",
+    });
+  };
+  // ✅ Cập nhật phần xử lý khi đăng ký thành công
+  const handleRegistrationSuccess = async (
+    result: any,
+    childData: any,
+    scheduleData: any,
+    slotData: any,
+    appointmentData: any
+  ) => {
+    try {
+      console.log("✅ Registration created successfully:", result);
+
+      // ✅ Lưu session để theo dõi
+      const sessionData = {
+        registrationId: result.id,
+        orderId: result.orderId,
+        qrCodeBase64: result.base64QrCode,
+        patientData: childData,
+        appointmentData: appointmentData,
+        scheduleData: scheduleData,
+        slotData: slotData,
+        serviceData: currentServicePrice,
+      };
+
+      saveRegistrationSession(sessionData);
+
+      navigate("/payment", {
+        state: {
+          registrationData: result,
+          appointmentData: appointmentData,
+          patientData: childData,
+          scheduleData: scheduleData,
+          slotData: slotData,
+          serviceData: currentServicePrice,
+          examTypeData: currentExamType,
+          specialtyData: currentSpecialty,
+          zoneData: currentZone,
+        },
+      });
+    } catch (error: any) {
+      console.error("❌ Error in handleRegistrationSuccess:", error);
+      throw error;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
       <div className="pt-16 sm:pt-24 pb-12 sm:pb-20 px-2 sm:px-4">
@@ -619,7 +715,16 @@ const BookingFlow = () => {
               )}
             </p>
           </div>
-
+          {showPendingWarning && pendingSession && (
+            <div className="mb-6">
+              <PendingRegistrationWarning
+                session={pendingSession}
+                onContinuePayment={handleContinuePayment}
+                onStartNew={handleStartNewBooking}
+                onDismiss={() => setShowPendingWarning(false)}
+              />
+            </div>
+          )}
           {/* ✅ Show pre-selected info */}
           {(selectedZone || selectedExamType) && (
             <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
@@ -1246,7 +1351,9 @@ const BookingFlow = () => {
                       )}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6">
+
+                  {/* ✅ Thêm max-height và overflow-y-auto cho CardContent */}
+                  <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6 ">
                     {loadingPatient ? (
                       <div className="text-center py-6 sm:py-8">
                         <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-emerald-600 mx-auto mb-3 sm:mb-4"></div>
@@ -1276,117 +1383,118 @@ const BookingFlow = () => {
                     ) : patientList.length > 1 ? (
                       // ✅ Hiển thị danh sách chọn khi có nhiều hơn 1 bệnh nhi
                       <div className="space-y-2 sm:space-y-3">
-                        {patientList.map((patient) => {
-                          const age = calculateAge(
-                            patient.dateOfBirth,
-                            patient.age
-                          );
-                          return (
-                            <div
-                              key={patient.id}
-                              className={`p-2 sm:p-4 border rounded-lg transition-all cursor-pointer ${
-                                selectedChild === patient.id
-                                  ? "border-emerald-600 bg-emerald-50"
-                                  : "border-gray-200 hover:border-emerald-300"
-                              }`}
-                              onClick={() => {
-                                console.log("=== PATIENT SELECTION ===");
-                                console.log("Selected Patient ID:", patient.id);
-                                setSelectedChild(patient.id);
-                                setSelectedAppointment(null);
-                                setSelectedSlot(null);
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-sm sm:text-lg">
-                                    {patient.fullName}
-                                  </h4>
-                                  <p className="text-xs sm:text-sm text-gray-600">
-                                    {age} tuổi • {patient.genderName} •
-                                    <span className="hidden sm:inline">
-                                      Sinh:{" "}
-                                      {new Date(
-                                        patient.dateOfBirth
-                                      ).toLocaleDateString("vi-VN")}
-                                    </span>
-                                    <span className="sm:hidden">
-                                      {new Date(
-                                        patient.dateOfBirth
-                                      ).toLocaleDateString("vi-VN", {
-                                        day: "2-digit",
-                                        month: "2-digit",
-                                      })}
-                                    </span>
-                                  </p>
+                        {/* ✅ Thêm container scroll riêng cho danh sách bệnh nhi */}
+                        <div className="max-h-[40vh] sm:max-h-[50vh] overflow-y-auto space-y-2 sm:space-y-3 pr-1">
+                          {patientList.map((patient) => {
+                            const age = calculateAge(
+                              patient.dateOfBirth,
+                              patient.age
+                            );
+                            return (
+                              <div
+                                key={patient.id}
+                                className={`p-2 sm:p-4 border rounded-lg transition-all cursor-pointer ${
+                                  selectedChild === patient.id
+                                    ? "border-emerald-600 bg-emerald-50"
+                                    : "border-gray-200 hover:border-emerald-300"
+                                }`}
+                                onClick={() => {
+                                  setSelectedChild(patient.id);
+                                  setSelectedAppointment(null);
+                                  setSelectedSlot(null);
+                                }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-sm sm:text-lg">
+                                      {patient.fullName}
+                                    </h4>
+                                    <p className="text-xs sm:text-sm text-gray-600">
+                                      {age} tuổi • {patient.genderName} •
+                                      <span className="hidden sm:inline">
+                                        Sinh:{" "}
+                                        {new Date(
+                                          patient.dateOfBirth
+                                        ).toLocaleDateString("vi-VN")}
+                                      </span>
+                                      <span className="sm:hidden">
+                                        {new Date(
+                                          patient.dateOfBirth
+                                        ).toLocaleDateString("vi-VN", {
+                                          day: "2-digit",
+                                          month: "2-digit",
+                                        })}
+                                      </span>
+                                    </p>
 
-                                  {/* ✅ Additional patient info - Very compact on mobile */}
-                                  <div className="text-xs text-gray-500 mt-0.5 sm:mt-1 space-y-0.5 sm:space-y-1">
-                                    {patient.bhytId && (
-                                      <p className="text-blue-600">
-                                        💳 BHYT: {patient.bhytId}
-                                      </p>
-                                    )}
-                                    <p className="hidden sm:block">
-                                      📍 {patient.wardName},{" "}
-                                      {patient.provinceName}
-                                    </p>
-                                    <p className="hidden sm:block">
-                                      👤 {patient.jobName}
-                                    </p>
-                                    {patient.motherName && (
+                                    {/* ✅ Additional patient info - Very compact on mobile */}
+                                    <div className="text-xs text-gray-500 mt-0.5 sm:mt-1 space-y-0.5 sm:space-y-1">
+                                      {patient.bhytId && (
+                                        <p className="text-blue-600">
+                                          💳 BHYT: {patient.bhytId}
+                                        </p>
+                                      )}
                                       <p className="hidden sm:block">
-                                        👩 Mẹ: {patient.motherName} -{" "}
-                                        {patient.motherPhone}
+                                        📍 {patient.wardName},{" "}
+                                        {patient.provinceName}
                                       </p>
-                                    )}
-                                    {patient.fatherName && (
                                       <p className="hidden sm:block">
-                                        👨 Bố: {patient.fatherName} -{" "}
-                                        {patient.fatherPhone}
+                                        👤 {patient.jobName}
                                       </p>
+                                      {patient.motherName && (
+                                        <p className="hidden sm:block">
+                                          👩 Mẹ: {patient.motherName} -{" "}
+                                          {patient.motherPhone}
+                                        </p>
+                                      )}
+                                      {patient.fatherName && (
+                                        <p className="hidden sm:block">
+                                          👨 Bố: {patient.fatherName} -{" "}
+                                          {patient.fatherPhone}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* ✅ Action buttons - Compact mobile */}
+                                  <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4">
+                                    {/* Edit button */}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditChild(patient);
+                                      }}
+                                      className="text-blue-600 hover:text-blue-800 h-7 sm:h-8 px-2 sm:px-3"
+                                    >
+                                      <Edit className="w-3 h-3 sm:w-4 sm:h-4 mr-0.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">
+                                        Sửa
+                                      </span>
+                                    </Button>
+
+                                    {/* Selection indicator */}
+                                    {selectedChild === patient.id && (
+                                      <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-600 flex-shrink-0" />
                                     )}
                                   </div>
                                 </div>
 
-                                {/* ✅ Action buttons - Compact mobile */}
-                                <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4">
-                                  {/* Edit button */}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditChild(patient);
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 h-7 sm:h-8 px-2 sm:px-3"
-                                  >
-                                    <Edit className="w-3 h-3 sm:w-4 sm:h-4 mr-0.5 sm:mr-1" />
-                                    <span className="hidden sm:inline">
-                                      Sửa
-                                    </span>
-                                  </Button>
-
-                                  {/* Selection indicator */}
-                                  {selectedChild === patient.id && (
-                                    <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-600 flex-shrink-0" />
-                                  )}
-                                </div>
+                                {selectedChild === patient.id && (
+                                  <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-emerald-200">
+                                    <div className="flex items-center text-xs sm:text-sm text-emerald-700">
+                                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                                      <span className="font-medium">
+                                        Đã chọn bệnh nhi này
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-
-                              {selectedChild === patient.id && (
-                                <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-emerald-200">
-                                  <div className="flex items-center text-xs sm:text-sm text-emerald-700">
-                                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                                    <span className="font-medium">
-                                      Đã chọn bệnh nhi này
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
 
                         <Button
                           variant="outline"
@@ -1583,9 +1691,10 @@ const BookingFlow = () => {
                       </div>
                     ) : groupedSpecialty.length > 0 ? (
                       <div className="space-y-4 sm:space-y-6">
-                        {/* Date Filter Section */}
+                        {/* Date & Doctor Filter Section */}
                         <div className="border-b pb-3 sm:pb-4">
-                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+                          {/* Date Filter */}
+                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between mb-4">
                             <div>
                               <h4 className="font-medium text-gray-900 mb-0.5 sm:mb-1 text-sm sm:text-base">
                                 Chọn ngày khám
@@ -1614,13 +1723,13 @@ const BookingFlow = () => {
                                 }}
                                 className="text-gray-600 hover:text-gray-800 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
                               >
-                                Hiển thị tất cả
+                                Hiển thị tất cả ngày
                               </Button>
                             )}
                           </div>
 
                           {/* Date Filter Options Grid */}
-                          <div className="mt-3 sm:mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5 sm:gap-2">
+                          <div className="mt-3 sm:mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5 sm:gap-2 mb-6">
                             {availableDates.map((date) => {
                               const scheduleCount = groupedSpecialty.filter(
                                 (s) => s.date === date
@@ -1682,35 +1791,154 @@ const BookingFlow = () => {
                                   >
                                     {dayOfWeek}
                                   </div>
+                                </Button>
+                              );
+                            })}
+                          </div>
+
+                          {/* ✅ Doctor Filter Section */}
+                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+                            <div>
+                              <h4 className="font-medium text-gray-900 mb-0.5 sm:mb-1 text-sm sm:text-base">
+                                Chọn bác sĩ
+                              </h4>
+                              <p className="text-xs sm:text-sm text-gray-600">
+                                {availableDoctors.length} bác sĩ có lịch khám
+                                {selectedDoctor && (
+                                  <span className="ml-1 sm:ml-2">
+                                    • Đang hiển thị:
+                                    <span className="font-medium text-blue-600">
+                                      {
+                                        availableDoctors.find(
+                                          (d) =>
+                                            d.id?.toString() === selectedDoctor
+                                        )?.name
+                                      }
+                                    </span>
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+
+                            {selectedDoctor && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedDoctor(null);
+                                  setSelectedSlot(null);
+                                  setSelectedAppointment(null);
+                                }}
+                                className="text-gray-600 hover:text-gray-800 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
+                              >
+                                Hiển thị tất cả bác sĩ
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* ✅ Doctor Filter Options Grid */}
+                          <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-2">
+                            {availableDoctors.map((doctor) => {
+                              const doctorSchedules = groupedSpecialty.filter(
+                                (s) => s.doctorId === doctor.id
+                              );
+                              const totalSlots = doctorSchedules.reduce(
+                                (sum, s) => sum + s.totalAvailableSlot,
+                                0
+                              );
+                              const totalDays = new Set(
+                                doctorSchedules.map((s) => s.date)
+                              ).size;
+
+                              return (
+                                <Button
+                                  key={doctor.id}
+                                  variant={
+                                    selectedDoctor === doctor.id?.toString()
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  className={`h-auto p-2 sm:p-3 flex flex-col items-start justify-start text-left transition-all ${
+                                    selectedDoctor === doctor.id?.toString()
+                                      ? "bg-blue-600 hover:bg-blue-700 border-blue-600"
+                                      : "hover:bg-blue-50 hover:border-blue-300"
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedDoctor(
+                                      selectedDoctor === doctor.id?.toString()
+                                        ? null
+                                        : doctor.id?.toString()
+                                    );
+                                    setSelectedSlot(null);
+                                    setSelectedAppointment(null);
+                                  }}
+                                >
                                   <div
-                                    className={`text-xs mt-0.5 sm:mt-1 ${
-                                      selectedDate === date
-                                        ? "text-emerald-100"
-                                        : "text-gray-500"
+                                    className={`text-xs ${
+                                      selectedDoctor === doctor.id?.toString()
+                                        ? "text-white"
+                                        : "text-gray-900"
                                     }`}
                                   >
-                                    {totalSlots} chỗ
+                                    {doctor.name}
                                   </div>
-                                  {scheduleCount > 1 && (
-                                    <div
-                                      className={`text-xs ${
-                                        selectedDate === date
-                                          ? "text-emerald-100"
-                                          : "text-blue-600"
-                                      }`}
-                                    >
-                                      {scheduleCount} ca
-                                    </div>
-                                  )}
                                 </Button>
                               );
                             })}
                           </div>
                         </div>
 
+                        {/* ✅ Active Filters Display */}
+                        {(selectedDate || selectedDoctor) && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span className="text-blue-800 font-medium text-sm">
+                                  Bộ lọc đang áp dụng:
+                                </span>
+                                {selectedDate && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-emerald-100 text-emerald-800 text-xs"
+                                  >
+                                    📅 {formatDateShort(selectedDate)}
+                                  </Badge>
+                                )}
+                                {selectedDoctor && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-blue-100 text-blue-800 text-xs"
+                                  >
+                                    {
+                                      availableDoctors.find(
+                                        (d) =>
+                                          d.id?.toString() === selectedDoctor
+                                      )?.name
+                                    }
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedDate(null);
+                                  setSelectedDoctor(null);
+                                  setSelectedSlot(null);
+                                  setSelectedAppointment(null);
+                                }}
+                                className="text-gray-600 hover:text-gray-800 h-6 sm:h-7 text-xs px-2"
+                              >
+                                Xóa tất cả
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Display filtered schedules */}
                         {filteredSchedules.length > 0 ? (
-                          <div className="space-y-4 sm:space-y-6">
+                          <div className="space-y-4 sm:space-y-6 max-h-[40vh] sm:max-h-[50vh] overflow-y-auto">
+                            {/* ✅ Header thông tin ngày đã chọn */}
                             {selectedDate && (
                               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 sm:p-3">
                                 <div className="flex items-center">
@@ -1719,70 +1947,92 @@ const BookingFlow = () => {
                                     Lịch khám ngày {formatDate(selectedDate)}
                                   </span>
                                 </div>
-                                <p className="text-xs sm:text-sm text-emerald-700 mt-0.5 sm:mt-1">
-                                  {filteredSchedules.length} ca khám có sẵn •{" "}
-                                  {filteredSchedules.reduce(
-                                    (sum, s) => sum + s.totalAvailableSlot,
-                                    0
-                                  )}{" "}
-                                  chỗ trống
-                                </p>
                               </div>
                             )}
 
+                            {/* ✅ Danh sách lịch khám đầy đủ */}
                             {filteredSchedules.map((schedule, index) => (
                               <div
                                 key={schedule.id || index}
-                                className="border rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
+                                className={`border rounded-lg p-3 sm:p-4 hover:shadow-md transition-all ${
+                                  selectedAppointment === schedule.id
+                                    ? "border-emerald-500 bg-emerald-50"
+                                    : "border-gray-200 hover:border-emerald-300"
+                                }`}
                               >
+                                {/* ✅ Header thông tin ca khám */}
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4">
-                                  <div>
-                                    <h4 className="font-semibold text-base sm:text-lg">
-                                      {formatDate(schedule.date)}
-                                    </h4>
-                                    <p className="text-gray-600 text-xs sm:text-sm">
-                                      {schedule.dayName} -{" "}
-                                      {schedule.examinationName}
-                                    </p>
-                                    <p className="text-gray-600 text-xs sm:text-sm">
-                                      {schedule.timeStart} - {schedule.timeEnd}
-                                    </p>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h4 className="font-semibold text-base sm:text-lg">
+                                        {formatDate(schedule.date)}
+                                      </h4>
+                                      {selectedAppointment === schedule.id && (
+                                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                      )}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <p className="text-gray-600 text-xs sm:text-sm flex items-center">
+                                        <Calendar className="w-3 h-3 mr-1" />
+                                        {schedule.dayName} -{" "}
+                                        {schedule.examinationName}
+                                      </p>
+                                      <p className="text-gray-600 text-xs sm:text-sm flex items-center">
+                                        <Clock className="w-3 h-3 mr-1" />
+                                        Ca khám: {schedule.timeStart} -{" "}
+                                        {schedule.timeEnd}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <Badge
-                                    className="mt-1 sm:mt-0 text-xs sm:text-sm"
-                                    variant={
-                                      schedule.isAvailable
-                                        ? "default"
-                                        : "secondary"
-                                    }
-                                  >
-                                    {schedule.totalAvailableSlot} chỗ trống
-                                  </Badge>
+
+                                  <div className="flex flex-col items-end gap-2 mt-2 sm:mt-0">
+                                    {schedule.totalAvailableSlot > 0 && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs text-green-600"
+                                      >
+                                        {
+                                          schedule.appointmentSlots.filter(
+                                            (slot) => slot.isAvailable
+                                          ).length
+                                        }{" "}
+                                        khung giờ
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
 
-                                {/* Doctor and Room info */}
+                                {/* ✅ Thông tin bác sĩ và phòng khám */}
                                 <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
-                                  <p className="text-xs sm:text-sm flex items-center">
-                                    <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                                    Bác sĩ:
-                                    <span className="font-medium ml-1">
-                                      {schedule.doctorName}
-                                    </span>
-                                  </p>
-                                  <p className="text-xs sm:text-sm flex items-center mt-0.5 sm:mt-1">
-                                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                                    Phòng:
-                                    <span className="font-medium ml-1">
-                                      {schedule.roomName}
-                                    </span>
-                                  </p>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <p className="text-xs sm:text-sm flex items-center">
+                                      <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-600" />
+                                      <span className="text-gray-600">
+                                        Bác sĩ:
+                                      </span>
+                                      <span className="font-medium ml-1 text-blue-800">
+                                        {schedule.doctorName}
+                                      </span>
+                                    </p>
+                                    <p className="text-xs sm:text-sm flex items-center">
+                                      <MapPin className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-purple-600" />
+                                      <span className="text-gray-600">
+                                        Phòng:
+                                      </span>
+                                      <span className="font-medium ml-1 text-purple-800">
+                                        {schedule.roomName}
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* ✅ Thông tin dịch vụ và giá */}
                                   {schedule.servicePrices &&
                                     schedule.servicePrices.length > 0 && (
-                                      <div className="mt-1 sm:mt-2">
-                                        <p className="text-xs sm:text-sm text-gray-600">
-                                          Giá dịch vụ:
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <p className="text-xs sm:text-sm text-gray-600 mb-1">
+                                          💰 Giá dịch vụ:
                                         </p>
-                                        <div className="flex flex-wrap gap-1 sm:gap-2 mt-0.5 sm:mt-1">
+                                        <div className="flex flex-wrap gap-1 sm:gap-2">
                                           {schedule.servicePrices.map(
                                             (service) => (
                                               <Badge
@@ -1802,171 +2052,220 @@ const BookingFlow = () => {
                                     )}
                                 </div>
 
-                                {/* Appointment Slots */}
-                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5 sm:gap-2">
-                                  {schedule.appointmentSlots.map((slot) => (
-                                    <Button
-                                      key={slot.slotId}
-                                      variant={
-                                        selectedSlot === slot.slotId
-                                          ? "default"
-                                          : "outline"
-                                      }
-                                      className={`h-auto p-1.5 sm:p-2 ${
-                                        selectedSlot === slot.slotId
-                                          ? "bg-emerald-600 hover:bg-emerald-700"
-                                          : "hover:bg-emerald-50 hover:text-emerald-500"
-                                      }`}
-                                      onClick={() => {
-                                        // ✅ Log tất cả thông tin booking
-                                        console.log(
-                                          "=== APPOINTMENT SLOT SELECTION ==="
-                                        );
-                                        console.log(
-                                          "Appointment Slot ID:",
-                                          slot.slotId
-                                        );
-                                        console.log(
-                                          "Patient ID:",
-                                          selectedChild
-                                        );
-                                        console.log(
-                                          "Schedule ID:",
-                                          schedule.id
-                                        );
+                                {/* ✅ Khung giờ khám chi tiết */}
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="font-medium text-sm sm:text-base text-gray-900">
+                                      ⏰ Chọn khung giờ khám
+                                    </h5>
+                                  </div>
 
-                                        // ✅ Log theo format yêu cầu
-                                        const bookingData = {
-                                          timeSlotId: slot.slotId,
-                                          patientId: selectedChild,
-                                          symptom: childSymptom || "",
-                                          requiredInformation:
-                                            childRequiredInformation || "",
-                                          statusPayment: 0,
-                                          orderId: "",
-                                          weight: parseFloat(childWeight) || 0,
-                                          height: parseFloat(childHeight) || 0,
-                                          status: childStatus || 0,
-                                          // ✅ Thêm thông tin bổ sung
-                                          appointmentSlotId: slot.slotId,
-                                          scheduleId: schedule.id,
-                                          slotStartTime: slot.startSlot,
-                                          slotEndTime: slot.endSlot,
-                                          doctorName: schedule.doctorName,
-                                          roomName: schedule.roomName,
-                                          date: schedule.date,
-                                          zoneId: selectedZone,
-                                          examTypeId: selectedExamType,
-                                          specialtyId: selectedSpecialty,
-                                          servicePrice: currentServicePrice,
-                                        };
+                                  {/* ✅ Grid khung giờ responsive */}
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
+                                    {schedule.appointmentSlots.map((slot) => (
+                                      <Button
+                                        key={slot.slotId}
+                                        variant={
+                                          selectedSlot === slot.slotId
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        className={`h-auto p-2 sm:p-3 transition-all ${
+                                          selectedSlot === slot.slotId
+                                            ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600 shadow-md"
+                                            : slot.isAvailable
+                                            ? "hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300"
+                                            : "opacity-50 cursor-not-allowed bg-gray-100"
+                                        }`}
+                                        onClick={() => {
+                                          if (!slot.isAvailable) return;
 
-                                        console.log(
-                                          "Booking Data:",
-                                          bookingData
-                                        );
-
-                                        // ✅ Log thông tin bệnh nhi hiện tại
-                                        const selectedPatient =
-                                          patientList.find(
-                                            (p) => p.id === selectedChild
-                                          );
-                                        if (selectedPatient) {
+                                          // ✅ Log chi tiết thông tin booking
                                           console.log(
-                                            "Selected Patient Details:",
-                                            {
-                                              patientId: selectedPatient.id,
-                                              fullName:
-                                                selectedPatient.fullName,
-                                              dateOfBirth:
-                                                selectedPatient.dateOfBirth,
-                                              genderId:
-                                                selectedPatient.genderId,
-                                              bhytId: selectedPatient.bhytId,
-                                              address: selectedPatient.address,
-                                              wardName:
-                                                selectedPatient.wardName,
-                                              provinceName:
-                                                selectedPatient.provinceName,
-                                            }
+                                            "=== APPOINTMENT SLOT SELECTION ==="
                                           );
-                                        }
+                                          console.log("Slot ID:", slot.slotId);
+                                          console.log(
+                                            "Schedule ID:",
+                                            schedule.id
+                                          );
+                                          console.log(
+                                            "Patient ID:",
+                                            selectedChild
+                                          );
 
-                                        // ✅ Log thông tin slot chi tiết
-                                        console.log("Slot Details:", {
-                                          slotId: slot.slotId,
-                                          startTime: slot.startSlot,
-                                          endTime: slot.endSlot,
-                                          availableSlot: slot.availableSlot,
-                                          totalSlot: slot.totalSlot,
-                                          isAvailable: slot.isAvailable,
-                                        });
+                                          const bookingData = {
+                                            timeSlotId: slot.slotId,
+                                            patientId: selectedChild,
+                                            symptom: childSymptom || "",
+                                            requiredInformation:
+                                              childRequiredInformation || "",
+                                            statusPayment: 0,
+                                            orderId: "",
+                                            weight:
+                                              parseFloat(childWeight) || 0,
+                                            height:
+                                              parseFloat(childHeight) || 0,
+                                            status: childStatus || 0,
+                                            appointmentSlotId: slot.slotId,
+                                            scheduleId: schedule.id,
+                                            slotStartTime: slot.startSlot,
+                                            slotEndTime: slot.endSlot,
+                                            doctorName: schedule.doctorName,
+                                            roomName: schedule.roomName,
+                                            date: schedule.date,
+                                            zoneId: selectedZone,
+                                            examTypeId: selectedExamType,
+                                            specialtyId: selectedSpecialty,
+                                            servicePrice: currentServicePrice,
+                                          };
 
-                                        // ✅ Log thông tin schedule
-                                        console.log("Schedule Details:", {
-                                          scheduleId: schedule.id,
-                                          date: schedule.date,
-                                          doctorName: schedule.doctorName,
-                                          roomName: schedule.roomName,
-                                          timeStart: schedule.timeStart,
-                                          timeEnd: schedule.timeEnd,
-                                          examinationName:
-                                            schedule.examinationName,
-                                        });
+                                          console.log(
+                                            "Booking Data:",
+                                            bookingData
+                                          );
+                                          console.log("=== END SELECTION ===");
 
-                                        // ✅ Log thông tin service và pricing
-                                        if (currentServicePrice) {
-                                          console.log("Service Price:", {
-                                            id: currentServicePrice.id,
-                                            name: currentServicePrice.name,
-                                            price: currentServicePrice.price,
-                                            enable: currentServicePrice.enable,
-                                          });
-                                        }
+                                          setSelectedSlot(slot.slotId);
+                                          setSelectedAppointment(schedule.id);
+                                        }}
+                                        disabled={!slot.isAvailable}
+                                      >
+                                        <div className="text-center w-full">
+                                          <div
+                                            className={`font-medium text-xs sm:text-sm ${
+                                              selectedSlot === slot.slotId
+                                                ? "text-white"
+                                                : slot.isAvailable
+                                                ? "text-gray-900"
+                                                : "text-gray-400"
+                                            }`}
+                                          >
+                                            {slot.startSlot}
+                                          </div>
+                                          <div
+                                            className={`text-xs ${
+                                              selectedSlot === slot.slotId
+                                                ? "text-emerald-100"
+                                                : slot.isAvailable
+                                                ? "text-gray-600"
+                                                : "text-gray-400"
+                                            }`}
+                                          >
+                                            {slot.endSlot}
+                                          </div>
+                                          <div
+                                            className={`text-xs mt-0.5 sm:mt-1 ${
+                                              selectedSlot === slot.slotId
+                                                ? "text-emerald-200"
+                                                : slot.isAvailable
+                                                ? "text-gray-500"
+                                                : "text-gray-400"
+                                            }`}
+                                          >
+                                            {slot.availableSlot}/
+                                            {slot.totalSlot}
+                                          </div>
 
-                                        console.log("=== END SELECTION ===");
-
-                                        setSelectedSlot(slot.slotId);
-                                        setSelectedAppointment(schedule.id);
-                                      }}
-                                      disabled={!slot.isAvailable}
-                                    >
-                                      <div className="text-center">
-                                        <div className="font-medium text-xs sm:text-sm">
-                                          {slot.startSlot}
+                                          {/* ✅ Hiển thị trạng thái */}
+                                          {!slot.isAvailable && (
+                                            <div className="text-xs text-red-500 font-medium mt-0.5">
+                                              Hết chỗ
+                                            </div>
+                                          )}
+                                          {selectedSlot === slot.slotId && (
+                                            <div className="text-xs text-white font-medium mt-0.5">
+                                              ✓ Đã chọn
+                                            </div>
+                                          )}
                                         </div>
-                                        <div className="text-xs opacity-80">
-                                          {slot.endSlot}
-                                        </div>
-                                        <div className="text-xs mt-0.5 sm:mt-1 opacity-75">
-                                          {slot.availableSlot}/{slot.totalSlot}
-                                        </div>
-                                      </div>
-                                    </Button>
-                                  ))}
+                                      </Button>
+                                    ))}
+                                  </div>
+
+                                  {/* ✅ Thông tin bổ sung về khung giờ */}
+                                  {schedule.appointmentSlots.filter(
+                                    (slot) => slot.isAvailable
+                                  ).length === 0 && (
+                                    <div className="text-center py-3 text-gray-500 bg-gray-50 rounded-lg">
+                                      <p className="text-sm">
+                                        ❌ Tất cả khung giờ đã hết chỗ
+                                      </p>
+                                      <p className="text-xs mt-1">
+                                        Vui lòng chọn ca khám khác
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
+
+                                {/* ✅ Thông báo khi đã chọn slot */}
+                                {selectedSlot &&
+                                  selectedAppointment === schedule.id && (
+                                    <div className="mt-3 p-2 sm:p-3 bg-emerald-100 border border-emerald-300 rounded-lg">
+                                      <div className="flex items-center text-emerald-700">
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                        <span className="font-medium text-sm">
+                                          ✅ Đã chọn khung giờ{" "}
+                                          {
+                                            schedule.appointmentSlots.find(
+                                              (s) => s.slotId === selectedSlot
+                                            )?.startSlot
+                                          }{" "}
+                                          -{" "}
+                                          {
+                                            schedule.appointmentSlots.find(
+                                              (s) => s.slotId === selectedSlot
+                                            )?.endSlot
+                                          }
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-emerald-600 mt-1">
+                                        Bác sĩ {schedule.doctorName} • Phòng{" "}
+                                        {schedule.roomName}
+                                      </p>
+                                    </div>
+                                  )}
                               </div>
                             ))}
                           </div>
-                        ) : selectedDate ? (
+                        ) : (
+                          // ✅ Trạng thái không có lịch khám
                           <div className="text-center py-6 sm:py-8 text-gray-500">
                             <Calendar className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 text-gray-300" />
                             <p className="font-medium text-sm sm:text-base">
-                              Không có lịch khám
+                              Không có lịch khám phù hợp
                             </p>
                             <p className="text-xs sm:text-sm">
-                              Ngày {formatDateShort(selectedDate)} không có lịch
-                              khám cho chuyên khoa này
+                              {selectedDate && selectedDoctor
+                                ? `Ngày ${formatDateShort(selectedDate)} và  ${
+                                    availableDoctors.find(
+                                      (d) => d.id?.toString() === selectedDoctor
+                                    )?.name
+                                  } không có lịch khám`
+                                : selectedDate
+                                ? `Ngày ${formatDateShort(
+                                    selectedDate
+                                  )} không có lịch khám`
+                                : selectedDoctor
+                                ? ` ${
+                                    availableDoctors.find(
+                                      (d) => d.id?.toString() === selectedDoctor
+                                    )?.name
+                                  } không có lịch khám`
+                                : "Không có lịch khám nào"}
                             </p>
                             <Button
                               variant="outline"
                               className="mt-3 sm:mt-4 h-8 sm:h-10 text-xs sm:text-sm px-3 sm:px-4"
-                              onClick={() => setSelectedDate(null)}
+                              onClick={() => {
+                                setSelectedDate(null);
+                                setSelectedDoctor(null);
+                              }}
                             >
-                              Xem tất cả ngày khác
+                              Xem tất cả lịch khám
                             </Button>
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     ) : (
                       <div className="text-center py-6 sm:py-8 text-gray-500">
@@ -2134,7 +2433,7 @@ const BookingFlow = () => {
                                     {slot.startSlot} - {slot.endSlot}
                                   </div>
                                   <div className="text-sm text-gray-500">
-                                    BS. {schedule.doctorName}
+                                    {schedule.doctorName}
                                   </div>
                                   <div className="text-sm text-gray-500">
                                     {schedule.roomName}
@@ -2152,9 +2451,13 @@ const BookingFlow = () => {
                   <Button
                     className="w-full bg-emerald-600 hover:bg-emerald-700"
                     disabled={
-                      !selectedSlot || !selectedChild || !hasAvailableService
+                      !selectedSlot ||
+                      !selectedChild ||
+                      !hasAvailableService ||
+                      loadingRegistration ||
+                      showPendingWarning
                     }
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         !selectedChild ||
                         !selectedAppointment ||
@@ -2162,7 +2465,6 @@ const BookingFlow = () => {
                       )
                         return;
 
-                      // ✅ Sử dụng dữ liệu thật từ Redux thay vì mock data
                       const selectedChildData = patientList.find(
                         (p) => p.id === selectedChild
                       );
@@ -2178,20 +2480,46 @@ const BookingFlow = () => {
                         !selectedChildData ||
                         !selectedScheduleData ||
                         !selectedSlotData
-                      )
+                      ) {
+                        toast({
+                          title: "Lỗi dữ liệu",
+                          description:
+                            "Không tìm thấy thông tin cần thiết. Vui lòng thử lại.",
+                          variant: "destructive",
+                        });
                         return;
-
-                      // ✅ Tạo appointment object với dữ liệu thật
+                      }
+                      // ✅ Tạo API payload
+                      const apiPayload: AddOnlineRegistrationDto = {
+                        appointmentSlotId: selectedSlot,
+                        patientId: selectedChild,
+                        symptom: childSymptom || "",
+                        requiredInformation: childRequiredInformation || "",
+                        weight: parseFloat(childWeight) || 0,
+                        height: parseFloat(childHeight) || 0,
+                        patientEscortName:
+                          selectedChildData.motherName ||
+                          userInfo?.fullName ||
+                          "",
+                        patientEscortPhone:
+                          selectedChildData.motherPhone ||
+                          userInfo?.phoneNumber ||
+                          "",
+                        patientEscortRelationship: selectedChildData.motherName
+                          ? "Mẹ"
+                          : "Người giám hộ",
+                      };
+                      // ✅ Tạo appointment object trước
                       const newAppointment = {
-                        id: Date.now().toString(),
+                        id: Date.now().toString(), // Temporary ID
                         childId: selectedChild,
-                        childName: selectedChildData.fullName, // ✅ Sử dụng fullName từ patientList
+                        childName: selectedChildData.fullName,
                         doctorId:
                           selectedScheduleData.doctorId?.toString() ||
                           selectedScheduleData.id.toString(),
                         doctorName: selectedScheduleData.doctorName,
                         specialty:
-                          currentSpecialty?.name || currentExamType?.name || "", // ✅ Sử dụng specialty thật
+                          currentSpecialty?.name || currentExamType?.name || "",
                         date: selectedScheduleData.date,
                         time: selectedSlotData.startSlot,
                         status: "pending" as const,
@@ -2201,7 +2529,6 @@ const BookingFlow = () => {
                         childStatus,
                         childSymptom,
                         childRequiredInformation,
-                        // ✅ Thêm thông tin bổ sung từ dữ liệu thật
                         zoneId: selectedZone,
                         examTypeId: selectedExamType,
                         specialtyId: selectedSpecialty,
@@ -2210,33 +2537,111 @@ const BookingFlow = () => {
                         servicePrice: currentServicePrice?.price || 0,
                         serviceName: currentServicePrice?.name || "",
                       };
+                      console.log("=== API BOOKING PAYLOAD ===");
+                      console.log(
+                        "POST /api/online-registration/create:",
+                        JSON.stringify(apiPayload, null, 2)
+                      );
 
-                      // ✅ Log thông tin đặt lịch cuối cùng
-                      console.log("=== FINAL BOOKING CONFIRMATION ===");
-                      console.log("New Appointment:", newAppointment);
-                      console.log("Patient Data:", selectedChildData);
-                      console.log("Schedule Data:", selectedScheduleData);
-                      console.log("Slot Data:", selectedSlotData);
-                      console.log("Service Price:", currentServicePrice);
+                      try {
+                        // ✅ Gọi API tạo đăng ký
+                        const result = await dispatch(
+                          createOnlineRegistrationThunk({
+                            payload: apiPayload,
+                            isQR: true,
+                          })
+                        ).unwrap();
 
-                      dispatch(addAppointment(newAppointment));
+                        console.log("result", result);
 
-                      toast({
-                        title: "Đang chuyển đến trang thanh toán",
-                        description:
-                          "Vui lòng hoàn tất thanh toán để xác nhận lịch khám.",
-                      });
+                        // ✅ Tạo appointment object
+                        const newAppointment = {
+                          id: result.id?.toString() || Date.now().toString(),
+                          childId: selectedChild,
+                          childName: selectedChildData.fullName,
+                          doctorId:
+                            selectedScheduleData.doctorId?.toString() ||
+                            selectedScheduleData.id.toString(),
+                          doctorName: selectedScheduleData.doctorName,
+                          specialty:
+                            currentSpecialty?.name ||
+                            currentExamType?.name ||
+                            "",
+                          date: selectedScheduleData.date,
+                          time: selectedSlotData.startSlot,
+                          status: "pending" as const,
+                          location: selectedScheduleData.roomName,
+                          childWeight,
+                          childHeight,
+                          childStatus,
+                          childSymptom,
+                          childRequiredInformation,
+                          zoneId: selectedZone,
+                          examTypeId: selectedExamType,
+                          specialtyId: selectedSpecialty,
+                          scheduleId: selectedAppointment,
+                          slotId: selectedSlot,
+                          servicePrice: currentServicePrice?.price || 0,
+                          serviceName: currentServicePrice?.name || "",
+                          registrationId: result.id,
+                          orderId: result.orderId,
+                        };
+                        // ✅ Update appointment with real ID
+                        const finalAppointment = {
+                          ...newAppointment,
+                          id: result.id?.toString() || newAppointment.id,
+                          registrationId: result.id,
+                          orderId: result.orderId,
+                        };
 
-                      navigate("/payment");
+                        // ✅ Gọi handler với tất cả data cần thiết
+                        await handleRegistrationSuccess(
+                          result,
+                          selectedChildData,
+                          selectedScheduleData,
+                          selectedSlotData,
+                          finalAppointment
+                        );
+                        navigate("/payment", {
+                          state: {
+                            registrationData: result, // ✅ Thêm toàn bộ response từ API
+                            appointmentData: newAppointment,
+                            patientData: selectedChildData,
+                            scheduleData: selectedScheduleData,
+                            slotData: selectedSlotData,
+                            serviceData: currentServicePrice,
+                            examTypeData: currentExamType,
+                            specialtyData: currentSpecialty,
+                            zoneData: currentZone,
+                          },
+                        });
+                      } catch (error: any) {
+                        console.error(
+                          "❌ Failed to create registration:",
+                          error
+                        );
+                        toast({
+                          title: "Lỗi đặt lịch khám",
+                          description: error.message || "Vui lòng thử lại sau",
+                          variant: "destructive",
+                        });
+                      }
                     }}
                   >
-                    {!hasAvailableService
-                      ? "Chưa có dịch vụ khả dụng"
-                      : !selectedChild
-                      ? "Chọn bệnh nhi trước"
-                      : !selectedSlot
-                      ? "Chọn thời gian khám"
-                      : "Xác nhận đặt lịch"}
+                    {loadingRegistration ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Đang xử lý...
+                      </>
+                    ) : !hasAvailableService ? (
+                      "Chưa có dịch vụ khả dụng"
+                    ) : !selectedChild ? (
+                      "Chọn bệnh nhi trước"
+                    ) : !selectedSlot ? (
+                      "Chọn thời gian khám"
+                    ) : (
+                      "Xác nhận đặt lịch"
+                    )}
                   </Button>
                 </CardContent>
               </Card>

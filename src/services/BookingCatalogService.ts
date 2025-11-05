@@ -27,6 +27,60 @@ export interface BookingCatalogQueryParams {
   appointmentSlotId?: number;
 }
 
+// ✅ Interface cho Online Registration DTO
+export interface AddOnlineRegistrationDto {
+  appointmentSlotId: number;
+  patientId: number;
+  symptom: string;
+  requiredInformation: string;
+  weight: number;
+  height: number;
+  patientEscortName: string;
+  patientEscortPhone: string;
+  patientEscortRelationship: string;
+}
+
+// ✅ Interface cho Online Registration Response
+export interface OnlineRegistrationResponse {
+  id: number;
+  appointmentSlotId: number;
+  patientId: number;
+  symptom: string;
+  requiredInformation: string;
+  weight: number;
+  height: number;
+  patientEscortName: string;
+  patientEscortPhone: string;
+  patientEscortRelationship: string;
+  status: string;
+  createdAt: string;
+  orderId?: string;
+  paymentUrl?: string;
+}
+
+// ✅ Interface cho Payment Confirmation Request
+export interface PaymentConfirmationRequest {
+  orderId: string;
+  transactionId?: string;
+  amount?: number;
+  status?: string;
+  paymentMethod?: string;
+  paymentTime?: string;
+}
+
+// ✅ Interface cho Payment Confirmation Response
+export interface PaymentConfirmationResponse {
+  success: boolean;
+  message: string;
+  registrationId?: number;
+  paymentStatus?: string;
+  orderId?: string;
+  transactionId?: string;
+  amount?: number;
+  paymentTime?: string;
+  data?: any;
+}
+
 // ✅ Helper function để xử lý response - QUAN TRỌNG!
 const handleApiResponse = (response: any, errorMessage: string) => {
   if (response.status === 200) {
@@ -229,5 +283,77 @@ export const getListPatientInfo = async () => {
     }
 
     throw new Error(error.message || "Lỗi lấy thông tin bệnh nhân");
+  }
+};
+
+// ✅ 7. Tạo đăng ký khám online
+export const createOnlineRegistration = async (
+  payload: AddOnlineRegistrationDto,
+  isQR: boolean = true
+) => {
+  try {
+    const queryString = isQR ? `?isQR=${isQR}` : "";
+    const response = await postJSONAuth(
+      `/api/online-registration/create${queryString}`,
+      payload
+    );
+
+    return handleApiResponsePost(response, "Lỗi tạo đăng ký khám online");
+  } catch (error: any) {
+    console.error("❌ createOnlineRegistration error:", error);
+
+    if (
+      error.message &&
+      !error.message.includes("Lỗi tạo đăng ký khám online")
+    ) {
+      throw error;
+    }
+
+    throw new Error(error.message || "Lỗi tạo đăng ký khám online");
+  }
+};
+
+// ✅ 8. Xác nhận thanh toán
+export const confirmPayment = async (payload: PaymentConfirmationRequest) => {
+  try {
+    console.log("🔄 Calling payment confirmation API with payload:", payload);
+
+    const response = await postJSONAuth(
+      "/api/online-registration/payment-confirmation",
+      payload
+    );
+
+    console.log("✅ Payment confirmation API response:", response);
+    return handleApiResponsePost(response, "Lỗi xác nhận thanh toán");
+  } catch (error: any) {
+    console.error("❌ confirmPayment error:", error);
+
+    if (error.message && !error.message.includes("Lỗi xác nhận thanh toán")) {
+      throw error;
+    }
+
+    throw new Error(error.message || "Lỗi xác nhận thanh toán");
+  }
+};
+
+// ✅ 9. Hủy đăng ký khám
+export const cancelRegistration = async (id: number) => {
+  try {
+    const response = await fetch(`/api/online-registration/cancel/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: Lỗi hủy đăng ký khám`);
+    }
+
+    return { success: true, message: "Hủy đăng ký khám thành công" };
+  } catch (error: any) {
+    console.error("❌ cancelRegistration error:", error);
+    throw new Error(error.message || "Lỗi hủy đăng ký khám");
   }
 };

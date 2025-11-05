@@ -64,7 +64,6 @@ export const updateSpecialtyThunk = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-
       return await updateSpecialty(id, data);
     } catch (err: any) {
       return rejectWithValue(err.message || "Lỗi cập nhật chuyên khoa");
@@ -79,7 +78,10 @@ export const deleteSpecialtyThunk = createAsyncThunk(
       await deleteSpecialty(id);
       return id;
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi xóa chuyên khoa");
+      const errorMessage =
+        err || // HTTP status text
+        "Lỗi xóa chuyên khoa"; // Default
+      return rejectWithValue(errorMessage);
     }
   }
 );

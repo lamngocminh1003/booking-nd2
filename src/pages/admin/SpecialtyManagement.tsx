@@ -117,18 +117,38 @@ export default function SpecialtyManagement() {
 
   const handleDelete = async (specialty: any) => {
     try {
-      await dispatch(deleteSpecialtyThunk(specialty.id) as any);
-      toast.success(`Xóa chuyên khoa "${specialty.name}" thành công!`);
-      dispatch(fetchSpecialties() as any);
-      setDeletingSpecialty(null);
+      const res = await dispatch(deleteSpecialtyThunk(specialty.id) as any);
 
-      // Reset page if current page becomes empty
-      const newTotalPages = Math.ceil((filteredList.length - 1) / PAGE_SIZE);
-      if (page > newTotalPages && newTotalPages > 0) {
-        setPage(newTotalPages);
+      // ✅ KIỂM TRA TYPE CỦA ACTION
+      if (res.type === deleteSpecialtyThunk.fulfilled.type) {
+        toast.success(`Xóa chuyên khoa "${specialty.name}" thành công!`);
+        dispatch(fetchSpecialties() as any);
+        setDeletingSpecialty(null);
+
+        const newTotalPages = Math.ceil((filteredList.length - 1) / PAGE_SIZE);
+        if (page > newTotalPages && newTotalPages > 0) {
+          setPage(newTotalPages);
+        }
+      } else if (res.type === deleteSpecialtyThunk.rejected.type) {
+        // ✅ SỬA LẠI: XỬ LÝ PAYLOAD AN TOÀN
+
+        let errorMessage = "Có lỗi xảy ra khi xóa chuyên khoa!";
+
+        if (res.payload) {
+          if (typeof res.payload === "string") {
+            errorMessage = res.payload;
+          } else if (res.payload.message) {
+            errorMessage = res.payload.message;
+          } else if (res.error?.message) {
+            errorMessage = res.error.message;
+          }
+        }
+
+        toast.error(errorMessage);
       }
-    } catch (error) {
-      toast.error("Có lỗi xảy ra khi xóa chuyên khoa!");
+    } catch (error: any) {
+      console.error("🔍 Unexpected Error:", error);
+      toast.error("Có lỗi không mong muốn xảy ra!");
     }
   };
 

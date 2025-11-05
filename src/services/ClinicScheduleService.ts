@@ -5,6 +5,60 @@ import {
   deleteJSONAuth,
 } from "@/lib/utils";
 
+// ✅ Cập nhật handleApiResponsePost để xử lý bulk operations
+const handleApiResponsePost = (response: any, errorMessage: string) => {
+  // ✅ KIỂM TRA success FIELD - QUAN TRỌNG!
+  if (response.success === true) {
+    const data = response.data;
+
+    // ✅ KIỂM TRA BULK OPERATION RESULTS
+    if (Array.isArray(data)) {
+      const failedItems = data.filter((item: any) => item.status === false);
+      const successItems = data.filter((item: any) => item.status !== false);
+
+      if (failedItems.length > 0) {
+        // ✅ CÓ LỖI TRONG BULK OPERATION
+        const errorMessages = failedItems
+          .map((item: any) => item.message)
+          .join("; ");
+        console.error("❌ Bulk operation có lỗi:", {
+          failed: failedItems.length,
+          success: successItems.length,
+          errors: errorMessages,
+        });
+
+        // ✅ Tạo error object với thông tin chi tiết
+        const bulkError = new Error(errorMessages);
+        (bulkError as any).bulkResult = {
+          total: data.length,
+          success: successItems.length,
+          failed: failedItems.length,
+          failedItems: failedItems,
+          successItems: successItems,
+          errors: errorMessages,
+        };
+        throw bulkError;
+      }
+
+      console.log("✅ Bulk operation thành công:", {
+        total: data.length,
+        success: successItems.length,
+      });
+    }
+
+    return data;
+  } else if (response.success === false) {
+    // ✅ NÉM LỖI VỚI MESSAGE TỪ SERVER
+    const errorMsg = response.message || "Lỗi không xác định từ server";
+    console.error("❌ API Failed with success=false:", errorMsg);
+    throw new Error(errorMsg);
+  } else {
+    // ✅ TRƯỜNG HỢP KHÔNG CÓ success FIELD
+    console.warn("⚠️ No success field, assuming success");
+    return response.data || response;
+  }
+};
+
 export interface CreateClinicScheduleDto {
   // Định nghĩa theo schema của API - có thể cần điều chỉnh theo actual schema
   roomId?: number;
@@ -34,28 +88,371 @@ export interface ClinicScheduleQueryParams {
   ZoneId?: number;
 }
 
-export const getClinicSchedules = (params?: ClinicScheduleQueryParams) => {
-  const queryString = params
-    ? `?${new URLSearchParams(
-        Object.entries(params)
-          .filter(([_, value]) => value !== undefined)
-          .map(([key, value]) => [key, String(value)])
-      ).toString()}`
-    : "";
+// ✅ GET requests - giữ nguyên vì thường không cần handleApiResponsePost
+export const getClinicSchedules = async (
+  params?: ClinicScheduleQueryParams
+) => {
+  try {
+    const queryString = params
+      ? `?${new URLSearchParams(
+          Object.entries(params)
+            .filter(([_, value]) => value !== undefined)
+            .map(([key, value]) => [key, String(value)])
+        ).toString()}`
+      : "";
 
-  return fetchData(`/api/clinic-schedule/list${queryString}`);
+    console.log(
+      "🔄 Calling getClinicSchedules API:",
+      `/api/clinic-schedule/list${queryString}`
+    );
+
+    const response = await fetchData(`/api/clinic-schedule/list${queryString}`);
+    console.log("✅ getClinicSchedules response:", response);
+
+    return response;
+  } catch (error: any) {
+    console.error("❌ getClinicSchedules error:", error);
+    throw error;
+  }
 };
 
-export const getClinicScheduleById = (id: number) =>
-  fetchData(`/api/clinic-schedule/${id}`);
+export const getClinicScheduleById = async (id: number) => {
+  try {
+    console.log(
+      "🔄 Calling getClinicScheduleById API:",
+      `/api/clinic-schedule/${id}`
+    );
 
-export const createClinicSchedules = (data: CreateClinicScheduleDto[]) =>
-  postJSONAuth("/api/clinic-schedule/create", data);
+    const response = await fetchData(`/api/clinic-schedule/${id}`);
+    console.log("✅ getClinicScheduleById response:", response);
 
-export const updateClinicSchedule = (
+    return response;
+  } catch (error: any) {
+    console.error("❌ getClinicScheduleById error:", error);
+    throw error;
+  }
+};
+
+// ✅ POST request - áp dụng handleApiResponsePost
+export const createClinicSchedules = async (
+  data: CreateClinicScheduleDto[]
+) => {
+  try {
+    console.log("🔄 Calling createClinicSchedules API with payload:", data);
+
+    const response = await postJSONAuth("/api/clinic-schedule/create", data);
+
+    console.log("✅ createClinicSchedules API response:", response);
+    return handleApiResponsePost(response, "Lỗi tạo lịch khám");
+  } catch (error: any) {
+    console.error("❌ createClinicSchedules error:", error);
+
+    // ✅ Xử lý bulk operation error
+    if (error.bulkResult) {
+      console.error("📊 Bulk operation summary:", error.bulkResult);
+
+      // ✅ Ném lỗi với thông tin chi tiết
+      const detailedError = new Error(
+        `Tạo lịch khám thất bại: ${error.bulkResult.failed}/${error.bulkResult.total} lịch bị lỗi. Chi tiết: ${error.message}`
+      );
+      (detailedError as any).bulkResult = error.bulkResult;
+      throw detailedError;
+    }
+
+    // ✅ Kiểm tra nếu error đã được xử lý bởi handleApiResponsePost
+    if (error.message && !error.message.includes("Lỗi tạo lịch khám")) {
+      throw error;
+    }
+
+    throw new Error(error.message || "Lỗi tạo lịch khám");
+  }
+};
+
+// ✅ PUT request - áp dụng handleApiResponsePost
+export const updateClinicSchedule = async (
   id: number,
   data: CreateClinicScheduleDto
-) => putJSONAuth(`/api/clinic-schedule/${id}`, data);
+) => {
+  try {
+    console.log(
+      "🔄 Calling updateClinicSchedule API:",
+      `/api/clinic-schedule/${id}`,
+      data
+    );
 
-export const deleteClinicSchedule = (id: number) =>
-  deleteJSONAuth(`/api/clinic-schedule/${id}`);
+    const response = await putJSONAuth(`/api/clinic-schedule/${id}`, data);
+
+    console.log("✅ updateClinicSchedule API response:", response);
+    return handleApiResponsePost(response, "Lỗi cập nhật lịch khám");
+  } catch (error: any) {
+    console.error("❌ updateClinicSchedule error:", error);
+
+    // ✅ Kiểm tra nếu error đã được xử lý bởi handleApiResponsePost
+    if (error.message && !error.message.includes("Lỗi cập nhật lịch khám")) {
+      throw error;
+    }
+
+    throw new Error(error.message || "Lỗi cập nhật lịch khám");
+  }
+};
+
+// ✅ DELETE request - áp dụng handleApiResponsePost
+export const deleteClinicSchedule = async (id: number) => {
+  try {
+    console.log(
+      "🔄 Calling deleteClinicSchedule API:",
+      `/api/clinic-schedule/${id}`
+    );
+
+    const response = await deleteJSONAuth(`/api/clinic-schedule/${id}`);
+
+    console.log("✅ deleteClinicSchedule API response:", response);
+    return handleApiResponsePost(response, "Lỗi xóa lịch khám");
+  } catch (error: any) {
+    console.error("❌ deleteClinicSchedule error:", error);
+
+    // ✅ Kiểm tra nếu error đã được xử lý bởi handleApiResponsePost
+    if (error.message && !error.message.includes("Lỗi xóa lịch khám")) {
+      throw error;
+    }
+
+    throw new Error(error.message || "Lỗi xóa lịch khám");
+  }
+};
+
+// ✅ Thêm các utility functions bổ sung
+export const createSingleClinicSchedule = async (
+  data: CreateClinicScheduleDto
+) => {
+  return createClinicSchedules([data]);
+};
+
+// ✅ Bulk operations
+export const createMultipleClinicSchedules = async (
+  schedules: CreateClinicScheduleDto[]
+) => {
+  try {
+    console.log(
+      "🔄 Calling createMultipleClinicSchedules with",
+      schedules.length,
+      "schedules"
+    );
+
+    const response = await createClinicSchedules(schedules);
+
+    console.log(
+      "✅ Created",
+      schedules.length,
+      "clinic schedules successfully"
+    );
+    return response;
+  } catch (error: any) {
+    console.error("❌ Failed to create multiple clinic schedules:", error);
+    throw error;
+  }
+};
+
+// ✅ Helper function để validate trước khi tạo
+export const validateBeforeCreate = (
+  schedules: CreateClinicScheduleDto[]
+): {
+  valid: CreateClinicScheduleDto[];
+  invalid: { schedule: CreateClinicScheduleDto; errors: string[] }[];
+} => {
+  const valid: CreateClinicScheduleDto[] = [];
+  const invalid: { schedule: CreateClinicScheduleDto; errors: string[] }[] = [];
+
+  schedules.forEach((schedule) => {
+    const errors = validateScheduleData(schedule);
+    if (errors.length === 0) {
+      valid.push(schedule);
+    } else {
+      invalid.push({ schedule, errors });
+    }
+  });
+
+  return { valid, invalid };
+};
+
+// ✅ Cập nhật validateScheduleData để kiểm tra specialtyId
+export const validateScheduleData = (
+  data: CreateClinicScheduleDto
+): string[] => {
+  const errors: string[] = [];
+
+  if (!data.examTypeId || data.examTypeId === 0) {
+    errors.push("Exam Type ID is required");
+  }
+
+  if (!data.specialtyId || data.specialtyId === 0) {
+    errors.push("Specialty ID is required");
+  }
+
+  if (!data.doctorId || data.doctorId === 0) {
+    errors.push("Doctor ID is required");
+  }
+
+  if (!data.roomId || data.roomId === 0) {
+    errors.push("Room ID is required");
+  }
+
+  if (!data.startSlot) {
+    errors.push("Start time is required");
+  }
+
+  if (!data.endSlot) {
+    errors.push("End time is required");
+  }
+
+  if (data.startSlot && data.endSlot) {
+    const startTime = new Date(`1970-01-01T${data.startSlot}`);
+    const endTime = new Date(`1970-01-01T${data.endSlot}`);
+
+    if (startTime >= endTime) {
+      errors.push("Start time must be before end time");
+    }
+  }
+
+  if (data.total && data.total <= 0) {
+    errors.push("Total appointments must be greater than 0");
+  }
+
+  if (!data.dateInWeek) {
+    errors.push("Date in week is required");
+  }
+
+  return errors;
+};
+export const createClinicSchedulesWithPartialSuccess = async (
+  data: CreateClinicScheduleDto[]
+) => {
+  try {
+    console.log(
+      "🔄 Creating clinic schedules (allowing partial success):",
+      data.length,
+      "items"
+    );
+
+    const response = await postJSONAuth("/api/clinic-schedule/create", data);
+
+    console.log(
+      "✅ createClinicSchedulesWithPartialSuccess API response:",
+      response
+    );
+
+    if (response.success === true && Array.isArray(response.data)) {
+      const results = response.data;
+      const failedItems = results.filter((item: any) => item.status === false);
+      const successItems = results.filter((item: any) => item.status !== false);
+
+      console.log("📊 Bulk operation results:", {
+        total: results.length,
+        success: successItems.length,
+        failed: failedItems.length,
+      });
+
+      // ✅ Trả về kết quả chi tiết
+      return {
+        success: true,
+        total: results.length,
+        successCount: successItems.length,
+        failedCount: failedItems.length,
+        successItems: successItems,
+        failedItems: failedItems,
+        errors: failedItems.map((item: any) => item.message),
+        data: results,
+      };
+    }
+
+    // ✅ Fallback - sử dụng handleApiResponsePost cho các case khác
+    return handleApiResponsePost(response, "Lỗi tạo lịch khám");
+  } catch (error: any) {
+    console.error("❌ createClinicSchedulesWithPartialSuccess error:", error);
+
+    // ✅ Xử lý network error hoặc parse error
+    if (error.name === "SyntaxError" || error.message?.includes("JSON")) {
+      throw new Error("Lỗi phân tích dữ liệu từ server");
+    }
+
+    // ✅ Xử lý HTTP error
+    if (error.status) {
+      const statusMessages = {
+        400: "Dữ liệu gửi lên không hợp lệ",
+        401: "Phiên đăng nhập đã hết hạn",
+        403: "Không có quyền thực hiện thao tác này",
+        404: "Không tìm thấy API endpoint",
+        500: "Lỗi server nội bộ",
+        502: "Lỗi kết nối đến server",
+        503: "Server đang bảo trì",
+      };
+
+      const statusMessage =
+        statusMessages[error.status] || `Lỗi HTTP ${error.status}`;
+      throw new Error(statusMessage);
+    }
+
+    throw error;
+  }
+};
+
+// ✅ Create schedules with validation and partial success handling
+export const createValidatedClinicSchedules = async (
+  schedules: CreateClinicScheduleDto[]
+) => {
+  console.log("🔄 Validating", schedules.length, "schedules before creation");
+
+  const { valid, invalid } = validateBeforeCreate(schedules);
+
+  if (invalid.length > 0) {
+    console.warn("⚠️ Found", invalid.length, "invalid schedules:", invalid);
+  }
+
+  if (valid.length === 0) {
+    throw new Error("Không có lịch khám hợp lệ để tạo");
+  }
+
+  console.log("✅ Creating", valid.length, "valid schedules");
+
+  try {
+    const result = await createClinicSchedulesWithPartialSuccess(valid);
+
+    // ✅ Merge client-side validation errors với server errors
+    const allErrors = [
+      ...invalid.map((item) => `Client validation: ${item.errors.join(", ")}`),
+      ...(result.errors || []),
+    ];
+
+    return {
+      ...result,
+      clientValidationFailed: invalid.length,
+      allErrors: allErrors,
+    };
+  } catch (error: any) {
+    console.error("❌ Failed to create validated schedules:", error);
+    throw error;
+  }
+};
+
+// ✅ Utility để log chi tiết lỗi
+export const logScheduleErrors = (error: any) => {
+  if (error.bulkResult) {
+    console.group("📊 Schedule Creation Error Details");
+    console.log("Total items:", error.bulkResult.total);
+    console.log("Success items:", error.bulkResult.success);
+    console.log("Failed items:", error.bulkResult.failed);
+    console.log("Errors:", error.bulkResult.errors);
+
+    if (error.bulkResult.failedItems?.length > 0) {
+      console.table(
+        error.bulkResult.failedItems.map((item: any) => ({
+          message: item.message,
+          specialtyId: item.clinicSchedule?.specialtyId,
+          examTypeId: item.clinicSchedule?.examTypeId,
+          doctorId: item.clinicSchedule?.doctorId,
+          date: item.clinicSchedule?.dateInWeek,
+        }))
+      );
+    }
+    console.groupEnd();
+  }
+};
