@@ -326,10 +326,6 @@ export const ClinicScheduleEditButton: React.FC<
       errors.push("Vui lòng chọn loại khám");
     }
 
-    if (!localSchedule.doctorName) {
-      errors.push("Vui lòng chọn bác sĩ phụ trách");
-    }
-
     const startTime = currentTime.startTime;
     const endTime = currentTime.endTime;
 

@@ -148,7 +148,6 @@ const Doctors = () => {
         }
 
         const data: ApiResponse = await response.json();
-        console.log(data.data.allDoctor);
 
         const doctorsData = data?.data?.allDoctor || [];
         setDoctors(doctorsData);

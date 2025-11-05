@@ -119,19 +119,24 @@ const AdminSidebar = () => {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center space-x-3 ">
-          <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center overflow-hidden">
-            <img
-              src={logo} // hoặc URL ảnh online
-              alt="Avatar"
-              className="w-full h-full object-cover"
-            />
+        {" "}
+        <Link to="/">
+          <div className="flex items-center space-x-3 ">
+            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center overflow-hidden">
+              <img
+                src={logo} // hoặc URL ảnh online
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="group-data-[collapsible=icon]:hidden">
+              <h1 className="text-lg font-semibold text-gray-900">
+                Nhi Đồng 2
+              </h1>
+              <p className="text-xs text-gray-500">Quản lý đặt khám</p>
+            </div>
           </div>
-          <div className="group-data-[collapsible=icon]:hidden">
-            <h1 className="text-lg font-semibold text-gray-900">Nhi Đồng 2</h1>
-            <p className="text-xs text-gray-500">Quản lý đặt khám</p>
-          </div>
-        </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>

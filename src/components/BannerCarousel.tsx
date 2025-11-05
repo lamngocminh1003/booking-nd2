@@ -25,21 +25,6 @@ const BannerCarousel = ({ banners, loading }: BannerCarouselProps) => {
     return () => clearInterval(interval);
   }, [banners.length]);
 
-  // ✅ Debug: Log banner data
-  useEffect(() => {
-    console.log("Banners data:", banners);
-    banners.forEach((banner, index) => {
-      const urls = getAllImageUrls(banner.image);
-      console.log(`Banner ${index + 1}:`, {
-        id: banner.id,
-        displayName: banner.displayName,
-        originalImage: banner.image,
-        allUrls: urls,
-        status: banner.status,
-      });
-    });
-  }, [banners]);
-
   const goToSlide = (index: number) => {
     setCurrentSlide(index);
   };
@@ -202,9 +187,6 @@ const BannerCarousel = ({ banners, loading }: BannerCarouselProps) => {
                       className="w-full h-full object-contain bg-gray-50"
                       onError={() => handleImageError(banner.id, banner.image)}
                       onLoad={() => {
-                        console.log(
-                          `✅ Image loaded successfully: ${currentUrl}`
-                        );
                         // Clear any retry state on successful load
                         setRetryAttempts((prev) => ({
                           ...prev,

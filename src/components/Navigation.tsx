@@ -70,18 +70,20 @@ const Navigation = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8  flex items-center justify-center">
-                <img
-                  alt="Logo Bệnh Viện Nhi Đồng 2"
-                  src={logo}
-                  className="w-8 h-8 text-white absolute"
-                />
+            <Link to="/">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8  flex items-center justify-center">
+                  <img
+                    alt="Logo Bệnh Viện Nhi Đồng 2"
+                    src={logo}
+                    className="w-8 h-8 text-white absolute"
+                  />
+                </div>
+                <span className="text-xl font-bold text-emerald-900">
+                  Bệnh Viện Nhi Đồng 2
+                </span>{" "}
               </div>
-              <span className="text-xl font-bold text-emerald-900">
-                Bệnh Viện Nhi Đồng 2
-              </span>
-            </div>
+            </Link>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
@@ -93,7 +95,7 @@ const Navigation = () => {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center space-x-1 text-gray-600 hover:text-emerald-600 transition-colors">
-                  <span>Khám chữ bệnh</span>
+                  <span>Khám chữa bệnh</span>
                   <ChevronDown className="w-4 h-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-white">
@@ -158,7 +160,7 @@ const Navigation = () => {
                       <ChevronDown className="w-4 h-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-56 bg-white">
-                      <DropdownMenuItem asChild>
+                      {/* <DropdownMenuItem asChild>
                         <Link to="/notifications" className="w-full">
                           Thông báo
                         </Link>
@@ -172,7 +174,7 @@ const Navigation = () => {
                         <Link to="/history" className="w-full">
                           Lịch sử khám bệnh
                         </Link>
-                      </DropdownMenuItem>
+                      </DropdownMenuItem> */}
                       <DropdownMenuItem asChild>
                         <Link to="/profile" className="w-full">
                           Thông tin tài khoản
@@ -210,56 +212,133 @@ const Navigation = () => {
               <div className="flex flex-col space-y-4">
                 <Link
                   to="/"
-                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
+                  className="text-gray-600 hover:text-emerald-600 px-4 py-2 transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
                 >
                   Trang chủ
                 </Link>
-                <Link
-                  to="/services"
-                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
-                >
-                  Dịch vụ
-                </Link>
-                <Link
-                  to="/doctors"
-                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
-                >
-                  Bác sĩ
-                </Link>
+
+                {/* Mobile Dropdown for Khám chữa bệnh */}
+                <div className="px-4">
+                  <div className="text-gray-600 font-medium py-2 border-b border-gray-100">
+                    Khám chữa bệnh
+                  </div>
+                  <div className="pl-4 space-y-2 mt-2">
+                    <Link
+                      to="/services"
+                      className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Tất cả dịch vụ
+                    </Link>
+                    <Link
+                      to="/services/specialist"
+                      className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Khám Chuyên Khoa
+                    </Link>
+                    <Link
+                      to="/doctors"
+                      className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Đội Ngũ Chuyên Gia
+                    </Link>
+                    <Link
+                      to="/medical-procedure"
+                      className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Thủ tục khám bệnh
+                    </Link>
+                    <Link
+                      to="/price-list"
+                      className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Bảng giá khám chữa bệnh
+                    </Link>
+                  </div>
+                </div>
+
                 <Link
                   to="/contact"
-                  className="text-gray-600 hover:text-emerald-600 px-4 py-2"
+                  className="text-gray-600 hover:text-emerald-600 px-4 py-2 transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
                 >
                   Liên hệ
                 </Link>
+
+                {/* Mobile Auth Section */}
                 <div className="px-4 pt-4 border-t border-emerald-100 space-y-2">
                   {!userLocal ? (
                     <>
                       <Button
                         variant="outline"
                         className="w-full border-emerald-600 text-emerald-600"
-                        onClick={() => handleAuthClick("login")}
+                        onClick={() => {
+                          handleAuthClick("login");
+                          setIsMenuOpen(false);
+                        }}
                       >
                         Đăng nhập
                       </Button>
                       <Button
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={() => handleAuthClick("register")}
+                        onClick={() => {
+                          handleAuthClick("register");
+                          setIsMenuOpen(false);
+                        }}
                       >
                         Đăng ký
                       </Button>
                     </>
                   ) : (
                     <>
-                      <div className="text-gray-600 hover:text-emerald-600  py-2">
+                      <div className="text-gray-600 font-medium py-2 border-b border-gray-100">
                         Xin chào {userLocal}
+                      </div>
+                      <div className="pl-4 space-y-2 mt-2">
+                        {/* <Link
+                          to="/notifications"
+                          className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          Thông báo
+                        </Link>
+                        <Link
+                          to="/appointments"
+                          className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          Lịch hẹn khám
+                        </Link>
+                        <Link
+                          to="/history"
+                          className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          Lịch sử khám bệnh
+                        </Link> */}
+                        <Link
+                          to="/profile"
+                          className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          Thông tin tài khoản
+                        </Link>
                       </div>
                       <Button
                         variant="outline"
-                        className=" border-emerald-600 text-emerald-600"
-                        onClick={handleLogout}
+                        className="w-full border-emerald-600 text-emerald-600 mt-2"
+                        onClick={() => {
+                          handleLogout();
+                          setIsMenuOpen(false);
+                        }}
                       >
-                        <LogOut className="w-4 h-4 " />
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Đăng xuất
                       </Button>
                     </>
                   )}

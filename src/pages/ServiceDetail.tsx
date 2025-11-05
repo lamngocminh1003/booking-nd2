@@ -141,7 +141,6 @@ const ServiceDetail = () => {
         }
 
         const data: ApiResponse = await response.json();
-        console.log(data.data.data);
 
         const servicesData = data?.data?.data || [];
         setServices(servicesData);
@@ -447,38 +446,6 @@ const ServiceDetail = () => {
                 {groupedServices.ClinicalMedicine.length}
               </h3>
               <p className="text-purple-700">Cận lâm sàng</p>
-            </Card>
-          </div>
-
-          {/* ✅ Contact Section */}
-          <div className="mt-12">
-            <Card className="shadow-xl border-0 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-              <CardHeader>
-                <CardTitle className="text-center text-white text-2xl">
-                  Cần hỗ trợ thêm?
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-6 text-center">
-                  <div className="flex flex-col items-center">
-                    <Phone className="w-8 h-8 mb-2" />
-                    <h4 className="font-semibold mb-1">Hotline</h4>
-                    <p className="text-emerald-100">1900 1215</p>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <Mail className="w-8 h-8 mb-2" />
-                    <h4 className="font-semibold mb-1">Email</h4>
-                    <p className="text-emerald-100">info@benhviennhi.org.vn</p>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <MapPin className="w-8 h-8 mb-2" />
-                    <h4 className="font-semibold mb-1">Địa chỉ</h4>
-                    <p className="text-emerald-100">
-                      14 Lý Tự Trọng, Q.1, TP.HCM
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
             </Card>
           </div>
         </div>

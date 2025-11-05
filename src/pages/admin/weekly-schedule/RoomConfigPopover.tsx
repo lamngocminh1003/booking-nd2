@@ -569,10 +569,6 @@ export const RoomConfigPopover: React.FC<RoomConfigPopoverProps> = React.memo(
       const doctorFromOtherFields =
         room.doctorName || room.doctorCode || room.doctorId;
 
-      if (!selectedDoctorValue && !doctorValue && !doctorFromOtherFields) {
-        errors.push("Vui lòng chọn bác sĩ phụ trách");
-      }
-
       const startTime = currentTime.startTime;
       const endTime = currentTime.endTime;
 

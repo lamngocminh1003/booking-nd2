@@ -50,6 +50,7 @@ import ServicePriceManagement from "./pages/admin/ServicePriceManagement";
 import ExamTypeManagement from "./pages/admin/exam-type-management/index";
 import BookingFlow from "./pages/BookingFlow";
 import ExamReceipt from "./pages/ExamReceipt";
+import { Navigate } from "react-router-dom";
 
 function AppWrapper() {
   return (
@@ -182,6 +183,9 @@ function App() {
             </PrivateRoute>
           }
         >
+          {/* ✅ INDEX ROUTE - TỰ ĐỘNG REDIRECT KHI VÀO /admin */}
+          <Route index element={<Navigate to="dashboard" replace />} />
+
           <Route path="dashboard" element={<AdminDashboard1 />} />
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="records" element={<AppointmentManagement />} />

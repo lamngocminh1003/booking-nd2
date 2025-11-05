@@ -8,6 +8,13 @@ import {
   createOrUpdatePatient,
   getPatientInfo,
   getListPatientInfo,
+  createOnlineRegistration,
+  confirmPayment,
+  cancelRegistration,
+  AddOnlineRegistrationDto,
+  OnlineRegistrationResponse,
+  PaymentConfirmationRequest,
+  PaymentConfirmationResponse,
 } from "@/services/BookingCatalogService";
 
 // ✅ Interface cho Zone
@@ -211,6 +218,12 @@ interface BookingCatalogState {
   loadingHold: boolean;
   loadingPatient: boolean;
   loadingPatientList: boolean; // ✅ NEW: Loading state for patient list
+
+  // ✅ Thêm các trường mới cho online registration và payment confirmation
+  onlineRegistration: OnlineRegistrationResponse | null;
+  paymentConfirmation: PaymentConfirmationResponse | null;
+  loadingRegistration: boolean;
+  loadingPayment: boolean;
 }
 
 // ✅ Initial state
@@ -230,6 +243,12 @@ const initialState: BookingCatalogState = {
   loadingHold: false,
   loadingPatient: false,
   loadingPatientList: false, // ✅ NEW: Initialize loading state
+
+  // ✅ Initialize các trường mới
+  onlineRegistration: null,
+  paymentConfirmation: null,
+  loadingRegistration: false,
+  loadingPayment: false,
 };
 
 // ✅ 1. Fetch zones
@@ -365,6 +384,66 @@ export const fetchPatientInfoByUserLogin = createAsyncThunk(
   }
 );
 
+// ✅ 7. Create online registration
+export const createOnlineRegistrationThunk = createAsyncThunk(
+  "bookingCatalog/createOnlineRegistration",
+  async (
+    {
+      payload,
+      isQR = false,
+    }: { payload: AddOnlineRegistrationDto; isQR?: boolean },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await createOnlineRegistration(payload, isQR);
+
+      toast.success("✅ Đăng ký khám online thành công!");
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.message || "Lỗi tạo đăng ký khám online";
+      console.error("❌ createOnlineRegistration error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// ✅ 8. Confirm payment
+export const confirmPaymentThunk = createAsyncThunk(
+  "bookingCatalog/confirmPayment",
+  async (payload: PaymentConfirmationRequest, { rejectWithValue }) => {
+    try {
+      const response = await confirmPayment(payload);
+
+      toast.success("✅ Xác nhận thanh toán thành công!");
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.message || "Lỗi xác nhận thanh toán";
+      console.error("❌ confirmPayment error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// ✅ 9. Cancel registration
+export const cancelRegistrationThunk = createAsyncThunk(
+  "bookingCatalog/cancelRegistration",
+  async (id: number, { rejectWithValue }) => {
+    try {
+      const response = await cancelRegistration(id);
+
+      toast.success("✅ Hủy đăng ký khám thành công!");
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.message || "Lỗi hủy đăng ký khám";
+      console.error("❌ cancelRegistration error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
 // ✅ Update state interface để hỗ trợ multiple patients
 interface BookingCatalogState {
   zones: Zone[];
@@ -383,6 +462,12 @@ interface BookingCatalogState {
   loadingHold: boolean;
   loadingPatient: boolean;
   loadingPatientList: boolean; // ✅ NEW: Loading state for patient list
+
+  // ✅ Thêm các trường mới cho online registration và payment confirmation
+  onlineRegistration: OnlineRegistrationResponse | null;
+  paymentConfirmation: PaymentConfirmationResponse | null;
+  loadingRegistration: boolean;
+  loadingPayment: boolean;
 }
 
 // ✅ Create slice
@@ -418,6 +503,16 @@ const bookingCatalogSlice = createSlice({
     // ✅ Clear grouped specialty (khi đổi specialty)
     clearGroupedSpecialty: (state) => {
       state.groupedSpecialty = [];
+    },
+
+    // ✅ Clear online registration
+    clearOnlineRegistration: (state) => {
+      state.onlineRegistration = null;
+    },
+
+    // ✅ Clear payment confirmation
+    clearPaymentConfirmation: (state) => {
+      state.paymentConfirmation = null;
     },
 
     // ✅ Reset all data
@@ -637,6 +732,61 @@ const bookingCatalogSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
         console.error("❌ Redux: Failed to load patient list:", action.payload);
+      })
+
+      // ✅ Create online registration
+      .addCase(createOnlineRegistrationThunk.pending, (state) => {
+        state.loadingRegistration = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        createOnlineRegistrationThunk.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationResponse>) => {
+          state.loadingRegistration = false;
+          state.loading = false;
+          state.onlineRegistration = action.payload;
+        }
+      )
+      .addCase(createOnlineRegistrationThunk.rejected, (state, action) => {
+        state.loadingRegistration = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ Confirm payment
+      .addCase(confirmPaymentThunk.pending, (state) => {
+        state.loadingPayment = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        confirmPaymentThunk.fulfilled,
+        (state, action: PayloadAction<PaymentConfirmationResponse>) => {
+          state.loadingPayment = false;
+          state.loading = false;
+          state.paymentConfirmation = action.payload;
+        }
+      )
+      .addCase(confirmPaymentThunk.rejected, (state, action) => {
+        state.loadingPayment = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ Cancel registration
+      .addCase(cancelRegistrationThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(cancelRegistrationThunk.fulfilled, (state) => {
+        state.loading = false;
+        // Clear related data after successful cancellation
+        state.onlineRegistration = null;
+      })
+      .addCase(cancelRegistrationThunk.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       });
   },
 });
@@ -649,6 +799,8 @@ export const {
   clearHoldResult,
   clearSpecialties,
   clearGroupedSpecialty,
+  clearOnlineRegistration,
+  clearPaymentConfirmation,
   resetBookingCatalog,
   setPatientInfo,
   setSelectedPatientFromList, // ✅ NEW
