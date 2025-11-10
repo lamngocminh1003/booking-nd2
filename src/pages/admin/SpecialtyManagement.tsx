@@ -130,10 +130,7 @@ export default function SpecialtyManagement() {
           setPage(newTotalPages);
         }
       } else if (res.type === deleteSpecialtyThunk.rejected.type) {
-        // ✅ SỬA LẠI: XỬ LÝ PAYLOAD AN TOÀN
-
         let errorMessage = "Có lỗi xảy ra khi xóa chuyên khoa!";
-
         if (res.payload) {
           if (typeof res.payload === "string") {
             errorMessage = res.payload;
@@ -147,7 +144,6 @@ export default function SpecialtyManagement() {
         toast.error(errorMessage);
       }
     } catch (error: any) {
-      console.error("🔍 Unexpected Error:", error);
       toast.error("Có lỗi không mong muốn xảy ra!");
     }
   };

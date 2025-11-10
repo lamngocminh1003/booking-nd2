@@ -164,8 +164,6 @@ const Payment = () => {
         paymentTime: new Date().toISOString(),
       };
 
-      console.log("🔄 Confirming payment:", paymentData);
-
       await dispatch(confirmPaymentThunk(paymentData)).unwrap();
 
       // ✅ Xóa session sau khi thanh toán thành công

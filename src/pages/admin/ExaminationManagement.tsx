@@ -1,15 +1,16 @@
 import { useEffect, useState, useMemo } from "react";
-import { useAppDispatch, useAppSelector } from "@/hooks/redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   fetchExaminations,
   addExamination,
   updateExaminationThunk,
   deleteExaminationThunk,
-  Examination,
 } from "@/store/slices/examinationSlice";
+import { RootState } from "@/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -25,22 +26,35 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { Trash2, Edit } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
 export default function ExaminationManagement() {
-  const dispatch = useAppDispatch();
-  const { list, loading, error } = useAppSelector(
-    (state: any) => state.examination
+  const dispatch = useDispatch();
+  const { list, loading, error } = useSelector(
+    (state: RootState) => state.examination
   );
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingExam, setEditingExam] = useState<Examination | null>(null);
+  const [editingExam, setEditingExam] = useState<any>(null);
+  const [deletingExam, setDeletingExam] = useState<any>(null);
 
   // Debounce search
   useEffect(() => {
@@ -58,9 +72,9 @@ export default function ExaminationManagement() {
   // Filter and pagination
   const filteredList = useMemo(
     () =>
-      list?.filter((exam: Examination) =>
-        exam.name.toLowerCase().includes(debouncedSearch.toLowerCase())
-      ) || [],
+      list.filter((exam) =>
+        exam?.name?.toLowerCase().includes(debouncedSearch?.toLowerCase())
+      ),
     [list, debouncedSearch]
   );
 
@@ -83,49 +97,91 @@ export default function ExaminationManagement() {
 
     try {
       if (editingExam) {
-        await dispatch(
+        const result = await dispatch(
           updateExaminationThunk({
             id: editingExam.id,
             data: { ...data, enable: editingExam.enable },
           }) as any
-        );
+        ).unwrap(); // ✅ SỬ DỤNG unwrap() ĐỂ XỬ LÝ ERROR TỐT HÔN
+
         toast.success("Cập nhật ca khám thành công!");
       } else {
-        await dispatch(addExamination(data) as any);
+        const result = await dispatch(addExamination(data) as any).unwrap(); // ✅ SỬ DỤNG unwrap()
         toast.success("Thêm ca khám mới thành công!");
       }
+
       setIsDialogOpen(false);
       setEditingExam(null);
       dispatch(fetchExaminations() as any);
-    } catch (error) {
-      toast.error("Có lỗi xảy ra!");
+    } catch (error: any) {
+      // ✅ ERROR ĐÃ LÀ STRING MESSAGE RỒI
+      const errorMessage =
+        typeof error === "string" ? error : error.message || "Có lỗi xảy ra!";
+      toast.error(errorMessage);
     }
   };
 
-  const handleToggleEnable = async (exam: Examination) => {
+  // ✅ SỬ DỤNG PATTERN GIỐNG SPECIALTY MANAGEMENT
+  const handleDelete = async (exam: any) => {
     try {
-      await dispatch(
+      const res = await dispatch(deleteExaminationThunk(exam.id) as any);
+
+      // ✅ KIỂM TRA TYPE CỦA ACTION - GIỐNG SPECIALTY
+      if (res.type === deleteExaminationThunk.fulfilled.type) {
+        toast.success(`Xóa ca khám "${exam.name}" thành công!`);
+        dispatch(fetchExaminations() as any);
+        setDeletingExam(null);
+
+        const newTotalPages = Math.ceil((filteredList.length - 1) / PAGE_SIZE);
+        if (page > newTotalPages && newTotalPages > 0) {
+          setPage(newTotalPages);
+        }
+      } else if (res.type === deleteExaminationThunk.rejected.type) {
+        let errorMessage = "Có lỗi xảy ra khi xóa ca khám!";
+        if (res.payload) {
+          if (typeof res.payload === "string") {
+            errorMessage = res.payload;
+          } else if (res.payload.message) {
+            errorMessage = res.payload.message;
+          } else if (res.error?.message) {
+            errorMessage = res.error.message;
+          }
+        }
+
+        toast.error(errorMessage);
+      }
+    } catch (error: any) {
+      toast.error("Có lỗi không mong muốn xảy ra!");
+    }
+  };
+
+  const handleToggleEnable = async (exam: any) => {
+    try {
+      const result = await dispatch(
         updateExaminationThunk({
           id: exam.id,
-          data: { ...exam, enable: !exam.enable },
+          data: {
+            name: exam.name,
+            workSession: exam.workSession,
+            startTime: exam.startTime,
+            endTime: exam.endTime,
+            enable: !exam.enable,
+          },
         }) as any
-      );
-      dispatch(fetchExaminations() as any);
+      ).unwrap(); // ✅ SỬ DỤNG unwrap()
+
+      await dispatch(fetchExaminations() as any); // Fetch after update
       toast.success("Cập nhật trạng thái thành công!");
-    } catch (error) {
-      toast.error("Có lỗi xảy ra!");
+    } catch (error: any) {
+      // ✅ ERROR HANDLING GIỐNG SPECIALTY
+      const errorMessage =
+        typeof error === "string" ? error : error.message || "Có lỗi xảy ra!";
+      toast.error(errorMessage);
     }
   };
 
-  function handleDelete(id: number): void {
-    if (window.confirm("Bạn có chắc chắn muốn xóa ca khám này?")) {
-      dispatch(deleteExaminationThunk(id) as any);
-      toast.success("Xóa ca khám thành công!");
-    }
-  }
-
   return (
-    <div className="p-4 animate-fade-in">
+    <div className="animate-fade-in">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Quản lý ca khám</CardTitle>
@@ -146,32 +202,56 @@ export default function ExaminationManagement() {
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <Input
-                  name="name"
-                  defaultValue={editingExam?.name}
-                  placeholder="Tên ca khám"
-                  required
-                />
-                <Input
-                  name="workSession"
-                  defaultValue={editingExam?.workSession}
-                  placeholder="Ca (sáng/chiều/tối)"
-                  required
-                />
-                <Input
-                  name="startTime"
-                  type="time"
-                  defaultValue={editingExam?.startTime?.replace(/:00$/, "")}
-                  required
-                />
-                <Input
-                  name="endTime"
-                  type="time"
-                  defaultValue={editingExam?.endTime?.replace(/:00$/, "")}
-                  required
-                />
-                <Button type="submit">
-                  {editingExam ? "Cập nhật" : "Thêm mới"}
+                <div className="space-y-2">
+                  <Label htmlFor="name">Tên ca khám</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    defaultValue={editingExam?.name}
+                    placeholder="Tên ca khám"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="workSession">Ca làm việc</Label>
+                  <Input
+                    id="workSession"
+                    name="workSession"
+                    defaultValue={editingExam?.workSession}
+                    placeholder="Ca (sáng/chiều/tối)"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="startTime">Giờ bắt đầu</Label>
+                  <Input
+                    id="startTime"
+                    name="startTime"
+                    type="time"
+                    defaultValue={editingExam?.startTime?.replace(/:00$/, "")}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="endTime">Giờ kết thúc</Label>
+                  <Input
+                    id="endTime"
+                    name="endTime"
+                    type="time"
+                    defaultValue={editingExam?.endTime?.replace(/:00$/, "")}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" disabled={loading}>
+                  {loading
+                    ? "Đang xử lý..."
+                    : editingExam
+                    ? "Cập nhật"
+                    : "Thêm mới"}
                 </Button>
               </form>
             </DialogContent>
@@ -186,9 +266,9 @@ export default function ExaminationManagement() {
                 <div className="flex items-center gap-4">
                   <div>
                     <p className="text-sm font-medium text-gray-500">
-                      Tổng số ca khám
+                      Tổng ca khám
                     </p>
-                    <p className="text-2xl font-bold">{list?.length || 0}</p>
+                    <p className="text-2xl font-bold">{list.length}</p>
                   </div>
                 </div>
               </CardContent>
@@ -201,7 +281,7 @@ export default function ExaminationManagement() {
                       Đang hoạt động
                     </p>
                     <p className="text-2xl font-bold text-emerald-600">
-                      {list?.filter((e: Examination) => e.enable).length || 0}
+                      {list.filter((e) => e.enable).length}
                     </p>
                   </div>
                 </div>
@@ -224,19 +304,21 @@ export default function ExaminationManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[80px]">ID</TableHead>
                   <TableHead className="w-[200px]">Tên ca</TableHead>
                   <TableHead className="w-[150px]">Ca</TableHead>
                   <TableHead className="w-[150px]">Bắt đầu</TableHead>
                   <TableHead className="w-[150px]">Kết thúc</TableHead>
                   <TableHead className="w-[120px]">Trạng thái</TableHead>
-                  <TableHead className="w-[200px] text-right">
+                  <TableHead className="w-[120px] sticky right-0 bg-white">
                     Thao tác
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedList.map((exam: Examination) => (
+                {pagedList.map((exam) => (
                   <TableRow key={exam.id}>
+                    <TableCell className="w-[80px]">{exam.id}</TableCell>
                     <TableCell className="w-[200px]">{exam.name}</TableCell>
                     <TableCell className="w-[150px]">
                       {exam.workSession}
@@ -251,24 +333,56 @@ export default function ExaminationManagement() {
                         onCheckedChange={() => handleToggleEnable(exam)}
                       />
                     </TableCell>
-                    <TableCell className="w-[200px] text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="w-[120px] sticky right-0 bg-white">
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
+                          variant="outline"
                           onClick={() => {
                             setEditingExam(exam);
                             setIsDialogOpen(true);
                           }}
+                          className="h-8 w-8 p-0"
                         >
-                          Sửa
+                          <Edit className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(exam.id)}
-                        >
-                          Xóa
-                        </Button>
+
+                        {/* ✅ ALERT DIALOG GIỐNG SPECIALTY */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Bạn có chắc chắn muốn xóa ca khám{" "}
+                                <span className="font-semibold">
+                                  "{exam.name}"
+                                </span>
+                                ?<br />
+                                <span className="text-red-600">
+                                  Hành động này không thể hoàn tác!
+                                </span>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Hủy</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(exam)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Xóa
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>

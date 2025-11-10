@@ -39,11 +39,6 @@ const handleApiResponsePost = (response: any, errorMessage: string) => {
         };
         throw bulkError;
       }
-
-      console.log("✅ Bulk operation thành công:", {
-        total: data.length,
-        success: successItems.length,
-      });
     }
 
     return data;
@@ -101,13 +96,7 @@ export const getClinicSchedules = async (
         ).toString()}`
       : "";
 
-    console.log(
-      "🔄 Calling getClinicSchedules API:",
-      `/api/clinic-schedule/list${queryString}`
-    );
-
     const response = await fetchData(`/api/clinic-schedule/list${queryString}`);
-    console.log("✅ getClinicSchedules response:", response);
 
     return response;
   } catch (error: any) {
@@ -118,13 +107,7 @@ export const getClinicSchedules = async (
 
 export const getClinicScheduleById = async (id: number) => {
   try {
-    console.log(
-      "🔄 Calling getClinicScheduleById API:",
-      `/api/clinic-schedule/${id}`
-    );
-
     const response = await fetchData(`/api/clinic-schedule/${id}`);
-    console.log("✅ getClinicScheduleById response:", response);
 
     return response;
   } catch (error: any) {
@@ -138,11 +121,8 @@ export const createClinicSchedules = async (
   data: CreateClinicScheduleDto[]
 ) => {
   try {
-    console.log("🔄 Calling createClinicSchedules API with payload:", data);
-
     const response = await postJSONAuth("/api/clinic-schedule/create", data);
 
-    console.log("✅ createClinicSchedules API response:", response);
     return handleApiResponsePost(response, "Lỗi tạo lịch khám");
   } catch (error: any) {
     console.error("❌ createClinicSchedules error:", error);
@@ -174,15 +154,8 @@ export const updateClinicSchedule = async (
   data: CreateClinicScheduleDto
 ) => {
   try {
-    console.log(
-      "🔄 Calling updateClinicSchedule API:",
-      `/api/clinic-schedule/${id}`,
-      data
-    );
-
     const response = await putJSONAuth(`/api/clinic-schedule/${id}`, data);
 
-    console.log("✅ updateClinicSchedule API response:", response);
     return handleApiResponsePost(response, "Lỗi cập nhật lịch khám");
   } catch (error: any) {
     console.error("❌ updateClinicSchedule error:", error);
@@ -199,14 +172,8 @@ export const updateClinicSchedule = async (
 // ✅ DELETE request - áp dụng handleApiResponsePost
 export const deleteClinicSchedule = async (id: number) => {
   try {
-    console.log(
-      "🔄 Calling deleteClinicSchedule API:",
-      `/api/clinic-schedule/${id}`
-    );
-
     const response = await deleteJSONAuth(`/api/clinic-schedule/${id}`);
 
-    console.log("✅ deleteClinicSchedule API response:", response);
     return handleApiResponsePost(response, "Lỗi xóa lịch khám");
   } catch (error: any) {
     console.error("❌ deleteClinicSchedule error:", error);
@@ -232,19 +199,8 @@ export const createMultipleClinicSchedules = async (
   schedules: CreateClinicScheduleDto[]
 ) => {
   try {
-    console.log(
-      "🔄 Calling createMultipleClinicSchedules with",
-      schedules.length,
-      "schedules"
-    );
-
     const response = await createClinicSchedules(schedules);
 
-    console.log(
-      "✅ Created",
-      schedules.length,
-      "clinic schedules successfully"
-    );
     return response;
   } catch (error: any) {
     console.error("❌ Failed to create multiple clinic schedules:", error);
@@ -327,31 +283,13 @@ export const createClinicSchedulesWithPartialSuccess = async (
   data: CreateClinicScheduleDto[]
 ) => {
   try {
-    console.log(
-      "🔄 Creating clinic schedules (allowing partial success):",
-      data.length,
-      "items"
-    );
-
     const response = await postJSONAuth("/api/clinic-schedule/create", data);
-
-    console.log(
-      "✅ createClinicSchedulesWithPartialSuccess API response:",
-      response
-    );
 
     if (response.success === true && Array.isArray(response.data)) {
       const results = response.data;
       const failedItems = results.filter((item: any) => item.status === false);
       const successItems = results.filter((item: any) => item.status !== false);
 
-      console.log("📊 Bulk operation results:", {
-        total: results.length,
-        success: successItems.length,
-        failed: failedItems.length,
-      });
-
-      // ✅ Trả về kết quả chi tiết
       return {
         success: true,
         total: results.length,
@@ -399,8 +337,6 @@ export const createClinicSchedulesWithPartialSuccess = async (
 export const createValidatedClinicSchedules = async (
   schedules: CreateClinicScheduleDto[]
 ) => {
-  console.log("🔄 Validating", schedules.length, "schedules before creation");
-
   const { valid, invalid } = validateBeforeCreate(schedules);
 
   if (invalid.length > 0) {
@@ -410,8 +346,6 @@ export const createValidatedClinicSchedules = async (
   if (valid.length === 0) {
     throw new Error("Không có lịch khám hợp lệ để tạo");
   }
-
-  console.log("✅ Creating", valid.length, "valid schedules");
 
   try {
     const result = await createClinicSchedulesWithPartialSuccess(valid);
@@ -436,12 +370,6 @@ export const createValidatedClinicSchedules = async (
 // ✅ Utility để log chi tiết lỗi
 export const logScheduleErrors = (error: any) => {
   if (error.bulkResult) {
-    console.group("📊 Schedule Creation Error Details");
-    console.log("Total items:", error.bulkResult.total);
-    console.log("Success items:", error.bulkResult.success);
-    console.log("Failed items:", error.bulkResult.failed);
-    console.log("Errors:", error.bulkResult.errors);
-
     if (error.bulkResult.failedItems?.length > 0) {
       console.table(
         error.bulkResult.failedItems.map((item: any) => ({

@@ -167,6 +167,64 @@ export const ClinicScheduleDetailPopover: React.FC<
 
     return isFuture;
   }, []);
+
+  // ✅ Thêm function tính tổng lượt từ appointment slots
+  const calculateTotalSlots = useCallback((appointmentSlots: any[]): number => {
+    if (!appointmentSlots || appointmentSlots.length === 0) {
+      return 0;
+    }
+
+    return appointmentSlots.reduce((total, slot) => {
+      // ✅ Chỉ tính các slot đang hoạt động
+      if (slot.enable && slot.totalSlot) {
+        return total + (parseInt(slot.totalSlot) || 0);
+      }
+      return total;
+    }, 0);
+  }, []);
+
+  // ✅ Thêm function tính tổng tất cả slots (bao gồm cả disabled)
+  const calculateAllSlots = useCallback(
+    (
+      appointmentSlots: any[]
+    ): {
+      totalActive: number;
+      totalInactive: number;
+      totalAll: number;
+    } => {
+      if (!appointmentSlots || appointmentSlots.length === 0) {
+        return {
+          totalActive: 0,
+          totalInactive: 0,
+          totalAll: 0,
+        };
+      }
+
+      let totalActive = 0;
+      let totalInactive = 0;
+
+      appointmentSlots.forEach((slot) => {
+        const slotTotal = parseInt(slot.totalSlot) || 0;
+        if (slot.enable) {
+          totalActive += slotTotal;
+        } else {
+          totalInactive += slotTotal;
+        }
+      });
+
+      return {
+        totalActive,
+        totalInactive,
+        totalAll: totalActive + totalInactive,
+      };
+    },
+    []
+  );
+
+  // ✅ Tính toán các thông số slot
+  const slotStats = calculateAllSlots(schedule.appointmentSlots || []);
+  const calculatedTotal = slotStats.totalActive; // Hoặc slotStats.totalAll nếu muốn tính cả disabled
+
   return (
     <Popover open={isDetailPopoverOpen} onOpenChange={setIsDetailPopoverOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -380,7 +438,20 @@ export const ClinicScheduleDetailPopover: React.FC<
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-blue-600">Tổng lượt:</span>
-                    <span className="ml-2 font-medium">{schedule.total}</span>
+                    <div className="ml-2 flex flex-col">
+                      {/* ✅ Hiển thị tổng tính từ slots */}
+                      <span className="font-medium text-lg">
+                        {calculatedTotal}
+                      </span>
+
+                      {/* ✅ Breakdown chi tiết */}
+                      {slotStats.totalInactive > 0 && (
+                        <span className="text-xs text-gray-500 mt-1">
+                          Hoạt động: {slotStats.totalActive} | Tạm dừng:{" "}
+                          {slotStats.totalInactive}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-blue-600">Giữ chỗ:</span>
@@ -388,20 +459,33 @@ export const ClinicScheduleDetailPopover: React.FC<
                       {schedule.holdSlot || 0}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-blue-600">Khả dụng:</span>
-                    <span className="ml-2 font-medium text-green-600">
-                      {(schedule.total || 0) - (schedule.holdSlot || 0)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-blue-600">Trạng thái:</span>
-                    <Badge
-                      variant={schedule.status ? "default" : "destructive"}
-                      className="ml-2 text-xs"
-                    >
-                      {schedule.status ? "Hoạt động" : "Tạm dừng"}
-                    </Badge>
+                </div>
+
+                {/* ✅ Thêm thông tin tổng quan */}
+                <div className="mt-3 pt-2 border-t border-blue-100">
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="text-center">
+                      <div className="font-medium text-blue-700">
+                        {schedule.appointmentSlots?.length || 0}
+                      </div>
+                      <div className="text-blue-500">Khung giờ</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium text-green-700">
+                        {schedule.appointmentSlots?.filter(
+                          (slot) => slot.enable
+                        )?.length || 0}
+                      </div>
+                      <div className="text-green-500">Đang hoạt động</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium text-gray-700">
+                        {schedule.appointmentSlots?.filter(
+                          (slot) => !slot.enable
+                        )?.length || 0}
+                      </div>
+                      <div className="text-gray-500">Tạm dừng</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -421,14 +505,22 @@ export const ClinicScheduleDetailPopover: React.FC<
                 </div>
               )}
 
-              {/* Khung giờ khám */}
+              {/* Khung giờ khám - Cập nhật để hiển thị tổng */}
               {schedule.appointmentSlots &&
                 schedule.appointmentSlots.length > 0 && (
                   <div className="space-y-3">
-                    <h5 className="font-medium text-gray-700 flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Khung giờ khám ({schedule.appointmentSlots.length} slot)
-                    </h5>
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-medium text-gray-700 flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Khung giờ khám ({schedule.appointmentSlots.length})
+                      </h5>
+
+                      {/* ✅ Hiển thị tổng lượt ở header */}
+                      <Badge variant="secondary" className="text-xs">
+                        Tổng: {calculatedTotal} lượt
+                      </Badge>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                       {schedule.appointmentSlots.map((slot, idx) => (
                         <div
@@ -451,11 +543,56 @@ export const ClinicScheduleDetailPopover: React.FC<
                               {slot.totalSlot}
                             </Badge>
                           </div>
-                          <div className="text-[10px] mt-1 text-gray-500">
-                            {slot.enable ? "Hoạt động" : "Tạm dừng"}
+                          <div className="text-[10px] mt-1 flex items-center justify-between">
+                            <span
+                              className={
+                                slot.enable ? "text-green-600" : "text-gray-500"
+                              }
+                            >
+                              {slot.enable ? "Hoạt động" : "Tạm dừng"}
+                            </span>
+
+                            {/* ✅ Hiển thị phần trăm đóng góp */}
+                            {slot.enable && calculatedTotal > 0 && (
+                              <span className="text-blue-500 font-medium">
+                                {Math.round(
+                                  (parseInt(slot.totalSlot) / calculatedTotal) *
+                                    100
+                                )}
+                                %
+                              </span>
+                            )}
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* ✅ Footer summary cho slots */}
+                    <div className="bg-blue-25 border border-blue-100 rounded p-2 text-xs">
+                      <div className="flex items-center justify-between text-blue-700">
+                        <span>
+                          📊 Tổng cộng:{" "}
+                          <strong>{slotStats.totalAll} lượt</strong>
+                          {slotStats.totalInactive > 0 && (
+                            <span className="text-amber-600 ml-2">
+                              ({slotStats.totalActive} hoạt động +{" "}
+                              {slotStats.totalInactive} tạm dừng)
+                            </span>
+                          )}
+                        </span>
+
+                        {/* ✅ Hiển thị trung bình lượt/slot */}
+                        {schedule.appointmentSlots.length > 0 && (
+                          <span className="text-gray-600">
+                            TB:{" "}
+                            {Math.round(
+                              slotStats.totalAll /
+                                schedule.appointmentSlots.length
+                            )}
+                            lượt/slot
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

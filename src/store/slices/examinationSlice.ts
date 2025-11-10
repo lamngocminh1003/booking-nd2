@@ -32,37 +32,62 @@ export const fetchExaminations = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await getExaminations();
-      return response?.data?.data;
+      return response?.data?.data as Examination[];
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi lấy danh sách ca khám");
+      // ✅ Consistent error handling như specialty
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err.message || "Lỗi lấy danh sách ca khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
 export const addExamination = createAsyncThunk(
   "examination/addExamination",
-  async (data: Omit<Examination, "id" | "enable">, { rejectWithValue }) => {
+  async (
+    data: {
+      name: string;
+      workSession: string;
+      startTime: string;
+      endTime: string;
+    },
+    { rejectWithValue }
+  ) => {
     try {
-      const response = await createExamination(data);
-
-      return response?.data;
+      return await createExamination(data);
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi thêm ca khám");
+      // ✅ Consistent error handling như specialty
+      const errorMessage =
+        typeof err === "string" ? err : err.message || "Lỗi thêm ca khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Interface riêng cho update data giống specialty
+interface ExaminationUpdateData {
+  name: string;
+  workSession: string;
+  startTime: string;
+  endTime: string;
+  enable: boolean;
+}
+
 export const updateExaminationThunk = createAsyncThunk(
   "examination/updateExamination",
   async (
-    { id, data }: { id: number; data: Omit<Examination, "id"> },
+    { id, data }: { id: number; data: ExaminationUpdateData },
     { rejectWithValue }
   ) => {
     try {
-      const response = await updateExamination(id, data);
-      return response?.data;
+      return await updateExamination(id, data);
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi cập nhật ca khám");
+      // ✅ Consistent error handling như specialty
+      const errorMessage =
+        typeof err === "string" ? err : err.message || "Lỗi cập nhật ca khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -72,9 +97,14 @@ export const deleteExaminationThunk = createAsyncThunk(
   async (id: number, { rejectWithValue }) => {
     try {
       await deleteExamination(id);
-      return id;
+      return id; // ✅ Return ID để remove khỏi state
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi xóa ca khám");
+      // ✅ Xử lý error message đúng cách giống specialty
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err?.message || err?.toString() || "Lỗi xóa ca khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -93,7 +123,7 @@ const examinationSlice = createSlice({
         fetchExaminations.fulfilled,
         (state, action: PayloadAction<Examination[]>) => {
           state.loading = false;
-          state.list = action.payload;
+          state.list = action.payload || [];
         }
       )
       .addCase(fetchExaminations.rejected, (state, action) => {
@@ -104,21 +134,36 @@ const examinationSlice = createSlice({
         addExamination.fulfilled,
         (state, action: PayloadAction<Examination>) => {
           state.list.push(action.payload);
+          state.error = null; // ✅ Clear any previous errors
         }
       )
+      .addCase(addExamination.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         updateExaminationThunk.fulfilled,
         (state, action: PayloadAction<Examination>) => {
           const idx = state.list.findIndex((e) => e.id === action.payload.id);
           if (idx !== -1) state.list[idx] = action.payload;
+          state.error = null; // ✅ Clear any previous errors
         }
       )
+      .addCase(updateExaminationThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         deleteExaminationThunk.fulfilled,
         (state, action: PayloadAction<number>) => {
-          state.list = state.list.filter((e) => e.id !== action.payload);
+          // ✅ Remove examination khỏi list dựa trên ID
+          state.list = state.list.filter(
+            (examination) => examination.id !== action.payload
+          );
+          state.error = null; // ✅ Clear any previous errors
         }
-      );
+      )
+      .addCase(deleteExaminationThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      });
   },
 });
 

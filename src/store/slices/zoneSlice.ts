@@ -13,6 +13,7 @@ export interface Zone {
   address: string;
   enable: boolean;
   roomCount?: number;
+  zone_Id_Postgresql?: number;
 }
 
 interface ZoneState {
@@ -34,32 +35,61 @@ export const fetchZones = createAsyncThunk(
       const response = await getZones();
       return response?.data?.data as Zone[];
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi lấy danh sách khu");
+      // ✅ Consistent error handling như specialty
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err.message || "Lỗi lấy danh sách khu vực";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
 export const addZone = createAsyncThunk(
   "zone/addZone",
-  async (data: Omit<Zone, "id">, { rejectWithValue }) => {
+  async (
+    data: {
+      zoneCode: string;
+      name: string;
+      address: string;
+      zone_Id_Postgresql?: number;
+      enable?: boolean;
+    },
+    { rejectWithValue }
+  ) => {
     try {
       return await createZone(data);
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi thêm khu");
+      // ✅ Consistent error handling như specialty
+      const errorMessage =
+        typeof err === "string" ? err : err.message || "Lỗi thêm khu vực";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Interface riêng cho update data giống specialty
+interface ZoneUpdateData {
+  zoneCode: string;
+  name: string;
+  address: string;
+  zone_Id_Postgresql?: number;
+  enable: boolean;
+}
+
 export const updateZoneThunk = createAsyncThunk(
   "zone/updateZone",
   async (
-    { id, data }: { id: number; data: Omit<Zone, "id"> },
+    { id, data }: { id: number; data: ZoneUpdateData },
     { rejectWithValue }
   ) => {
     try {
       return await updateZone(id, data);
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi cập nhật khu");
+      // ✅ Consistent error handling như specialty
+      const errorMessage =
+        typeof err === "string" ? err : err.message || "Lỗi cập nhật khu vực";
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -69,9 +99,14 @@ export const deleteZoneThunk = createAsyncThunk(
   async (id: number, { rejectWithValue }) => {
     try {
       await deleteZone(id);
-      return id;
+      return id; // ✅ Return ID để remove khỏi state
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi xóa khu");
+      // ✅ Xử lý error message đúng cách giống specialty
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err?.message || err?.toString() || "Lỗi xóa khu vực";
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -96,20 +131,33 @@ const zoneSlice = createSlice({
       })
       .addCase(addZone.fulfilled, (state, action: PayloadAction<Zone>) => {
         state.list.push(action.payload);
+        state.error = null; // ✅ Clear any previous errors
+      })
+      .addCase(addZone.rejected, (state, action) => {
+        state.error = action.payload as string;
       })
       .addCase(
         updateZoneThunk.fulfilled,
         (state, action: PayloadAction<Zone>) => {
           const idx = state.list.findIndex((z) => z.id === action.payload.id);
           if (idx !== -1) state.list[idx] = action.payload;
+          state.error = null; // ✅ Clear any previous errors
         }
       )
+      .addCase(updateZoneThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         deleteZoneThunk.fulfilled,
         (state, action: PayloadAction<number>) => {
-          state.list = state.list.filter((z) => z.id !== action.payload);
+          // ✅ Remove zone khỏi list dựa trên ID
+          state.list = state.list.filter((zone) => zone.id !== action.payload);
+          state.error = null; // ✅ Clear any previous errors
         }
-      );
+      )
+      .addCase(deleteZoneThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      });
   },
 });
 
