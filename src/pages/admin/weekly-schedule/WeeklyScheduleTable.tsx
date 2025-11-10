@@ -253,14 +253,6 @@ export const WeeklyScheduleTable: React.FC<WeeklyScheduleTableProps> = ({
                         >
                           {displayTime.startTime}-{displayTime.endTime}
                         </span>
-
-                        {/* ✅ CHỈ hiển thị giờ gốc khi có thay đổi */}
-                        {displayTime.isCustom && (
-                          <span className="text-xs text-gray-400 opacity-70">
-                            (Gốc: {displayTime.originalStartTime}-
-                            {displayTime.originalEndTime})
-                          </span>
-                        )}
                       </div>
                     </th>
                   );

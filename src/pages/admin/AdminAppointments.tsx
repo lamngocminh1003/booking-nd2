@@ -78,7 +78,6 @@ const AdminAppointments = () => {
           : appointment
       )
     );
-    console.log("Cập nhật lịch hẹn:", updatedAppointment);
   };
 
   const filteredAppointments = filterAppointments(

@@ -316,14 +316,11 @@ export const createOnlineRegistration = async (
 // ✅ 8. Xác nhận thanh toán
 export const confirmPayment = async (payload: PaymentConfirmationRequest) => {
   try {
-    console.log("🔄 Calling payment confirmation API with payload:", payload);
-
     const response = await postJSONAuth(
       "/api/online-registration/payment-confirmation",
       payload
     );
 
-    console.log("✅ Payment confirmation API response:", response);
     return handleApiResponsePost(response, "Lỗi xác nhận thanh toán");
   } catch (error: any) {
     console.error("❌ confirmPayment error:", error);

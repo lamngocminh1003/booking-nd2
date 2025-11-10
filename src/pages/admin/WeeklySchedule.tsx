@@ -1768,16 +1768,10 @@ const WeeklySchedule = () => {
         );
       });
 
-      // ✅ Gọi API để lưu
-      // ✅ Cập nhật phần xử lý API call với error handling chi tiết
-      // ✅ Gọi API để lưu
-      // ✅ Cập nhật phần xử lý API call với error handling chi tiết
-      // ✅ Gọi API để lưu
       if (clinicScheduleData.length > 0) {
         const resultAction = await dispatch(
           addClinicSchedules(clinicScheduleData)
         );
-        console.log("resultAction", resultAction, "<<<<< resultAction");
 
         if (addClinicSchedules.fulfilled.match(resultAction)) {
           // ✅ Xử lý khi thành công hoàn toàn
@@ -1908,46 +1902,6 @@ const WeeklySchedule = () => {
           // ✅ Enable lại tracking và reset saving state
           setShouldTrackChanges(true);
           setIsSavingInProgress(false);
-
-          // ✅ Detailed logging cho debug
-          console.group("📊 Save Clinic Schedules Error Analysis");
-          console.log("❌ Error Type: API Rejected");
-          console.log("📄 Payload:", payload);
-          console.log("⚠️ Error Object:", error);
-          console.log("📊 Bulk Info:", bulkErrorInfo);
-          console.log("📝 Data Sent:", clinicScheduleData);
-
-          // ✅ Phân tích từng item có vấn đề
-          if (clinicScheduleData.length > 0) {
-            console.log("🔍 Phân tích dữ liệu:");
-            console.table(
-              clinicScheduleData.map((item, index) => {
-                const issues = [];
-                if (!item.specialtyId || item.specialtyId === 0)
-                  issues.push("Thiếu specialty");
-                if (!item.doctorId || item.doctorId === 0)
-                  issues.push("Thiếu doctor");
-                if (!item.examTypeId || item.examTypeId === 0)
-                  issues.push("Thiếu examType");
-                if (!item.roomId || item.roomId === 0)
-                  issues.push("Thiếu room");
-
-                return {
-                  STT: index + 1,
-                  ID: item.id || "NEW",
-                  NgàyTrongTuần: item.dateInWeek?.slice(0, 10),
-                  PhòngID: item.roomId,
-                  ChuyênKhoaID: item.specialtyId,
-                  BácSĩID: item.doctorId,
-                  KhoaID: item.departmentHospitalId,
-                  LoạiKhámID: item.examTypeId,
-                  CaKhámID: item.examinationId,
-                  VấnĐề: issues.length > 0 ? issues.join(", ") : "OK",
-                };
-              })
-            );
-          }
-          console.groupEnd();
         } else {
           // ✅ XỬ LÝ TRƯỜNG HỢP PENDING HOẶC UNKNOWN STATE
           console.warn("⚠️ Unexpected action state:", resultAction);

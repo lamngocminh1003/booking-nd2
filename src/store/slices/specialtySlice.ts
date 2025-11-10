@@ -76,11 +76,13 @@ export const deleteSpecialtyThunk = createAsyncThunk(
   async (id: number, { rejectWithValue }) => {
     try {
       await deleteSpecialty(id);
-      return id;
+      return id; // ✅ Return ID để remove khỏi state
     } catch (err: any) {
+      // ✅ Xử lý error message đúng cách
       const errorMessage =
-        err || // HTTP status text
-        "Lỗi xóa chuyên khoa"; // Default
+        typeof err === "string"
+          ? err
+          : err?.message || err?.toString() || "Lỗi xóa chuyên khoa";
       return rejectWithValue(errorMessage);
     }
   }
@@ -113,6 +115,9 @@ const specialtySlice = createSlice({
           state.list.push(action.payload);
         }
       )
+      .addCase(addSpecialty.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         updateSpecialtyThunk.fulfilled,
         (state, action: PayloadAction<Specialty>) => {
@@ -120,12 +125,21 @@ const specialtySlice = createSlice({
           if (idx !== -1) state.list[idx] = action.payload;
         }
       )
+      .addCase(updateSpecialtyThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         deleteSpecialtyThunk.fulfilled,
         (state, action: PayloadAction<number>) => {
-          state.list = state.list.filter((s) => s.id !== action.payload);
+          state.list = state.list.filter(
+            (specialty) => specialty.id !== action.payload
+          );
+          state.error = null; // Clear any previous errors
         }
-      );
+      )
+      .addCase(deleteSpecialtyThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      });
   },
 });
 

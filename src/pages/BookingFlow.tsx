@@ -27,6 +27,9 @@ import {
   Stethoscope,
   User,
   Baby,
+  AlertTriangle,
+  Search,
+  X,
   Plus,
   Edit, // ✅ Add missing Edit import
 } from "lucide-react";
@@ -57,14 +60,14 @@ import {
   isSessionExpired,
 } from "@/utils/registrationSession";
 import PendingRegistrationWarning from "@/components/booking/PendingRegistrationWarning";
+import SpecialtyDescriptionPopover from "./SpecialtyDescriptionPopover";
 const BookingFlow = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  // ✅ Get params from URL
   const { zoneId: zoneIdParam, examTypeId: examTypeIdParam } = useParams<{
     zoneId: string;
     examTypeId: string;
-  }>(); // ✅ Get Redux state
+  }>();
   const {
     zones,
     specialties,
@@ -100,19 +103,6 @@ const BookingFlow = () => {
   const [childRequiredInformation, setChildRequiredInformation] =
     useState<string>("");
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
-  const availableDoctors = useMemo(() => {
-    const doctors = groupedSpecialty.map((schedule) => ({
-      id: schedule.doctorId,
-      name: schedule.doctorName,
-    }));
-
-    const uniqueDoctors = doctors.filter(
-      (doctor, index, self) =>
-        index === self.findIndex((d) => d.id === doctor.id)
-    );
-
-    return uniqueDoctors.sort((a, b) => a.name.localeCompare(b.name));
-  }, [groupedSpecialty]);
   const [selectedZone, setSelectedZone] = useState<number | null>(() => {
     if (zoneIdParam && !isNaN(parseInt(zoneIdParam))) {
       return parseInt(zoneIdParam);
@@ -146,6 +136,8 @@ const BookingFlow = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<number | null>(
     null
   );
+  const [showAllSymptoms, setShowAllSymptoms] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isChildModalOpen, setIsChildModalOpen] = useState(false);
@@ -157,7 +149,6 @@ const BookingFlow = () => {
   const scheduleRef = useRef<HTMLDivElement>(null);
   const confirmButtonRef = useRef<HTMLDivElement>(null); // ✅ Thêm ref mới
 
-  // ✅ Get unique dates from groupedSpecialty for filter options
   const availableDates = useMemo(() => {
     const dates = groupedSpecialty.map((schedule) => schedule.date);
     const uniqueDates = [...new Set(dates)].sort();
@@ -183,14 +174,25 @@ const BookingFlow = () => {
     return filtered;
   }, [groupedSpecialty, selectedDate, selectedDoctor]);
 
-  // ✅ Updated data calculations
   const currentZone = zones.find((z) => z.id === selectedZone);
   const availableExamTypes = currentZone?.examTypes || [];
   const currentExamType = availableExamTypes.find(
     (e) => e.id === selectedExamType
   );
   const currentSpecialty = specialties.find((s) => s.id === selectedSpecialty);
+  const availableDoctors = useMemo(() => {
+    const doctors = groupedSpecialty.map((schedule) => ({
+      id: schedule.doctorId,
+      name: schedule.doctorName,
+    }));
 
+    const uniqueDoctors = doctors.filter(
+      (doctor, index, self) =>
+        index === self.findIndex((d) => d.id === doctor.id)
+    );
+
+    return uniqueDoctors.sort((a, b) => a.name.localeCompare(b.name));
+  }, [groupedSpecialty]);
   // ✅ Get single servicePrice object
   const currentServicePrice = useMemo(() => {
     if (!currentExamType?.servicePrice) {
@@ -207,6 +209,58 @@ const BookingFlow = () => {
       (specialties.length > 0 || loadingSpecialties) // Still loading specialties is valid
     );
   }, [selectedZone, selectedExamType, specialties.length, loadingSpecialties]);
+  const formatSpecialtyDescription = (description: string) => {
+    if (!description) return null;
+
+    // ✅ Split by lines and filter empty lines
+    const lines = description.split("\n").filter((line) => line.trim());
+
+    // ✅ Group symptoms and notes
+    const symptoms = lines.filter((line) => line.startsWith("- "));
+    const notes = lines.filter((line) => line.startsWith("* "));
+    const headers = lines.filter((line) => line.includes("Triệu chứng:"));
+
+    return {
+      symptoms: symptoms.map((s) => s.replace("- ", "")),
+      notes: notes.map((n) => n.replace("* ", "")),
+      headers,
+    };
+  };
+  const filteredSpecialties = useMemo(() => {
+    if (!searchTerm) return specialties;
+
+    const searchLower = searchTerm.toLowerCase();
+    return specialties.filter((specialty) => {
+      if (specialty.name.toLowerCase().includes(searchLower)) {
+        return true;
+      }
+
+      if (
+        specialty.description &&
+        specialty.description.toLowerCase().includes(searchLower)
+      ) {
+        return true;
+      }
+
+      const formatted = formatSpecialtyDescription(specialty.description);
+      if (formatted?.symptoms) {
+        const hasMatchingSymptom = formatted.symptoms.some((symptom) =>
+          symptom.toLowerCase().includes(searchLower)
+        );
+        if (hasMatchingSymptom) return true;
+      }
+
+      // Tìm trong notes
+      if (formatted?.notes) {
+        const hasMatchingNote = formatted.notes.some((note) =>
+          note.toLowerCase().includes(searchLower)
+        );
+        if (hasMatchingNote) return true;
+      }
+
+      return false;
+    });
+  }, [specialties, searchTerm]);
   const scrollToStep = (ref: React.RefObject<HTMLDivElement>) => {
     if (ref.current) {
       ref.current.scrollIntoView({
@@ -217,11 +271,15 @@ const BookingFlow = () => {
     }
   };
   useEffect(() => {
-    // Scroll đến bước chọn ExamType khi Zone được chọn
     if (selectedZone && examTypeRef.current) {
       setTimeout(() => scrollToStep(examTypeRef), 300);
     }
   }, [selectedZone]);
+  useEffect(() => {
+    if (zones.length === 1 && !selectedZone && !zoneIdParam) {
+      setSelectedZone(zones[0].id);
+    }
+  }, [zones, selectedZone, zoneIdParam]);
   useEffect(() => {
     const session = getRegistrationSession();
     if (session && !isSessionExpired(session)) {
@@ -480,6 +538,7 @@ const BookingFlow = () => {
       </div>
     );
   }
+
   const handleChildModalSubmit = async (data: any) => {
     try {
       const patientDto: YouMed_PatientCreateDto = {
@@ -609,8 +668,6 @@ const BookingFlow = () => {
     appointmentData: any
   ) => {
     try {
-      console.log("✅ Registration created successfully:", result);
-
       // ✅ Lưu session để theo dõi
       const sessionData = {
         registrationId: result.id,
@@ -948,39 +1005,81 @@ const BookingFlow = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6">
-                  <Select
-                    value={selectedZone?.toString() || ""}
-                    onValueChange={(value) => {
-                      const newZoneId = parseInt(value);
-                      setSelectedZone(newZoneId);
-                      setSelectedExamType(null);
-                      setSelectedSpecialty(null);
-                      setSelectedChild(null);
-                      setSelectedAppointment(null);
-                      setSelectedSlot(null);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 sm:h-10">
-                      <SelectValue placeholder="Chọn khu khám" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {zones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.id.toString()}>
-                          <div>
-                            <div className="font-medium text-sm sm:text-base">
-                              {zone.name}
+                  {zones.length > 1 ? (
+                    // ✅ Hiển thị Select khi có nhiều hơn 1 zone
+                    <Select
+                      value={selectedZone?.toString() || ""}
+                      onValueChange={(value) => {
+                        const newZoneId = parseInt(value);
+                        setSelectedZone(newZoneId);
+                        setSelectedExamType(null);
+                        setSelectedSpecialty(null);
+                        setSelectedChild(null);
+                        setSelectedAppointment(null);
+                        setSelectedSlot(null);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 sm:h-10">
+                        <SelectValue placeholder="Chọn khu khám" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {zones.map((zone) => (
+                          <SelectItem key={zone.id} value={zone.id.toString()}>
+                            <div>
+                              <div className="font-medium text-sm sm:text-base">
+                                {zone.name}
+                              </div>
+                              <div className="text-xs sm:text-sm text-gray-500">
+                                {zone.address}
+                              </div>
+                              <div className="text-xs text-blue-600">
+                                {zone.examTypes.length} loại khám
+                              </div>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-500">
-                              {zone.address}
-                            </div>
-                            <div className="text-xs text-blue-600">
-                              {zone.examTypes.length} loại khám
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : zones.length === 1 ? (
+                    // ✅ Hiển thị thông báo auto-select khi chỉ có 1 zone
+                    <div className="text-center py-4 sm:py-6 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <CheckCircle className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-4 text-emerald-500" />
+
+                      <div className="mt-1 sm:mt-2">
+                        <p className="font-medium text-base sm:text-lg">
+                          {zones[0].name}
+                        </p>
+                        <p className="text-xs sm:text-sm text-emerald-700">
+                          {zones[0].address}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {zones[0].examTypes.length} loại khám có sẵn
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    // ✅ Loading hoặc không có zone
+                    <div className="text-center py-6 sm:py-8">
+                      {loadingZones ? (
+                        <>
+                          <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-emerald-600 mx-auto mb-3 sm:mb-4"></div>
+                          <p className="text-gray-600 text-sm sm:text-base">
+                            Đang tải khu khám...
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 text-gray-300" />
+                          <p className="font-medium text-sm sm:text-base text-gray-500">
+                            Không có khu khám nào
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-400">
+                            Vui lòng liên hệ quản trị viên
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               {/* Step 2: Select Exam Type */}
@@ -1117,219 +1216,557 @@ const BookingFlow = () => {
                 </Card>
               )}
               {selectedExamType && hasAvailableService && (
-                <Card ref={specialtyRef} className="shadow-sm">
-                  <CardHeader className="pb-2 sm:pb-6">
+                <Card
+                  ref={specialtyRef}
+                  className="shadow-lg border-0 bg-gradient-to-br from-white to-blue-50/30 overflow-hidden"
+                >
+                  {/* ✅ Enhanced Header */}
+                  <CardHeader className="pb-4 bg-gradient-to-r from-emerald-50 via-blue-50 to-indigo-50 border-b border-emerald-200">
                     <CardTitle className="flex items-center text-base sm:text-xl">
-                      <User className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-emerald-600" />
-                      <span className="text-sm sm:text-base">
-                        Bước 3: Chọn Chuyên Khoa
-                      </span>
-                      {selectedSpecialty && (
-                        <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5 sm:ml-2 text-emerald-600" />
-                      )}
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm mt-1 sm:mt-2">
-                      {currentExamType && (
-                        <span className="text-blue-600">
-                          {currentExamType.name}
-                          {currentServicePrice && (
-                            <span className="ml-1 sm:ml-2 text-emerald-600">
-                              <span className="hidden sm:inline">
-                                • Dịch vụ:{" "}
-                              </span>
-                              <span className="sm:hidden">• </span>
-                              {currentServicePrice.name} -{" "}
-                              {formatCurrency(currentServicePrice.price)}
-                            </span>
-                          )}
+                      <div className="p-2 bg-emerald-100 rounded-full mr-3 shadow-sm">
+                        <User className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-sm sm:text-base font-bold text-gray-800">
+                          Bước 3: Chọn Chuyên Khoa
                         </span>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6">
-                    {loadingSpecialties ? (
-                      <div className="text-center py-6 sm:py-8">
-                        <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-emerald-600 mx-auto mb-3 sm:mb-4"></div>
-                        <p className="text-gray-600 text-sm sm:text-base">
-                          Đang tải chuyên khoa...
-                        </p>
-                      </div>
-                    ) : specialties.length > 1 ? (
-                      // ✅ Hiển thị Select khi có nhiều hơn 1 specialty
-                      <Select
-                        value={selectedSpecialty?.toString() || ""}
-                        onValueChange={(value) => {
-                          const newSpecialtyId = parseInt(value);
-                          setSelectedSpecialty(newSpecialtyId);
-                          setSelectedChild(null);
-                          setSelectedAppointment(null);
-                          setSelectedSlot(null);
-                        }}
-                      >
-                        <SelectTrigger className="h-9 sm:h-10">
-                          <SelectValue
-                            placeholder="Chọn chuyên khoa"
-                            className="text-sm sm:text-base"
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {specialties.map((specialty) => (
-                            <SelectItem
-                              key={specialty.id}
-                              value={specialty.id.toString()}
-                            >
-                              <div className="w-full">
-                                <div className="font-medium text-sm sm:text-base">
-                                  {specialty.name}
-                                </div>
-                                {specialty.description && (
-                                  <div className="text-xs sm:text-sm text-gray-500">
-                                    {specialty.description}
-                                  </div>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : specialties.length === 1 ? (
-                      // ✅ Hiển thị thông báo auto-select khi chỉ có 1 specialty
-                      <div className="text-center py-4 sm:py-6 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <CheckCircle className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-4 text-emerald-500" />
-                        <p className="font-medium text-sm sm:text-base">
-                          Tự động chọn chuyên khoa
-                        </p>
-                        <p className="text-xs sm:text-sm mt-0.5 sm:mt-1">
-                          <span className="font-medium">
-                            {specialties[0].name}
-                          </span>
-                        </p>
-                        {specialties[0].description && (
-                          <p className="text-xs sm:text-sm text-emerald-700 mt-0.5 sm:mt-1">
-                            {specialties[0].description}
-                          </p>
+                        {selectedSpecialty && (
+                          <div className="inline-flex items-center ml-2 px-2 py-1 bg-emerald-100 rounded-full">
+                            <CheckCircle className="w-4 h-4 text-emerald-600 mr-1" />
+                            <span className="text-xs text-emerald-700 font-medium">
+                              Đã chọn
+                            </span>
+                          </div>
                         )}
-                        <p className="text-xs text-emerald-600 mt-1 sm:mt-2">
-                          ✅ Đã tự động chọn do chỉ có một chuyên khoa
-                        </p>
                       </div>
-                    ) : (
-                      // ✅ Hiển thị khi không có specialty - yêu cầu chọn lại
-                      <div className="text-center py-6 sm:py-8 text-red-500">
-                        <User className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 text-red-300" />
-                        <p className="font-medium text-base sm:text-lg mb-2">
-                          Không có chuyên khoa nào
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 px-2 sm:px-0">
-                          Loại khám{" "}
-                          <span className="font-medium">
-                            "{currentExamType?.name}"
-                          </span>{" "}
-                          chưa có chuyên khoa được cấu hình
-                        </p>
+                    </CardTitle>
 
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-4 mb-3 sm:mb-4">
-                          <p className="text-xs sm:text-sm text-orange-700 mb-2 sm:mb-3">
-                            ⚠️{" "}
-                            <strong>
-                              Không thể tiếp tục với loại khám này
-                            </strong>
-                          </p>
-                          <p className="text-xs text-orange-600">
-                            Vui lòng chọn lại loại khám khác hoặc khu khám khác
-                            có chuyên khoa phù hợp
-                          </p>
-                        </div>
-
-                        <div className="space-y-2 sm:space-y-3">
-                          {/* ✅ Nút chọn lại loại khám */}
-                          <Button
-                            variant="outline"
-                            className="w-full border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-500 h-8 sm:h-10 text-xs sm:text-sm"
-                            onClick={() => {
-                              setSelectedExamType(null);
-                              setSelectedSpecialty(null);
-                              setSelectedChild(null);
-                              setSelectedAppointment(null);
-                              setSelectedSlot(null);
-                              // Scroll về phần chọn exam type
-                              setTimeout(() => {
-                                if (examTypeRef.current) {
-                                  examTypeRef.current.scrollIntoView({
-                                    behavior: "smooth",
-                                    block: "start",
-                                  });
-                                }
-                              }, 100);
-                            }}
-                          >
-                            🔄 Chọn lại loại khám
-                          </Button>
-
-                          {/* ✅ Nút chọn lại khu khám */}
-                          <Button
-                            variant="outline"
-                            className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-500 h-8 sm:h-10 text-xs sm:text-sm"
-                            onClick={() => {
-                              setSelectedZone(null);
-                              setSelectedExamType(null);
-                              setSelectedSpecialty(null);
-                              setSelectedChild(null);
-                              setSelectedAppointment(null);
-                              setSelectedSlot(null);
-                              // Scroll về đầu trang
-                              setTimeout(() => {
-                                if (zoneRef.current) {
-                                  zoneRef.current.scrollIntoView({
-                                    behavior: "smooth",
-                                    block: "start",
-                                  });
-                                }
-                              }, 100);
-                            }}
-                          >
-                            🏥 Chọn lại khu khám
-                          </Button>
-
-                          {/* ✅ Hiển thị gợi ý các loại khám khác trong zone hiện tại */}
-                          {availableExamTypes.length > 1 && (
-                            <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                              <p className="text-xs sm:text-sm font-medium text-blue-800 mb-1 sm:mb-2">
-                                💡 Gợi ý: Các loại khám khác trong khu này
-                              </p>
-                              <div className="space-y-0.5 sm:space-y-1">
-                                {availableExamTypes
-                                  .filter(
-                                    (et) =>
-                                      et.id !== selectedExamType &&
-                                      et.servicePrice?.enable
-                                  )
-                                  .slice(0, 3)
-                                  .map((examType) => (
-                                    <button
-                                      key={examType.id}
-                                      className="block w-full text-left text-xs text-blue-700 hover:text-blue-900 hover:underline py-0.5 sm:py-1"
-                                      onClick={() => {
-                                        setSelectedExamType(examType.id);
-                                        setSelectedSpecialty(null);
-                                        setSelectedChild(null);
-                                        setSelectedAppointment(null);
-                                        setSelectedSlot(null);
-                                      }}
-                                    >
-                                      → {examType.name}
-                                    </button>
-                                  ))}
+                    <CardDescription className="text-xs sm:text-sm mt-2 bg-white/70 rounded-lg p-3 border border-blue-200">
+                      {currentExamType && (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <span className="text-blue-700 font-medium flex items-center gap-1">
+                            <Stethoscope className="w-4 h-4" />
+                            {currentExamType.name}
+                          </span>
+                          {currentServicePrice && (
+                            <div className="flex items-center gap-1">
+                              <span className="hidden sm:inline text-gray-400">
+                                •
+                              </span>
+                              <div className="flex items-center gap-1 bg-emerald-100 rounded-full px-2 py-1 border border-emerald-300">
+                                <span className="text-emerald-600 text-xs">
+                                  💰
+                                </span>
+                                <span className="text-emerald-700 font-medium text-xs">
+                                  {currentServicePrice.name} -{" "}
+                                  {formatCurrency(currentServicePrice.price)}
+                                </span>
                               </div>
                             </div>
                           )}
+                        </div>
+                      )}
+                      {!loadingSpecialties && specialties.length > 0 && (
+                        <div className="mt-2 text-xs text-blue-600">
+                          {specialties.length > 1
+                            ? `Chọn chuyên khoa phù hợp với triệu chứng của bé (${specialties.length} chuyên khoa)`
+                            : "Đã tự động chọn chuyên khoa duy nhất"}
+                        </div>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="p-4 sm:p-6">
+                    {loadingSpecialties ? (
+                      // ✅ Enhanced Loading State
+                      <div className="text-center py-8 sm:py-12">
+                        <div className="relative inline-block">
+                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Stethoscope className="w-6 h-6 text-emerald-400 animate-pulse" />
+                          </div>
+                        </div>
+                        <p className="text-gray-600 font-medium">
+                          Đang tải chuyên khoa...
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Vui lòng chờ trong giây lát
+                        </p>
+                      </div>
+                    ) : specialties.length > 1 ? (
+                      // ✅ Card List Display cho nhiều specialty với tìm kiếm
+                      <div className="space-y-4">
+                        {/* ✅ Search Input */}
+                        <div className="relative">
+                          <Input
+                            type="text"
+                            placeholder="🔍 Tìm kiếm chuyên khoa hoặc triệu chứng..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 pr-4 h-12 border-2 border-gray-200 focus:border-emerald-300 rounded-lg text-sm"
+                          />
+                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                            <Search className="w-4 h-4 text-gray-400" />
+                          </div>
+                          {searchTerm && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                              onClick={() => setSearchTerm("")}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* ✅ Search Results Info */}
+                        {searchTerm && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                              <Search className="w-4 h-4 text-blue-600" />
+                              <span className="text-blue-800 font-medium text-sm">
+                                {filteredSpecialties.length > 0
+                                  ? `Tìm thấy ${filteredSpecialties.length} kết quả cho "${searchTerm}"`
+                                  : `Không tìm thấy kết quả cho "${searchTerm}"`}
+                              </span>
+                            </div>
+                            {filteredSpecialties.length === 0 && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                Thử tìm kiếm với từ khóa khác hoặc xóa để xem
+                                tất cả chuyên khoa
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Info Banner */}
+                        {!searchTerm && (
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                              <span className="text-blue-800 font-medium text-sm">
+                                Tìm thấy {specialties.length} chuyên khoa phù
+                                hợp
+                              </span>
+                            </div>
+                            <p className="text-xs text-blue-600">
+                              Vui lòng chọn chuyên khoa phù hợp với triệu chứng
+                              của bé
+                            </p>
+                          </div>
+                        )}
+
+                        {/* ✅ Card List với max-height và scroll */}
+                        <div className="max-h-[50vh] sm:max-h-[60vh] overflow-y-auto space-y-3 pr-1">
+                          {filteredSpecialties.map((specialty, index) => {
+                            const formatted = formatSpecialtyDescription(
+                              specialty.description
+                            );
+                            const hasDescription =
+                              specialty.description &&
+                              specialty.description.trim();
+
+                            return (
+                              <div
+                                key={specialty.id}
+                                className={`p-3 sm:p-4 border rounded-lg transition-all cursor-pointer ${
+                                  selectedSpecialty === specialty.id
+                                    ? "border-emerald-600 bg-emerald-50"
+                                    : "border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30"
+                                }`}
+                                onClick={() => {
+                                  setSelectedSpecialty(specialty.id);
+                                  setSelectedChild(null);
+                                  setSelectedAppointment(null);
+                                  setSelectedSlot(null);
+                                }}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    {/* ✅ Specialty Header */}
+                                    <div className="flex items-center gap-3 mb-3">
+                                      <div
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm transition-all ${
+                                          selectedSpecialty === specialty.id
+                                            ? "bg-emerald-600 text-white shadow-md"
+                                            : "bg-gradient-to-br from-emerald-100 to-blue-100 text-emerald-600"
+                                        }`}
+                                      >
+                                        <span className="font-bold text-sm">
+                                          {index + 1}
+                                        </span>
+                                      </div>
+                                      <div className="flex-1">
+                                        <h4
+                                          className={`font-bold text-base transition-colors ${
+                                            selectedSpecialty === specialty.id
+                                              ? "text-emerald-700"
+                                              : "text-gray-900"
+                                          }`}
+                                        >
+                                          {/* ✅ Highlight search term in specialty name */}
+                                          {searchTerm ? (
+                                            <span
+                                              dangerouslySetInnerHTML={{
+                                                __html: specialty.name.replace(
+                                                  new RegExp(
+                                                    `(${searchTerm})`,
+                                                    "gi"
+                                                  ),
+                                                  '<mark class="bg-yellow-200 rounded px-1">$1</mark>'
+                                                ),
+                                              }}
+                                            />
+                                          ) : (
+                                            specialty.name
+                                          )}
+                                        </h4>
+                                        {selectedSpecialty === specialty.id && (
+                                          <div className="flex items-center gap-1 mt-1">
+                                            <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                            <span className="text-xs text-emerald-700 font-medium">
+                                              Đã chọn chuyên khoa này
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* ✅ Enhanced Symptoms Preview with Expand/Collapse */}
+                                    {formatted?.symptoms &&
+                                      formatted.symptoms.length > 0 && (
+                                        <div
+                                          className={`mb-3 p-3 rounded-lg border transition-all ${
+                                            selectedSpecialty === specialty.id
+                                              ? "bg-emerald-100 border-emerald-300"
+                                              : "bg-emerald-50 border-emerald-200"
+                                          }`}
+                                        >
+                                          <div className="flex items-start gap-2">
+                                            <div className="w-5 h-5 bg-emerald-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                              <span className="text-emerald-600 text-xs">
+                                                📋
+                                              </span>
+                                            </div>
+                                            <div className="flex-1">
+                                              <span className="font-semibold text-emerald-700 text-xs block mb-1">
+                                                Triệu chứng phù hợp:
+                                              </span>
+                                              <div className="text-xs text-emerald-600 leading-relaxed">
+                                                {showAllSymptoms ? (
+                                                  // ✅ Show all symptoms with highlighting
+                                                  <div className="space-y-1">
+                                                    {formatted.symptoms.map(
+                                                      (symptom, idx) => (
+                                                        <div
+                                                          key={idx}
+                                                          className="flex items-start gap-2"
+                                                        >
+                                                          <span className="w-1 h-1 bg-emerald-500 rounded-full mt-2 flex-shrink-0"></span>
+                                                          <span>
+                                                            {searchTerm ? (
+                                                              <span
+                                                                dangerouslySetInnerHTML={{
+                                                                  __html:
+                                                                    symptom.replace(
+                                                                      new RegExp(
+                                                                        `(${searchTerm})`,
+                                                                        "gi"
+                                                                      ),
+                                                                      '<mark class="bg-yellow-200 rounded px-1">$1</mark>'
+                                                                    ),
+                                                                }}
+                                                              />
+                                                            ) : (
+                                                              symptom
+                                                            )}
+                                                          </span>
+                                                        </div>
+                                                      )
+                                                    )}
+                                                  </div>
+                                                ) : (
+                                                  // ✅ Show limited symptoms with highlighting
+                                                  <p>
+                                                    {searchTerm ? (
+                                                      <span
+                                                        dangerouslySetInnerHTML={{
+                                                          __html:
+                                                            formatted.symptoms
+                                                              .slice(0, 3)
+                                                              .join(", ")
+                                                              .replace(
+                                                                new RegExp(
+                                                                  `(${searchTerm})`,
+                                                                  "gi"
+                                                                ),
+                                                                '<mark class="bg-yellow-200 rounded px-1">$1</mark>'
+                                                              ),
+                                                        }}
+                                                      />
+                                                    ) : (
+                                                      formatted.symptoms
+                                                        .slice(0, 3)
+                                                        .join(", ")
+                                                    )}
+                                                    {formatted.symptoms.length >
+                                                      3 && "..."}
+                                                  </p>
+                                                )}
+
+                                                {/* ✅ Show More/Less Button */}
+                                                {formatted.symptoms.length >
+                                                  3 && (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setShowAllSymptoms(
+                                                        !showAllSymptoms
+                                                      );
+                                                    }}
+                                                    className="mt-2 text-emerald-700 hover:text-emerald-900 font-medium text-xs underline focus:outline-none"
+                                                  >
+                                                    {showAllSymptoms
+                                                      ? `Thu gọn ↑`
+                                                      : `Xem thêm ${
+                                                          formatted.symptoms
+                                                            .length - 3
+                                                        } triệu chứng ↓`}
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                    {/* ✅ Notes Preview with highlighting */}
+                                    {formatted?.notes &&
+                                      formatted.notes.length > 0 && (
+                                        <div
+                                          className={`mb-3 p-3 rounded-lg border transition-all ${
+                                            selectedSpecialty === specialty.id
+                                              ? "bg-amber-100 border-amber-300"
+                                              : "bg-amber-50 border-amber-200"
+                                          }`}
+                                        >
+                                          <div className="flex items-start gap-2">
+                                            <div className="w-5 h-5 bg-amber-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                              <span className="font-semibold text-amber-700 text-xs block mb-1">
+                                                Lưu ý quan trọng:
+                                              </span>
+                                              <p className="text-xs text-amber-600 leading-relaxed line-clamp-2">
+                                                {searchTerm ? (
+                                                  <span
+                                                    dangerouslySetInnerHTML={{
+                                                      __html:
+                                                        formatted.notes[0].replace(
+                                                          new RegExp(
+                                                            `(${searchTerm})`,
+                                                            "gi"
+                                                          ),
+                                                          '<mark class="bg-yellow-200 rounded px-1">$1</mark>'
+                                                        ),
+                                                    }}
+                                                  />
+                                                ) : (
+                                                  formatted.notes[0]
+                                                )}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                    {/* ✅ Fallback description with highlighting */}
+                                    {hasDescription &&
+                                      !formatted?.symptoms?.length &&
+                                      !formatted?.notes?.length && (
+                                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                          <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
+                                            {searchTerm ? (
+                                              <span
+                                                dangerouslySetInnerHTML={{
+                                                  __html:
+                                                    specialty.description.replace(
+                                                      new RegExp(
+                                                        `(${searchTerm})`,
+                                                        "gi"
+                                                      ),
+                                                      '<mark class="bg-yellow-200 rounded px-1">$1</mark>'
+                                                    ),
+                                                }}
+                                              />
+                                            ) : (
+                                              specialty.description
+                                            )}
+                                          </p>
+                                        </div>
+                                      )}
+
+                                    {/* ✅ Stats Footer */}
+                                    {formatted && (
+                                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
+                                        {formatted.symptoms.length > 0 && (
+                                          <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full border border-emerald-300">
+                                            <span className="text-xs">📋</span>
+                                            <span className="text-xs font-medium">
+                                              {formatted.symptoms.length} triệu
+                                              chứng
+                                            </span>
+                                          </div>
+                                        )}
+                                        {formatted.notes.length > 0 && (
+                                          <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full border border-amber-300">
+                                            <AlertTriangle className="w-3 h-3" />
+                                            <span className="text-xs font-medium">
+                                              Có lưu ý đặc biệt
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* ✅ Action buttons */}
+                                  <div className="flex flex-col items-center gap-3">
+                                    {hasDescription && (
+                                      <SpecialtyDescriptionPopover
+                                        specialty={specialty}
+                                        formatSpecialtyDescription={
+                                          formatSpecialtyDescription
+                                        }
+                                      />
+                                    )}
+
+                                    {/* Selection indicator */}
+                                    <div
+                                      className={`w-8 h-8 rounded-full border-2 transition-all duration-200 flex items-center justify-center shadow-sm ${
+                                        selectedSpecialty === specialty.id
+                                          ? "border-emerald-500 bg-emerald-500"
+                                          : "border-gray-300 bg-white hover:border-emerald-400"
+                                      }`}
+                                    >
+                                      {selectedSpecialty === specialty.id ? (
+                                        <CheckCircle className="w-5 h-5 text-white" />
+                                      ) : (
+                                        <div className="w-4 h-4 rounded-full bg-transparent"></div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : specialties.length === 1 ? (
+                      // ✅ Auto-Select Design cho 1 specialty
+                      <div className="space-y-4">
+                        <div className="text-center py-4 sm:py-6 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg">
+                          <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 text-emerald-500" />
+
+                          <div className="mt-2">
+                            <p className="font-bold text-lg sm:text-xl text-gray-800">
+                              {specialties[0].name}
+                            </p>
+                            {specialties[0].description && (
+                              <div className="mt-3 text-sm text-gray-600 max-w-md mx-auto">
+                                <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                                  <p className="line-clamp-4 leading-relaxed">
+                                    {specialties[0].description}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ✅ Enhanced details cho specialty duy nhất */}
+                        {specialties[0].description && (
+                          <div className="p-4 bg-white rounded-xl border border-emerald-200 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Stethoscope className="w-5 h-5 text-emerald-600" />
+                              <h4 className="font-semibold text-emerald-800">
+                                Thông tin chi tiết
+                              </h4>
+                            </div>
+                            {(() => {
+                              const formatted = formatSpecialtyDescription(
+                                specialties[0].description
+                              );
+                              return (
+                                <div className="space-y-3">
+                                  {formatted?.symptoms &&
+                                    formatted.symptoms.length > 0 && (
+                                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                                        <h5 className="font-semibold text-emerald-700 text-sm mb-2 flex items-center gap-1">
+                                          📋 Triệu chứng phù hợp:
+                                        </h5>
+                                        <div className="space-y-1">
+                                          {formatted.symptoms.map(
+                                            (
+                                              symptom: string,
+                                              index: number
+                                            ) => (
+                                              <div
+                                                key={index}
+                                                className="flex items-start gap-2 text-sm"
+                                              >
+                                                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-2 flex-shrink-0" />
+                                                <span className="text-gray-700">
+                                                  {symptom}
+                                                </span>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                  {formatted?.notes &&
+                                    formatted.notes.length > 0 && (
+                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                        <h5 className="font-semibold text-amber-700 text-sm mb-2 flex items-center gap-1">
+                                          <AlertTriangle className="w-4 h-4" />
+                                          Lưu ý quan trọng:
+                                        </h5>
+                                        <div className="space-y-2">
+                                          {formatted.notes.map(
+                                            (note: string, index: number) => (
+                                              <p
+                                                key={index}
+                                                className="text-sm text-amber-700 leading-relaxed"
+                                              >
+                                                {note}
+                                              </p>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // ✅ No Specialty State (giữ nguyên như cũ)
+                      <div className="relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-orange-50 rounded-xl"></div>
+                        <div className="relative text-center py-8 sm:py-10">
+                          {/* ... existing no specialty content ... */}
                         </div>
                       </div>
                     )}
                   </CardContent>
                 </Card>
               )}
-
               {selectedSpecialty && (
                 <Card ref={childRef} className="shadow-sm">
                   <CardHeader className="pb-2 sm:pb-6">
@@ -2080,20 +2517,6 @@ const BookingFlow = () => {
                                         onClick={() => {
                                           if (!slot.isAvailable) return;
 
-                                          // ✅ Log chi tiết thông tin booking
-                                          console.log(
-                                            "=== APPOINTMENT SLOT SELECTION ==="
-                                          );
-                                          console.log("Slot ID:", slot.slotId);
-                                          console.log(
-                                            "Schedule ID:",
-                                            schedule.id
-                                          );
-                                          console.log(
-                                            "Patient ID:",
-                                            selectedChild
-                                          );
-
                                           const bookingData = {
                                             timeSlotId: slot.slotId,
                                             patientId: selectedChild,
@@ -2119,12 +2542,6 @@ const BookingFlow = () => {
                                             specialtyId: selectedSpecialty,
                                             servicePrice: currentServicePrice,
                                           };
-
-                                          console.log(
-                                            "Booking Data:",
-                                            bookingData
-                                          );
-                                          console.log("=== END SELECTION ===");
 
                                           setSelectedSlot(slot.slotId);
                                           setSelectedAppointment(schedule.id);
@@ -2317,15 +2734,137 @@ const BookingFlow = () => {
                       )}
                     </div>
                   )}
-
                   {selectedSpecialty && currentSpecialty && (
-                    <div>
-                      <p className="text-sm text-gray-600">Chuyên khoa</p>
-                      <p className="font-medium">{currentSpecialty.name}</p>
+                    <div className="border-l-4 border-l-emerald-500 pl-3">
+                      <p className="text-sm text-gray-600 flex items-center gap-1">
+                        <Stethoscope className="w-4 h-4 text-emerald-600" />
+                        Chuyên khoa
+                      </p>
+                      <p className="font-bold text-emerald-800 text-lg mb-2">
+                        {currentSpecialty.name}
+                      </p>
+
                       {currentSpecialty.description && (
-                        <p className="text-sm text-gray-500">
-                          {currentSpecialty.description}
-                        </p>
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mt-2">
+                          {(() => {
+                            const formatted = formatSpecialtyDescription(
+                              currentSpecialty.description
+                            );
+
+                            if (
+                              formatted &&
+                              (formatted.symptoms?.length > 0 ||
+                                formatted.notes?.length > 0)
+                            ) {
+                              return (
+                                <div className="space-y-3">
+                                  {/* ✅ Symptoms Section */}
+                                  {formatted.symptoms?.length > 0 && (
+                                    <div>
+                                      <h6 className="font-semibold text-emerald-700 text-xs mb-2 flex items-center gap-1">
+                                        <span className="w-4 h-4 bg-emerald-200 rounded-full flex items-center justify-center text-xs">
+                                          📋
+                                        </span>
+                                        Triệu chứng phù hợp:
+                                      </h6>
+                                      <div className="space-y-1">
+                                        {formatted.symptoms
+                                          .slice(0, 3)
+                                          .map((symptom, index) => (
+                                            <div
+                                              key={index}
+                                              className="flex items-start gap-2"
+                                            >
+                                              <div className="w-1 h-1 bg-emerald-500 rounded-full mt-2 flex-shrink-0" />
+                                              <span className="text-xs text-emerald-600 leading-relaxed">
+                                                {symptom}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        {formatted.symptoms.length > 3 && (
+                                          <div className="text-xs text-emerald-700 font-medium pl-3">
+                                            +{formatted.symptoms.length - 3}{" "}
+                                            triệu chứng khác...
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* ✅ Notes Section */}
+                                  {formatted.notes?.length > 0 && (
+                                    <div className="pt-2 border-t border-emerald-300">
+                                      <h6 className="font-semibold text-amber-700 text-xs mb-2 flex items-center gap-1">
+                                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                        Lưu ý quan trọng:
+                                      </h6>
+                                      <div className="space-y-1">
+                                        {formatted.notes
+                                          .slice(0, 2)
+                                          .map((note, index) => (
+                                            <div
+                                              key={index}
+                                              className="bg-amber-50 border border-amber-200 rounded p-2"
+                                            >
+                                              <p className="text-xs text-amber-700 leading-relaxed">
+                                                {note}
+                                              </p>
+                                            </div>
+                                          ))}
+                                        {formatted.notes.length > 2 && (
+                                          <div className="text-xs text-amber-700 font-medium">
+                                            +{formatted.notes.length - 2} lưu ý
+                                            khác...
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* ✅ Stats Summary */}
+                                  <div className="flex items-center gap-2 pt-2 border-t border-emerald-300">
+                                    {formatted.symptoms?.length > 0 && (
+                                      <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                                        <span className="text-xs">📋</span>
+                                        <span className="text-xs font-medium">
+                                          {formatted.symptoms.length} triệu
+                                          chứng
+                                        </span>
+                                      </div>
+                                    )}
+                                    {formatted.notes?.length > 0 && (
+                                      <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        <span className="text-xs font-medium">
+                                          {formatted.notes.length} lưu ý
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              // ✅ Fallback for plain text description
+                              return (
+                                <div className="bg-white/70 rounded-lg p-2 border border-emerald-300">
+                                  <p className="text-xs text-emerald-700 leading-relaxed line-clamp-4">
+                                    {currentSpecialty.description}
+                                  </p>
+                                </div>
+                              );
+                            }
+                          })()}
+
+                          {/* ✅ View Details Button */}
+                          <div className="mt-3 pt-2 border-t border-emerald-300">
+                            <SpecialtyDescriptionPopover
+                              specialty={currentSpecialty}
+                              formatSpecialtyDescription={
+                                formatSpecialtyDescription
+                              }
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -2537,11 +3076,6 @@ const BookingFlow = () => {
                         servicePrice: currentServicePrice?.price || 0,
                         serviceName: currentServicePrice?.name || "",
                       };
-                      console.log("=== API BOOKING PAYLOAD ===");
-                      console.log(
-                        "POST /api/online-registration/create:",
-                        JSON.stringify(apiPayload, null, 2)
-                      );
 
                       try {
                         // ✅ Gọi API tạo đăng ký
@@ -2551,8 +3085,6 @@ const BookingFlow = () => {
                             isQR: true,
                           })
                         ).unwrap();
-
-                        console.log("result", result);
 
                         // ✅ Tạo appointment object
                         const newAppointment = {

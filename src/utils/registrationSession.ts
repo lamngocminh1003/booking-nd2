@@ -27,7 +27,6 @@ export const saveRegistrationSession = (
   };
 
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  console.log("💾 Đã lưu session đăng ký:", session);
   return session;
 };
 
@@ -43,7 +42,6 @@ export const getRegistrationSession = (): RegistrationSession | null => {
 
     // Kiểm tra hết hạn
     if (now > expiresAt) {
-      console.log("⏰ Session đã hết hạn, tự động xóa");
       clearRegistrationSession();
       return null;
     }
@@ -60,7 +58,6 @@ export const getRegistrationSession = (): RegistrationSession | null => {
 // ✅ Xóa session đăng ký
 export const clearRegistrationSession = () => {
   localStorage.removeItem(SESSION_KEY);
-  console.log("🗑️ Đã xóa session đăng ký");
 };
 
 // ✅ Kiểm tra session có hết hạn không

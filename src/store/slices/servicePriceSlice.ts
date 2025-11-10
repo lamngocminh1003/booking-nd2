@@ -4,7 +4,6 @@ import {
   createServicePrice,
   updateServicePrice,
   deleteServicePrice,
-  // ✅ Import new function
   getExamTypeServicePricesByExamTypeId,
   createOrUpdateExamTypeServicePrice,
   deleteExamTypeServicePrice,
@@ -25,7 +24,6 @@ export interface ServicePrice {
   price: number;
 }
 
-// ✅ Interface cho service price detail từ API mới
 export interface ServicePriceDetail {
   id: number;
   price: number;
@@ -33,7 +31,6 @@ export interface ServicePriceDetail {
   enable: boolean;
 }
 
-// ✅ Interface cho exam type với servicePrices nested
 export interface ExamTypeWithServicePrices {
   servicePrices: ServicePriceDetail[];
   id: number;
@@ -47,7 +44,6 @@ export interface ExamTypeWithServicePrices {
   appointmentFormName: string;
 }
 
-// ✅ Old interface (keep for backward compatibility)
 export interface ExamTypeServicePrice {
   id: number;
   examTypeId: number;
@@ -62,7 +58,6 @@ export interface ExamTypeServicePrice {
   updatedAt?: string;
 }
 
-// ✅ Interface for Create/Update payload
 export interface CreateUpdateExamTypeServicePrice {
   examTypeId: number;
   servicePriceId: number;
@@ -72,7 +67,6 @@ export interface CreateUpdateExamTypeServicePrice {
   enable: boolean;
 }
 
-// ✅ Update interface để match với API response
 export interface ExamTypeServicePriceResponse {
   id: number;
   name: string;
@@ -80,15 +74,13 @@ export interface ExamTypeServicePriceResponse {
   enable: boolean;
   zoneId: number;
   appointmentFormId: number;
-  servicePrice: ServicePriceDetail[]; // ✅ Array of service prices
+  servicePrice: ServicePriceDetail[];
 }
 
 interface ServicePriceState {
   list: ServicePrice[];
   loading: boolean;
   error: string | null;
-
-  // ✅ Updated state structure để lưu full exam type data
   examTypeServicePrices: ExamTypeServicePriceResponse | null;
   examTypeServicePricesLoading: boolean;
   examTypeServicePricesError: string | null;
@@ -99,15 +91,13 @@ const initialState: ServicePriceState = {
   list: [],
   loading: false,
   error: null,
-
-  // ✅ Initialize với null thay vì empty array
   examTypeServicePrices: null,
   examTypeServicePricesLoading: false,
   examTypeServicePricesError: null,
   currentExamTypeId: null,
 };
 
-// ✅ Existing async thunks
+// ✅ Fetch service prices - consistent with specialtySlice
 export const fetchServicePrices = createAsyncThunk(
   "servicePrice/fetchServicePrices",
   async (_, { rejectWithValue }) => {
@@ -115,11 +105,16 @@ export const fetchServicePrices = createAsyncThunk(
       const response = await getServicePrices();
       return response?.data?.data as ServicePrice[];
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi lấy danh sách dịch vụ");
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err.message || "Lỗi lấy danh sách dịch vụ";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Add service price - consistent with specialtySlice
 export const addServicePrice = createAsyncThunk(
   "servicePrice/addServicePrice",
   async (
@@ -134,56 +129,62 @@ export const addServicePrice = createAsyncThunk(
     try {
       return await createServicePrice(data);
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi thêm dịch vụ");
+      const errorMessage =
+        typeof err === "string" ? err : err.message || "Lỗi thêm dịch vụ";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Update service price - consistent with specialtySlice
+interface ServicePriceUpdateData {
+  name: string;
+  regularPrice: number;
+  insurancePrice: number;
+  vipPrice: number;
+  enable?: boolean;
+}
+
 export const updateServicePriceThunk = createAsyncThunk(
   "servicePrice/updateServicePrice",
   async (
-    {
-      id,
-      data,
-    }: {
-      id: number;
-      data: {
-        name: string;
-        regularPrice: number;
-        insurancePrice: number;
-        vipPrice: number;
-      };
-    },
+    { id, data }: { id: number; data: ServicePriceUpdateData },
     { rejectWithValue }
   ) => {
     try {
       return await updateServicePrice(id, data);
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi cập nhật dịch vụ");
+      const errorMessage =
+        typeof err === "string" ? err : err.message || "Lỗi cập nhật dịch vụ";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Delete service price - consistent with specialtySlice
 export const deleteServicePriceThunk = createAsyncThunk(
   "servicePrice/deleteServicePrice",
   async (id: number, { rejectWithValue }) => {
     try {
       await deleteServicePrice(id);
-      return id;
+      return id; // ✅ Return ID để remove khỏi state
     } catch (err: any) {
-      return rejectWithValue(err.message || "Lỗi xóa dịch vụ");
+      // ✅ Xử lý error message đúng cách
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err?.message || err?.toString() || "Lỗi xóa dịch vụ";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
-// ✅ NEW: Fetch service prices by examTypeId
+// ✅ Fetch exam type service prices
 export const fetchExamTypeServicePricesByExamTypeId = createAsyncThunk(
   "servicePrice/fetchExamTypeServicePricesByExamTypeId",
   async (examTypeId: number, { rejectWithValue }) => {
     try {
       const response = await getExamTypeServicePricesByExamTypeId(examTypeId);
-
-      // ✅ Extract data from nested response structure
       const data = response?.data?.data || response?.data;
 
       if (!data) {
@@ -192,31 +193,35 @@ export const fetchExamTypeServicePricesByExamTypeId = createAsyncThunk(
 
       return {
         examTypeId,
-        examTypeData: data, // Full exam type data including servicePrice array
+        examTypeData: data,
       };
     } catch (err: any) {
-      console.error("❌ Error fetching exam type service prices:", err);
-      return rejectWithValue(
-        err.message || "Lỗi lấy danh sách dịch vụ theo khu khám"
-      );
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err.message || "Lỗi lấy danh sách dịch vụ theo khu khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Create or update exam type service price
 export const createOrUpdateExamTypeServicePriceThunk = createAsyncThunk(
   "servicePrice/createOrUpdateExamTypeServicePrice",
   async (data: CreateUpdateExamTypeServicePrice, { rejectWithValue }) => {
     try {
-      const response = await createOrUpdateExamTypeServicePrice(data);
-      return response?.data as ExamTypeServicePrice;
+      return await createOrUpdateExamTypeServicePrice(data);
     } catch (err: any) {
-      return rejectWithValue(
-        err.message || "Lỗi tạo/cập nhật dịch vụ khu khám"
-      );
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err.message || "Lỗi tạo/cập nhật dịch vụ khu khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
+// ✅ Delete exam type service price - consistent with specialtySlice
 export const deleteExamTypeServicePriceThunk = createAsyncThunk(
   "servicePrice/deleteExamTypeServicePrice",
   async (
@@ -227,22 +232,15 @@ export const deleteExamTypeServicePriceThunk = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await deleteExamTypeServicePrice(
-        examTypeId,
-        servicePriceId
-      );
-
-      // ✅ Double check success flag in response
-      if (response?.success === false || response?.data?.success === false) {
-        const errorMessage =
-          response?.message || response?.data?.message || "Lỗi khi xóa dịch vụ";
-        return rejectWithValue(errorMessage);
-      }
-
-      return { examTypeId, servicePriceId };
+      await deleteExamTypeServicePrice(examTypeId, servicePriceId);
+      return { examTypeId, servicePriceId }; // ✅ Return IDs để remove khỏi state
     } catch (err: any) {
-      console.error("❌ Delete error:", err);
-      return rejectWithValue(err.message || "Lỗi xóa dịch vụ khu khám");
+      // ✅ Xử lý error message đúng cách
+      const errorMessage =
+        typeof err === "string"
+          ? err
+          : err?.message || err?.toString() || "Lỗi xóa dịch vụ khu khám";
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -251,14 +249,11 @@ const servicePriceSlice = createSlice({
   name: "servicePrice",
   initialState,
   reducers: {
-    // ✅ Clear exam type service prices
     clearExamTypeServicePrices: (state) => {
       state.examTypeServicePrices = null;
       state.examTypeServicePricesError = null;
       state.currentExamTypeId = null;
     },
-
-    // ✅ Add action để toggle service price enable/disable
     toggleServicePriceEnable: (
       state,
       action: PayloadAction<{ servicePriceId: number }>
@@ -272,8 +267,6 @@ const servicePriceSlice = createSlice({
         }
       }
     },
-
-    // ✅ Add action để update service price
     updateServicePriceInExamType: (
       state,
       action: PayloadAction<{
@@ -296,7 +289,7 @@ const servicePriceSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // ✅ Existing cases
+      // ✅ Service prices CRUD - consistent with specialtySlice
       .addCase(fetchServicePrices.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -316,23 +309,38 @@ const servicePriceSlice = createSlice({
         addServicePrice.fulfilled,
         (state, action: PayloadAction<ServicePrice>) => {
           state.list.push(action.payload);
+          state.error = null; // Clear any previous errors
         }
       )
+      .addCase(addServicePrice.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         updateServicePriceThunk.fulfilled,
         (state, action: PayloadAction<ServicePrice>) => {
           const idx = state.list.findIndex((s) => s.id === action.payload.id);
           if (idx !== -1) state.list[idx] = action.payload;
+          state.error = null; // Clear any previous errors
         }
       )
+      .addCase(updateServicePriceThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       .addCase(
         deleteServicePriceThunk.fulfilled,
         (state, action: PayloadAction<number>) => {
-          state.list = state.list.filter((s) => s.id !== action.payload);
+          // ✅ Remove item khỏi list dựa trên ID
+          state.list = state.list.filter(
+            (servicePrice) => servicePrice.id !== action.payload
+          );
+          state.error = null; // Clear any previous errors
         }
       )
+      .addCase(deleteServicePriceThunk.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
 
-      // ✅ NEW: Cases for fetch by examTypeId
+      // ✅ Exam type service prices operations
       .addCase(fetchExamTypeServicePricesByExamTypeId.pending, (state) => {
         state.examTypeServicePricesLoading = true;
         state.examTypeServicePricesError = null;
@@ -349,23 +357,29 @@ const servicePriceSlice = createSlice({
           state.examTypeServicePricesLoading = false;
           state.examTypeServicePrices = action.payload.examTypeData;
           state.currentExamTypeId = action.payload.examTypeId;
+          state.examTypeServicePricesError = null; // Clear any previous errors
         }
       )
       .addCase(
         fetchExamTypeServicePricesByExamTypeId.rejected,
         (state, action) => {
-          console.error(
-            "❌ Redux: Failed to load exam type service prices:",
-            action.payload
-          );
-
           state.examTypeServicePricesLoading = false;
           state.examTypeServicePricesError = action.payload as string;
           state.examTypeServicePrices = null;
         }
       )
-
-      // ✅ Handle delete success
+      .addCase(
+        createOrUpdateExamTypeServicePriceThunk.fulfilled,
+        (state, action) => {
+          state.examTypeServicePricesError = null; // Clear any previous errors
+        }
+      )
+      .addCase(
+        createOrUpdateExamTypeServicePriceThunk.rejected,
+        (state, action) => {
+          state.examTypeServicePricesError = action.payload as string;
+        }
+      )
       .addCase(
         deleteExamTypeServicePriceThunk.fulfilled,
         (
@@ -379,8 +393,12 @@ const servicePriceSlice = createSlice({
                 (item) => item.id !== action.payload.servicePriceId
               );
           }
+          state.examTypeServicePricesError = null; // Clear any previous errors
         }
-      );
+      )
+      .addCase(deleteExamTypeServicePriceThunk.rejected, (state, action) => {
+        state.examTypeServicePricesError = action.payload as string;
+      });
   },
 });
 

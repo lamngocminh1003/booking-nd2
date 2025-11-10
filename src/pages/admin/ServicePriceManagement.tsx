@@ -25,9 +25,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Trash2, Edit } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -42,6 +54,7 @@ export default function ServicePriceManagement() {
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<any>(null);
+  const [deletingService, setDeletingService] = useState<any>(null);
 
   // Debounce search
   useEffect(() => {
@@ -60,7 +73,7 @@ export default function ServicePriceManagement() {
   const filteredList = useMemo(
     () =>
       list.filter((service) =>
-        service.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+        service?.name?.toLowerCase().includes(debouncedSearch?.toLowerCase())
       ),
     [list, debouncedSearch]
   );
@@ -83,49 +96,91 @@ export default function ServicePriceManagement() {
 
     try {
       if (editingService) {
-        await dispatch(
+        const result = await dispatch(
           updateServicePriceThunk({
             id: editingService.id,
             data,
           }) as any
-        );
+        ).unwrap(); // ✅ SỬ DỤNG unwrap() ĐỂ XỬ LÝ ERROR TỐT HÔN
+
         toast.success("Cập nhật dịch vụ thành công!");
       } else {
-        await dispatch(addServicePrice(data) as any);
+        const result = await dispatch(addServicePrice(data) as any).unwrap(); // ✅ SỬ DỤNG unwrap()
         toast.success("Thêm dịch vụ mới thành công!");
       }
+
       setIsDialogOpen(false);
       setEditingService(null);
       dispatch(fetchServicePrices() as any);
-    } catch (error) {
-      toast.error("Có lỗi xảy ra!");
+    } catch (error: any) {
+      // ✅ ERROR ĐÃ LÀ STRING MESSAGE RỒI
+      const errorMessage =
+        typeof error === "string" ? error : error.message || "Có lỗi xảy ra!";
+      toast.error(errorMessage);
     }
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa dịch vụ này?")) {
-      dispatch(deleteServicePriceThunk(id) as any);
-      toast.success("Xóa dịch vụ thành công!");
+  // ✅ SỬ DỤNG PATTERN GIỐNG SPECIALTY MANAGEMENT
+  const handleDelete = async (service: any) => {
+    try {
+      const res = await dispatch(deleteServicePriceThunk(service.id) as any);
+
+      // ✅ KIỂM TRA TYPE CỦA ACTION - GIỐNG SPECIALTY
+      if (res.type === deleteServicePriceThunk.fulfilled.type) {
+        toast.success(`Xóa dịch vụ "${service.name}" thành công!`);
+        dispatch(fetchServicePrices() as any);
+        setDeletingService(null);
+
+        const newTotalPages = Math.ceil((filteredList.length - 1) / PAGE_SIZE);
+        if (page > newTotalPages && newTotalPages > 0) {
+          setPage(newTotalPages);
+        }
+      } else if (res.type === deleteServicePriceThunk.rejected.type) {
+        let errorMessage = "Có lỗi xảy ra khi xóa dịch vụ!";
+        if (res.payload) {
+          if (typeof res.payload === "string") {
+            errorMessage = res.payload;
+          } else if (res.payload.message) {
+            errorMessage = res.payload.message;
+          } else if (res.error?.message) {
+            errorMessage = res.error.message;
+          }
+        }
+
+        toast.error(errorMessage);
+      }
+    } catch (error: any) {
+      toast.error("Có lỗi không mong muốn xảy ra!");
     }
   };
 
   const handleToggleEnable = async (service: any) => {
     try {
-      await dispatch(
+      const result = await dispatch(
         updateServicePriceThunk({
           id: service.id,
-          data: { ...service, enable: !service.enable },
+          data: {
+            name: service.name,
+            regularPrice: service.regularPrice,
+            insurancePrice: service.insurancePrice,
+            vipPrice: service.vipPrice,
+            enable: !service.enable,
+          },
         }) as any
-      );
+      ).unwrap(); // ✅ SỬ DỤNG unwrap()
+
       await dispatch(fetchServicePrices() as any); // Fetch after update
       toast.success("Cập nhật trạng thái thành công!");
-    } catch (error) {
-      toast.error("Có lỗi xảy ra!");
+    } catch (error: any) {
+      // ✅ ERROR HANDLING GIỐNG SPECIALTY
+      const errorMessage =
+        typeof error === "string" ? error : error.message || "Có lỗi xảy ra!";
+      toast.error(errorMessage);
     }
   };
 
   return (
-    <div className="p-4 animate-fade-in">
+    <div className="animate-fade-in">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Quản lý giá dịch vụ</CardTitle>
@@ -194,8 +249,12 @@ export default function ServicePriceManagement() {
                   />
                 </div>
 
-                <Button type="submit">
-                  {editingService ? "Cập nhật" : "Thêm mới"}
+                <Button type="submit" disabled={loading}>
+                  {loading
+                    ? "Đang xử lý..."
+                    : editingService
+                    ? "Cập nhật"
+                    : "Thêm mới"}
                 </Button>
               </form>
             </DialogContent>
@@ -248,13 +307,13 @@ export default function ServicePriceManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">ID</TableHead>
-                  <TableHead>Tên dịch vụ</TableHead>
+                  <TableHead className="w-[80px]">ID</TableHead>
+                  <TableHead className="w-[250px]">Tên dịch vụ</TableHead>
                   <TableHead className="w-[150px]">Giá thường</TableHead>
                   <TableHead className="w-[150px]">Giá BHYT</TableHead>
                   <TableHead className="w-[150px]">Giá VIP</TableHead>
                   <TableHead className="w-[120px]">Trạng thái</TableHead>
-                  <TableHead className="w-[200px] text-right">
+                  <TableHead className="w-[120px] sticky right-0 bg-white">
                     Thao tác
                   </TableHead>
                 </TableRow>
@@ -262,8 +321,8 @@ export default function ServicePriceManagement() {
               <TableBody>
                 {pagedList.map((service) => (
                   <TableRow key={service.id}>
-                    <TableCell className="w-[100px]">{service.id}</TableCell>
-                    <TableCell>{service.name}</TableCell>
+                    <TableCell className="w-[80px]">{service.id}</TableCell>
+                    <TableCell className="w-[250px]">{service.name}</TableCell>
                     <TableCell className="w-[150px]">
                       {service.regularPrice?.toLocaleString()} đ
                     </TableCell>
@@ -279,24 +338,56 @@ export default function ServicePriceManagement() {
                         onCheckedChange={() => handleToggleEnable(service)}
                       />
                     </TableCell>
-                    <TableCell className="w-[200px] text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="w-[120px] sticky right-0 bg-white">
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
+                          variant="outline"
                           onClick={() => {
                             setEditingService(service);
                             setIsDialogOpen(true);
                           }}
+                          className="h-8 w-8 p-0"
                         >
-                          Sửa
+                          <Edit className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(service.id)}
-                        >
-                          Xóa
-                        </Button>
+
+                        {/* ✅ ALERT DIALOG GIỐNG SPECIALTY */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Bạn có chắc chắn muốn xóa dịch vụ{" "}
+                                <span className="font-semibold">
+                                  "{service.name}"
+                                </span>
+                                ?<br />
+                                <span className="text-red-600">
+                                  Hành động này không thể hoàn tác!
+                                </span>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Hủy</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(service)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Xóa
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>

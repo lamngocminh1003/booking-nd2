@@ -29,7 +29,26 @@ const handleApiResponse = (response: any, errorMessage: string) => {
     throw new Error(` ${response.message}`);
   }
 };
-
+// ✅ Helper function để xử lý response - QUAN TRỌNG!
+const handleApiResponseDelete = (response: any, errorMessage: string) => {
+  if (response.success) {
+    if (response.success === true) {
+      return { success: true };
+    } else if (response.success === false) {
+      // ✅ NÉM LỖI VỚI MESSAGE TỪ SERVER
+      const errorMsg = response.message || "Lỗi không xác định từ server";
+      console.error("❌ API Failed with success=false:", errorMsg);
+      throw new Error(errorMsg);
+    } else {
+      console.warn("⚠️ No success field, assuming success");
+      return response.success || response;
+    }
+  } else {
+    // ✅ HTTP STATUS KHÁC 200
+    console.error("❌ HTTP Error:", response.message);
+    throw new Error(` ${response.message}`);
+  }
+};
 export const getSpecialties = () => fetchData("/api/specialty/list");
 
 export const createSpecialty = async (data: { name: string }) => {
@@ -47,5 +66,5 @@ export const updateSpecialty = async (
 
 export const deleteSpecialty = async (id: number) => {
   const response = await deleteJSONAuth(`/api/specialty/${id}`);
-  return handleApiResponse(response, "Không thể xóa chuyên khoa");
+  return handleApiResponseDelete(response, "Không thể xóa chuyên khoa");
 };
