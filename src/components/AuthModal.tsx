@@ -91,7 +91,6 @@ const AuthModal = ({
     // Mock login logic
     toast({
       title: "Đăng nhập thành công!",
-      description: "Chào mừng bạn trở lại hệ thống.",
     });
     onClose();
   };

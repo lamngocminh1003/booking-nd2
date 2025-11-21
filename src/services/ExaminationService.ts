@@ -36,7 +36,6 @@ const handleApiResponseDelete = (response: any, errorMessage: string) => {
     if (response.success === true) {
       // ✅ KIỂM TRA nested success trong data
       if (response.data && response.success === true) {
-        console.log("✅ Delete operation successful");
         return { success: true };
       } else {
         // ✅ Outer success = true nhưng inner success = false

@@ -4,10 +4,11 @@ import {
   fetchExamTypes,
   createExamType,
   updateExamType,
-  fetchExamsByZone, // ✅ Thay đổi import
+  fetchExamsByZone,
   clearError,
+  updateExamTypeSelectDoctor, // ✅ New import for isSelectDoctor
 } from "@/store/slices/examTypeSlice";
-import { fetchExamTypeServicePricesByExamTypeId } from "@/store/slices/servicePriceSlice"; // ✅ New import
+import { fetchExamTypeServicePricesByExamTypeId } from "@/store/slices/servicePriceSlice";
 import { fetchZones } from "@/store/slices/zoneSlice";
 import { toast } from "sonner";
 import type { ExamTypeWithZone, ExamTypePayload } from "../components/types";
@@ -22,7 +23,7 @@ export const useExamTypeManagement = () => {
     list: examTypes = [],
     loading = false,
     error = null,
-    examsByZone = {}, // ✅ Thay đổi từ departmentsByZone
+    examsByZone = {},
     zoneDataLoading = {},
   } = useAppSelector((state) => state.examType);
 
@@ -37,6 +38,12 @@ export const useExamTypeManagement = () => {
     "all" | "active" | "inactive"
   >("all");
   const [zoneFilter, setZoneFilter] = useState<string>("all");
+
+  // ✅ New filter for isSelectDoctor
+  const [selectDoctorFilter, setSelectDoctorFilter] = useState<
+    "all" | "required" | "optional"
+  >("all");
+
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDepartmentsModal, setShowDepartmentsModal] = useState(false);
@@ -46,7 +53,7 @@ export const useExamTypeManagement = () => {
     zoneName: string;
   } | null>(null);
 
-  // ✅ NEW: Service Price Modal states
+  // Service Price Modal states
   const [showServicePriceModal, setShowServicePriceModal] = useState(false);
   const [selectedExamTypeForServicePrice, setSelectedExamTypeForServicePrice] =
     useState<{
@@ -60,6 +67,7 @@ export const useExamTypeManagement = () => {
     code: "",
     description: "",
     enable: true,
+    isSelectDoctor: false, // ✅ Add isSelectDoctor to form data
     zoneId: undefined,
     zoneName: "",
     appointmentFormId: 1,
@@ -93,11 +101,12 @@ export const useExamTypeManagement = () => {
         appointmentFormKey: examType.code || "",
         appointmentFormName: "Bác sĩ",
         zoneName: zone?.name || "N/A",
+        isSelectDoctor: examType.isSelectDoctor ?? false, // ✅ Ensure isSelectDoctor field
       };
     });
   }, [examTypes, zones]);
 
-  // Filtered data
+  // ✅ Enhanced filtered data with isSelectDoctor filter
   const filteredExamTypes = useMemo(() => {
     if (!Array.isArray(examTypesWithZoneNames)) return [];
 
@@ -114,9 +123,23 @@ export const useExamTypeManagement = () => {
       const matchesZone =
         zoneFilter === "all" || examType.zoneId?.toString() === zoneFilter;
 
-      return matchesSearch && matchesStatus && matchesZone;
+      // ✅ New filter for isSelectDoctor
+      const matchesSelectDoctor =
+        selectDoctorFilter === "all" ||
+        (selectDoctorFilter === "required" && examType.isSelectDoctor) ||
+        (selectDoctorFilter === "optional" && !examType.isSelectDoctor);
+
+      return (
+        matchesSearch && matchesStatus && matchesZone && matchesSelectDoctor
+      );
     });
-  }, [examTypesWithZoneNames, searchTerm, statusFilter, zoneFilter]);
+  }, [
+    examTypesWithZoneNames,
+    searchTerm,
+    statusFilter,
+    zoneFilter,
+    selectDoctorFilter,
+  ]);
 
   // Pagination
   const totalPages = Math.ceil(filteredExamTypes.length / PAGE_SIZE);
@@ -128,14 +151,32 @@ export const useExamTypeManagement = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, zoneFilter]);
+  }, [searchTerm, statusFilter, zoneFilter, selectDoctorFilter]); // ✅ Add selectDoctorFilter
 
-  // ✅ Get exam details for selected zone
+  // Get exam details for selected zone
   const selectedZoneExamData = useMemo(() => {
     if (!selectedZoneForDepartments) return null;
 
     return examsByZone[selectedZoneForDepartments.id] || null;
   }, [selectedZoneForDepartments, examsByZone]);
+
+  // ✅ Statistics with isSelectDoctor
+  const statistics = useMemo(() => {
+    const total = examTypesWithZoneNames.length;
+    const active = examTypesWithZoneNames.filter((e) => e.enable).length;
+    const requiresDoctor = examTypesWithZoneNames.filter(
+      (e) => e.isSelectDoctor
+    ).length;
+    const optional = total - requiresDoctor;
+
+    return {
+      total,
+      active,
+      inactive: total - active,
+      requiresDoctor,
+      optional,
+    };
+  }, [examTypesWithZoneNames]);
 
   // Handlers
   const handleCreateClick = () => {
@@ -144,6 +185,7 @@ export const useExamTypeManagement = () => {
       code: "",
       description: "",
       enable: true,
+      isSelectDoctor: false, // ✅ Default to false
       zoneId: undefined,
       zoneName: "",
       appointmentFormId: 1,
@@ -154,20 +196,109 @@ export const useExamTypeManagement = () => {
   };
 
   const handleEditClick = (examType: ExamTypeWithZone) => {
-    setFormData({ ...examType, appointmentFormId: 1 });
+    setFormData({
+      ...examType,
+      appointmentFormId: 1,
+      isSelectDoctor: examType.isSelectDoctor ?? false,
+    });
     setShowEditDialog(true);
   };
 
-  // ✅ Updated handler to use fetchExamsByZone
+  // ✅ Fixed handler to toggle isSelectDoctor
+  const handleToggleSelectDoctor = async (examType: ExamTypeWithZone) => {
+    try {
+      // ✅ Create updated data with toggled isSelectDoctor
+      const updatedExamType = {
+        ...examType,
+        isSelectDoctor: !examType.isSelectDoctor, // Toggle the value
+      };
+
+      // ✅ Transform to API format
+      const apiData = transformToApiFormat(updatedExamType);
+
+      // ✅ Use updateExamType instead of createExamType
+      await dispatch(updateExamType(apiData as any)).unwrap();
+
+      const newValue = !examType.isSelectDoctor;
+      toast.success(
+        `${examType.name} ${newValue ? "yêu cầu" : "không yêu cầu"} chọn bác sĩ`
+      );
+
+      // ✅ Refresh the exam types list to reflect changes
+      await dispatch(fetchExamTypes(false));
+
+      // ✅ Also refresh zone data if we have selected zone
+      if (selectedZoneForDepartments?.id) {
+        await dispatch(fetchExamsByZone(selectedZoneForDepartments.id));
+      }
+    } catch (error: any) {
+      console.error("❌ Error toggling isSelectDoctor:", error);
+      toast.error(`Lỗi khi cập nhật: ${error?.message || "Unknown error"}`);
+    }
+  };
+  const handleToggleStatus = async (examType: ExamTypeWithZone) => {
+    try {
+      const newValue = !examType.enable;
+
+      // ✅ Create updated data with toggled enable status
+      const updatedExamType = {
+        ...examType,
+        enable: newValue,
+      };
+
+      // ✅ Transform to API format
+      const apiData = transformToApiFormat(updatedExamType);
+
+      // ✅ Use updateExamType
+      await dispatch(updateExamType(apiData as any)).unwrap();
+
+      toast.success(
+        `${examType.name} đã ${newValue ? "kích hoạt" : "tạm dừng"}`
+      );
+
+      // ✅ Refresh the exam types list to reflect changes
+      await dispatch(fetchExamTypes(false));
+    } catch (error: any) {
+      console.error("❌ Error toggling status:", error);
+      toast.error(
+        `Lỗi khi cập nhật trạng thái: ${error?.message || "Unknown error"}`
+      );
+    }
+  };
+  // ✅ New handler to update isSelectDoctor with specific value
+  const handleUpdateSelectDoctor = async (
+    examTypeId: number,
+    isSelectDoctor: boolean,
+    zoneId: string
+  ) => {
+    try {
+      dispatch(
+        updateExamTypeSelectDoctor({
+          examTypeId,
+          zoneId,
+          isSelectDoctor,
+        })
+      );
+
+      toast.success(
+        `Đã cập nhật yêu cầu chọn bác sĩ: ${
+          isSelectDoctor ? "Bắt buộc" : "Tùy chọn"
+        }`
+      );
+    } catch (error: any) {
+      toast.error(`Lỗi khi cập nhật: ${error?.message || "Unknown error"}`);
+    }
+  };
+
   const handleViewDepartments = async (examType: ExamTypeWithZone) => {
     try {
       setSelectedZoneForDepartments({
-        id: examType.id,
+        id: examType.id!,
         name: examType.name,
         zoneName: examType.zoneName || "N/A",
       });
 
-      await dispatch(fetchExamsByZone(examType.id)).unwrap();
+      await dispatch(fetchExamsByZone(examType.id!)).unwrap();
       setShowDepartmentsModal(true);
       toast.success(`Đã tải thông tin chi tiết cho ${examType.name}`);
     } catch (error: any) {
@@ -177,16 +308,16 @@ export const useExamTypeManagement = () => {
       );
     }
   };
-  // ✅ NEW: Service Prices handler
+
   const handleViewServicePrices = async (examType: ExamTypeWithZone) => {
     try {
       setSelectedExamTypeForServicePrice({
-        id: examType.id,
+        id: examType.id!,
         name: examType.name,
         zoneName: examType.zoneName || "N/A",
       });
       await dispatch(
-        fetchExamTypeServicePricesByExamTypeId(examType.id)
+        fetchExamTypeServicePricesByExamTypeId(examType.id!)
       ).unwrap();
 
       setShowServicePriceModal(true);
@@ -194,10 +325,12 @@ export const useExamTypeManagement = () => {
       console.error("❌ Error fetching exam details:", error);
     }
   };
+
   const handleFormChange = (field: keyof ExamTypeWithZone, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // ✅ Enhanced transform function to include isSelectDoctor
   const transformToApiFormat = (
     data: Partial<ExamTypeWithZone>
   ): ExamTypePayload => {
@@ -208,6 +341,7 @@ export const useExamTypeManagement = () => {
       name: data.name || "",
       description: data.description || "",
       enable: data.enable ?? true,
+      isSelectDoctor: data.isSelectDoctor ?? false,
       appointmentFormId: 1,
     };
   };
@@ -261,7 +395,6 @@ export const useExamTypeManagement = () => {
     }
   };
 
-  // ✅ Updated refresh function
   const handleRefreshDepartments = async () => {
     if (!selectedZoneForDepartments) {
       toast.error("Không tìm thấy thông tin khu khám!");
@@ -287,56 +420,50 @@ export const useExamTypeManagement = () => {
     zones,
     filteredExamTypes,
     paginatedExamTypes,
+    statistics,
 
-    // Loading states
     loading,
     zonesLoading,
 
-    // Filters
     searchTerm,
     setSearchTerm,
     statusFilter,
     setStatusFilter,
     zoneFilter,
     setZoneFilter,
-
-    // Pagination
+    selectDoctorFilter,
+    setSelectDoctorFilter,
     currentPage,
     totalPages,
     handlePageChange,
 
-    // CRUD operations
     handleCreateClick,
     handleEditClick,
 
-    // Modals
     showCreateDialog,
     setShowCreateDialog,
     showEditDialog,
     setShowEditDialog,
     showDepartmentsModal,
     setShowDepartmentsModal,
-
-    // ✅ NEW: Service Price Modal
     showServicePriceModal,
     setShowServicePriceModal,
 
-    // Form
     formData,
     handleFormChange,
     handleSaveCreate,
     handleSaveEdit,
 
-    // Departments
     handleViewDepartments,
     selectedZoneForDepartments,
     selectedZoneExamData,
     zoneDataLoading,
     handleRefreshDepartments,
-
-    // ✅ NEW: Service Prices
     handleViewServicePrices,
     selectedExamTypeForServicePrice,
     setSelectedExamTypeForServicePrice,
+    handleToggleSelectDoctor,
+    handleUpdateSelectDoctor,
+    handleToggleStatus,
   };
 };

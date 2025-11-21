@@ -17,7 +17,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { RoomConfigPopover } from "./RoomConfigPopover";
 
-// ✅ Import các components đã tách
 import { ClinicScheduleDetailPopover } from "./ClinicScheduleDetailPopover";
 import { ClinicScheduleCloneDialog } from "./ClinicScheduleCloneDialog";
 import { RoomCloneDialog } from "./RoomCloneDialog";
@@ -1246,7 +1245,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
   );
 
   function isFutureDate(dateKey: string): boolean {
-    // Tìm pattern dd/MM trong string (VD: "23/09")
     const match = dateKey.match(/(\d{2}\/\d{2})/);
 
     if (!match) {
@@ -1266,7 +1264,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
     return isFuture;
   }
-  // ✅ Rendering logic cho editing mode
+
   if (isEditing) {
     return (
       <div className="space-y-2">
@@ -1401,10 +1399,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                       )}
                     </div>
 
-                    {/* ✅ ExamTypes và Specialties từ departmentData */}
                     {departmentData.examTypes.length > 0 && (
                       <div className="space-y-1">
-                        {/* Loại khám */}
                         <div className="flex gap-1 flex-wrap">
                           {departmentData.examTypes
                             .slice(0, 2)
@@ -1447,7 +1443,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                       </div>
                     )}
 
-                    {/* Search match highlights */}
                     {roomSearchTerm && (
                       <div className="text-xs text-blue-500">
                         {room?.specialties?.some((s: string) =>
@@ -1468,7 +1463,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               );
             })
           ) : (
-            // Empty state
             <div className="text-center p-4 text-gray-500 text-xs">
               {roomSearchTerm ? (
                 <>
@@ -1524,10 +1518,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
     );
   }
 
-  // ✅ Normal display mode
   return (
     <div className="space-y-1 relative">
-      {/* Room header với chức năng clone khi có phòng */}
       {rooms && rooms.length > 0 && !isSlotInPast && (
         <div className="flex items-center justify-between py-1">
           <div className="flex items-center gap-1">
@@ -1611,7 +1603,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
             </div>
           )}
 
-          {/* ✅ Quick clone button cho từng phòng riêng lẻ */}
           {!isRoomCloneMode && (
             <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <Button
@@ -1665,21 +1656,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
         </div>
       ))}
 
-      {/* Add room button - empty state */}
       {(!rooms || rooms.length === 0) && (
         <div className="space-y-2">
-          {/* ✅ CHỈ hiển thị clinic schedules khi có dữ liệu thực sự phù hợp */}
           {clinicScheduleStats && cellClinicSchedules.length > 0 && (
             <div className="space-y-2">
-              {/* ✅ Header cho clinic schedules với bulk actions - CHỈ KHI CÓ PHÒNG */}
               <div className="flex items-center justify-between p-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
-                {/* ✅ Thông tin tổng quan */}
-                <div className="flex items-center gap-2 text-xs text-gray-700">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="font-medium"></span>
-                </div>
-
-                {/* ✅ Bulk action controls - CHỈ HIỂN THỊ KHI CÓ PHÒNG */}
                 <div className="flex items-center gap-1">
                   {isClinicScheduleCloneMode ? (
                     <>
@@ -1730,7 +1711,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
               <div className="flex flex-col gap-1">
                 {cellClinicSchedules.map((schedule, idx) => (
                   <div key={schedule.id || idx} className="relative">
-                    {/* ✅ Sử dụng ClinicScheduleDetailPopover đã tách */}
                     <ClinicScheduleDetailPopover
                       selectedZone={selectedZone}
                       selectedWeek={selectedWeek}
@@ -1745,6 +1725,8 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                           className={`h-auto p-2 text-xs justify-start relative border-2 hover:shadow-md transition-all cursor-pointer w-full ${
                             selectedClinicSchedules.has(idx)
                               ? "bg-green-100 border-green-400 text-green-800 shadow-sm"
+                              : schedule.isAvailable === false
+                              ? "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200 hover:border-yellow-400"
                               : schedule.examTypeId &&
                                 roomClassifications[
                                   `exam_${schedule.examTypeId}`
@@ -1755,10 +1737,11 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                 "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
                               : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
                           }`}
-                          title="Click để xem chi tiết lịch khám có sẵn"
+                          title={`Click để xem chi tiết lịch khám có sẵn${
+                            schedule.isAvailable === false ? " - HẾT CHỖ" : ""
+                          }`}
                         >
                           <div className="flex items-center w-full gap-2">
-                            {/* ✅ Checkbox nằm bên trái trong layout tự nhiên */}
                             {isClinicScheduleCloneMode && (
                               <div
                                 onClick={(e) => {
@@ -1780,8 +1763,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
 
                             <div className="flex items-center justify-between w-full">
                               <div className="flex flex-col items-start gap-1 flex-1">
-                                {/* Schedule content */}
-                                {/* Schedule header với exam type và time */}
                                 <div className="flex items-center gap-1 w-full">
                                   <div
                                     className={`w-2 h-2 rounded-full ${
@@ -1854,17 +1835,65 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                                   </div>
                                 </div>
 
-                                {/* Specialty badge */}
-                                {schedule.specialtyName && (
+                                {/* ✅ Container để đặt specialty và slot badges cùng hàng */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {schedule.specialtyName && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] px-1 py-0 h-4 bg-current/10 text-current"
+                                    >
+                                      <span className="truncate">
+                                        🔬 {schedule.specialtyName}
+                                      </span>
+                                    </Badge>
+                                  )}
+
+                                  {/* ✅ ENHANCED: Slot availability badge với thông tin chi tiết */}
                                   <Badge
                                     variant="secondary"
-                                    className="text-[10px] px-1 py-0 h-4 max-w-full bg-current/10 text-current "
+                                    className={`text-[10px] px-1 py-0 h-4 ${
+                                      schedule.isAvailable === false
+                                        ? "bg-red-100 text-red-800 border border-red-300" // Hết chỗ - màu đỏ
+                                        : (schedule.totalAvailableSlot || 0) <=
+                                          3
+                                        ? "bg-orange-100 text-orange-800 border border-orange-300" // Sắp hết - màu cam
+                                        : "bg-emerald-100 text-emerald-800 border border-emerald-300" // Còn nhiều - màu xanh
+                                    }`}
                                   >
-                                    <span className="truncate">
-                                      🔬 {schedule.specialtyName}
+                                    <span className="truncate flex items-center gap-1">
+                                      {/* ✅ Icon status */}
+                                      {schedule.isAvailable === false ? (
+                                        <span className="text-red-600">❌</span>
+                                      ) : (schedule.totalAvailableSlot || 0) <=
+                                        3 ? (
+                                        <span className="text-orange-600">
+                                          ⚠️
+                                        </span>
+                                      ) : (
+                                        <span className="text-emerald-600">
+                                          ✅
+                                        </span>
+                                      )}
+
+                                      {schedule.isAvailable === false
+                                        ? "Hết chỗ"
+                                        : schedule.totalSlot &&
+                                          schedule.totalBookedSlot !== undefined
+                                        ? `Còn ${
+                                            schedule.totalSlot -
+                                              schedule.totalBookedSlot ||
+                                            schedule.totalAvailableSlot ||
+                                            0
+                                          }/${schedule.totalSlot}`
+                                        : schedule.totalAvailableSlot !==
+                                            undefined && schedule.totalSlot
+                                        ? `Còn ${schedule.totalAvailableSlot}/${schedule.totalSlot}`
+                                        : schedule.total
+                                        ? `${schedule.total} chỗ`
+                                        : "Còn chỗ"}
                                     </span>
                                   </Badge>
-                                )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1890,8 +1919,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
       {/* Add room button - when rooms exist */}
       {rooms && rooms.length > 0 && (
         <div className="space-y-1">
-          {/* ✅ Nút thêm phòng trước - chỉ hiển thị khi không phải quá khứ */}
-
           <Button
             variant="ghost"
             size="sm"
@@ -1905,9 +1932,7 @@ export const RoomCell: React.FC<RoomCellProps> = ({
           {/* ✅ CHỈ hiển thị clinic schedules và nút "Chọn nhiều" sau nút thêm phòng KHI CÓ PHÒNG */}
           {clinicScheduleStats && cellClinicSchedules.length > 0 && (
             <div className="space-y-2 mt-2">
-              {/* ✅ Header đơn giản cho clinic schedules khi đã có phòng manual */}
               <div className="flex items-center justify-between p-2 bg-gradient-to-r from-green-50 to-indigo-50 border border-green-200 rounded-lg">
-                {/* ✅ Compact clone button */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1920,7 +1945,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                 </Button>
               </div>
 
-              {/* ✅ Danh sách clinic schedules compact */}
               <div className="flex flex-col gap-1">
                 {cellClinicSchedules.map((schedule, idx) => (
                   <ClinicScheduleDetailPopover
@@ -1945,8 +1969,6 @@ export const RoomCell: React.FC<RoomCellProps> = ({
                         <div className="flex flex-col gap-1 w-full">
                           <div className="flex items-center justify-between w-full">
                             <div className="flex flex-col items-start gap-1 flex-1">
-                              {/* Schedule content */}
-                              {/* Schedule header với exam type và time */}
                               <div className="flex items-center gap-1 w-full">
                                 <div
                                   className={`w-2 h-2 rounded-full ${

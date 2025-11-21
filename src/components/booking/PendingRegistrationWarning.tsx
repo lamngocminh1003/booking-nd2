@@ -153,7 +153,7 @@ const PendingRegistrationWarning: React.FC<PendingRegistrationWarningProps> = ({
 
             {session.appointmentData?.childSymptom && (
               <div>
-                <span className="text-gray-600">Triệu chứng:</span>
+                <span className="text-gray-600">Dấu hiệu lâm sàng:</span>
                 <p className="text-sm bg-white p-2 rounded border">
                   {session.appointmentData.childSymptom}
                 </p>

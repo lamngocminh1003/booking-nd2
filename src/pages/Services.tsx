@@ -498,7 +498,7 @@ const Services = () => {
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     {/* Service Image - Mobile Optimized */}
-                    <div className="relative h-40 sm:h-48 overflow-hidden">
+                    <div className="relative h-48 sm:h-56 md:h-64 lg:h-72 overflow-hidden">
                       <img
                         src={`https://benhviennhi.org.vn${service.thumbnail}`}
                         alt={service.title}

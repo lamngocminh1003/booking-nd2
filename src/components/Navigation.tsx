@@ -145,12 +145,12 @@ const Navigation = () => {
                   >
                     Đăng nhập
                   </Button>
-                  <Button
+                  {/* <Button
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={() => handleAuthClick("register")}
                   >
                     Đăng ký
-                  </Button>
+                  </Button> */}
                 </>
               ) : (
                 <>
@@ -178,6 +178,11 @@ const Navigation = () => {
                       <DropdownMenuItem asChild>
                         <Link to="/profile" className="w-full">
                           Thông tin tài khoản
+                        </Link>
+                      </DropdownMenuItem>{" "}
+                      <DropdownMenuItem asChild>
+                        <Link to="/history" className="w-full">
+                          Lịch đặt khám
                         </Link>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -284,7 +289,7 @@ const Navigation = () => {
                       >
                         Đăng nhập
                       </Button>
-                      <Button
+                      {/* <Button
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                         onClick={() => {
                           handleAuthClick("register");
@@ -292,7 +297,7 @@ const Navigation = () => {
                         }}
                       >
                         Đăng ký
-                      </Button>
+                      </Button> */}
                     </>
                   ) : (
                     <>
@@ -327,6 +332,13 @@ const Navigation = () => {
                           onClick={() => setIsMenuOpen(false)}
                         >
                           Thông tin tài khoản
+                        </Link>{" "}
+                        <Link
+                          to="/history"
+                          className="block text-gray-600 hover:text-emerald-600 py-2 transition-colors"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          Lịch đặt khám
                         </Link>
                       </div>
                       <Button

@@ -97,6 +97,9 @@ const BookingFlow = () => {
   const [editingChild, setEditingChild] = useState<any>(null);
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [childWeight, setChildWeight] = useState<string>("");
+  const [showFullDescription, setShowFullDescription] = useState(false); // ✅ Add state for description toggle
+  const [showFullSummaryDescription, setShowFullSummaryDescription] =
+    useState(false); // ✅ Add new state for summary
   const [childHeight, setChildHeight] = useState<string>("");
   const [childStatus, setChildStatus] = useState<number | 0>(0);
   const [childSymptom, setChildSymptom] = useState<string>("");
@@ -148,13 +151,11 @@ const BookingFlow = () => {
   const childInfoRef = useRef<HTMLDivElement>(null); // ✅ Thêm ref mới
   const scheduleRef = useRef<HTMLDivElement>(null);
   const confirmButtonRef = useRef<HTMLDivElement>(null); // ✅ Thêm ref mới
-
   const availableDates = useMemo(() => {
     const dates = groupedSpecialty.map((schedule) => schedule.date);
     const uniqueDates = [...new Set(dates)].sort();
     return uniqueDates;
   }, [groupedSpecialty]);
-
   // ✅ Filter schedules by selected date
   const filteredSchedules = useMemo(() => {
     let filtered = groupedSpecialty;
@@ -173,7 +174,17 @@ const BookingFlow = () => {
 
     return filtered;
   }, [groupedSpecialty, selectedDate, selectedDoctor]);
+  const isDescriptionLong = (description: string) => {
+    return description && description.length > 200; // Characters limit
+  };
 
+  // ✅ Add helper function to truncate description
+  const truncateDescription = (description: string, limit: number = 200) => {
+    if (!description) return "";
+    return description.length > limit
+      ? description.substring(0, limit) + "..."
+      : description;
+  };
   const currentZone = zones.find((z) => z.id === selectedZone);
   const availableExamTypes = currentZone?.examTypes || [];
   const currentExamType = availableExamTypes.find(
@@ -218,7 +229,7 @@ const BookingFlow = () => {
     // ✅ Group symptoms and notes
     const symptoms = lines.filter((line) => line.startsWith("- "));
     const notes = lines.filter((line) => line.startsWith("* "));
-    const headers = lines.filter((line) => line.includes("Triệu chứng:"));
+    const headers = lines.filter((line) => line.includes("Dấu hiệu lâm sàng:"));
 
     return {
       symptoms: symptoms.map((s) => s.replace("- ", "")),
@@ -636,7 +647,6 @@ const BookingFlow = () => {
     }
   };
 
-  // ✅ Xử lý khi bắt đầu đặt lịch mới
   const handleStartNewBooking = () => {
     clearRegistrationSession();
     setPendingSession(null);
@@ -782,73 +792,8 @@ const BookingFlow = () => {
               />
             </div>
           )}
-          {/* ✅ Show pre-selected info */}
-          {(selectedZone || selectedExamType) && (
-            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <div className="flex items-center">
-                <CheckCircle className="w-5 h-5 text-emerald-600 mr-2" />
-                <span className="text-emerald-800 font-medium">
-                  Thông tin đã chọn từ trang chủ:
-                </span>
-              </div>
-              <div className="mt-2 text-sm text-emerald-700">
-                {selectedZone && (
-                  <span>
-                    Khu khám: {currentZone?.name || `ID: ${selectedZone}`}
-                  </span>
-                )}
-                {selectedZone && selectedExamType && <span> • </span>}
-                {selectedExamType && (
-                  <span>
-                    Loại khám:
-                    {currentExamType?.name || `ID: ${selectedExamType}`}
-                  </span>
-                )}
 
-                {currentServicePrice ? (
-                  <div className="mt-2">
-                    <span className="text-gray-600">Dịch vụ: </span>
-                    <Badge
-                      variant="secondary"
-                      className={`text-sm ${
-                        currentServicePrice.name.includes("[CLC]")
-                          ? "bg-purple-100 text-purple-800"
-                          : "bg-emerald-100 text-emerald-800"
-                      }`}
-                    >
-                      {currentServicePrice.name} -
-                      {formatCurrency(currentServicePrice.price)}
-                    </Badge>
-                  </div>
-                ) : currentExamType?.servicePrice &&
-                  !currentExamType.servicePrice.enable ? (
-                  <div className="mt-2">
-                    <span className="text-yellow-600">
-                      ⚠️ Dịch vụ "{currentExamType.servicePrice.name}" đang tắt
-                    </span>
-                  </div>
-                ) : (
-                  selectedExamType &&
-                  currentExamType && (
-                    <div className="mt-2">
-                      <span className="text-red-600">
-                        ⚠️ Loại khám này chưa có dịch vụ - Vui lòng chọn loại
-                        khám khác
-                      </span>
-                    </div>
-                  )
-                )}
-
-                {selectedZone && !selectedExamType && (
-                  <span> • Vui lòng chọn loại khám bên dưới</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ✅ Progress Steps - Much more compact on mobile */}
           <div className="grid grid-cols-5 gap-1 sm:gap-4 mb-6 sm:mb-12">
-            {/* Step 1: Zone Selection */}
             <div
               className={`flex flex-col sm:flex-row items-center ${
                 selectedZone ? "text-emerald-600" : "text-gray-400"
@@ -1052,9 +997,6 @@ const BookingFlow = () => {
                         <p className="text-xs sm:text-sm text-emerald-700">
                           {zones[0].address}
                         </p>
-                        <p className="text-xs text-blue-600 mt-1">
-                          {zones[0].examTypes.length} loại khám có sẵn
-                        </p>
                       </div>
                     </div>
                   ) : (
@@ -1095,14 +1037,6 @@ const BookingFlow = () => {
                         <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5 sm:ml-2 text-emerald-600" />
                       )}
                     </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm mt-1 sm:mt-2">
-                      {currentZone && (
-                        <span className="text-emerald-600">
-                          {currentZone.name} - {availableExamTypes.length} loại
-                          khám có sẵn
-                        </span>
-                      )}
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6">
                     {availableExamTypes.length > 0 ? (
@@ -1134,7 +1068,7 @@ const BookingFlow = () => {
                               }
                             >
                               <div className="w-full">
-                                <div className="font-medium text-sm sm:text-base">
+                                <div className=" text-sm sm:text-base ">
                                   {examType.name}
                                 </div>
                                 {examType.description && (
@@ -1249,19 +1183,14 @@ const BookingFlow = () => {
                             {currentExamType.name}
                           </span>
                           {currentServicePrice && (
-                            <div className="flex items-center gap-1">
-                              <span className="hidden sm:inline text-gray-400">
-                                •
+                            <div className="flex items-center gap-1 bg-emerald-100 rounded-full px-2 py-1 border border-emerald-300">
+                              <span className="text-emerald-600 text-xs">
+                                💰
                               </span>
-                              <div className="flex items-center gap-1 bg-emerald-100 rounded-full px-2 py-1 border border-emerald-300">
-                                <span className="text-emerald-600 text-xs">
-                                  💰
-                                </span>
-                                <span className="text-emerald-700 font-medium text-xs">
-                                  {currentServicePrice.name} -{" "}
-                                  {formatCurrency(currentServicePrice.price)}
-                                </span>
-                              </div>
+                              <span className="text-emerald-700 font-medium text-xs">
+                                {currentServicePrice.name} -{" "}
+                                {formatCurrency(currentServicePrice.price)}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -1269,8 +1198,8 @@ const BookingFlow = () => {
                       {!loadingSpecialties && specialties.length > 0 && (
                         <div className="mt-2 text-xs text-blue-600">
                           {specialties.length > 1
-                            ? `Chọn chuyên khoa phù hợp với triệu chứng của bé (${specialties.length} chuyên khoa)`
-                            : "Đã tự động chọn chuyên khoa duy nhất"}
+                            ? `Chọn chuyên khoa phù hợp với dấu hiệu lâm sàng của bé (${specialties.length} chuyên khoa)`
+                            : ""}
                         </div>
                       )}
                     </CardDescription>
@@ -1300,7 +1229,7 @@ const BookingFlow = () => {
                         <div className="relative">
                           <Input
                             type="text"
-                            placeholder="🔍 Tìm kiếm chuyên khoa hoặc triệu chứng..."
+                            placeholder="🔍 Tìm kiếm chuyên khoa hoặc dấu hiệu lâm sàng..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-10 pr-4 h-12 border-2 border-gray-200 focus:border-emerald-300 rounded-lg text-sm"
@@ -1351,8 +1280,8 @@ const BookingFlow = () => {
                               </span>
                             </div>
                             <p className="text-xs text-blue-600">
-                              Vui lòng chọn chuyên khoa phù hợp với triệu chứng
-                              của bé
+                              Vui lòng chọn chuyên khoa phù hợp với dấu hiệu lâm
+                              sàng của bé
                             </p>
                           </div>
                         )}
@@ -1451,7 +1380,7 @@ const BookingFlow = () => {
                                             </div>
                                             <div className="flex-1">
                                               <span className="font-semibold text-emerald-700 text-xs block mb-1">
-                                                Triệu chứng phù hợp:
+                                                Dấu hiệu lâm sàng phù hợp:
                                               </span>
                                               <div className="text-xs text-emerald-600 leading-relaxed">
                                                 {showAllSymptoms ? (
@@ -1532,7 +1461,7 @@ const BookingFlow = () => {
                                                       : `Xem thêm ${
                                                           formatted.symptoms
                                                             .length - 3
-                                                        } triệu chứng ↓`}
+                                                        } dấu hiệu lâm sàng ↓`}
                                                   </button>
                                                 )}
                                               </div>
@@ -1675,11 +1604,66 @@ const BookingFlow = () => {
                               {specialties[0].name}
                             </p>
                             {specialties[0].description && (
-                              <div className="mt-3 text-sm text-gray-600 max-w-md mx-auto">
+                              <div className="mt-3 text-sm text-gray-600 max-w-2xl mx-auto">
                                 <div className="bg-white rounded-lg p-3 border border-emerald-200">
-                                  <p className="line-clamp-4 leading-relaxed">
-                                    {specialties[0].description}
-                                  </p>
+                                  {isDescriptionLong(
+                                    specialties[0].description
+                                  ) ? (
+                                    // ✅ Expandable description for long text
+                                    <div className="space-y-3">
+                                      <p className="leading-relaxed text-left">
+                                        {showFullDescription
+                                          ? specialties[0].description
+                                          : truncateDescription(
+                                              specialties[0].description
+                                            )}
+                                      </p>
+
+                                      <div className="flex justify-center">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() =>
+                                            setShowFullDescription(
+                                              !showFullDescription
+                                            )
+                                          }
+                                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 h-8 px-3 text-xs font-medium"
+                                        >
+                                          {showFullDescription ? (
+                                            <>
+                                              <span>Thu gọn</span>
+                                              <svg
+                                                className="w-3 h-3 ml-1 transition-transform"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                              >
+                                                <path d="m18 15-6-6-6 6" />
+                                              </svg>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span>Xem thêm</span>
+                                              <svg
+                                                className="w-3 h-3 ml-1 transition-transform"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                              >
+                                                <path d="m6 9 6 6 6-6" />
+                                              </svg>
+                                            </>
+                                          )}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    // ✅ Normal description for short text
+                                    <p className="leading-relaxed">
+                                      {specialties[0].description}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -1705,7 +1689,7 @@ const BookingFlow = () => {
                                     formatted.symptoms.length > 0 && (
                                       <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                                         <h5 className="font-semibold text-emerald-700 text-sm mb-2 flex items-center gap-1">
-                                          📋 Triệu chứng phù hợp:
+                                          📋 Dấu hiệu lâm sàng phù hợp:
                                         </h5>
                                         <div className="space-y-1">
                                           {formatted.symptoms.map(
@@ -1789,7 +1773,6 @@ const BookingFlow = () => {
                     </CardDescription>
                   </CardHeader>
 
-                  {/* ✅ Thêm max-height và overflow-y-auto cho CardContent */}
                   <CardContent className="pt-0 px-3 sm:px-6 pb-3 sm:pb-6 ">
                     {loadingPatient ? (
                       <div className="text-center py-6 sm:py-8">
@@ -1893,9 +1876,7 @@ const BookingFlow = () => {
                                     </div>
                                   </div>
 
-                                  {/* ✅ Action buttons - Compact mobile */}
                                   <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4">
-                                    {/* Edit button */}
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -1911,7 +1892,6 @@ const BookingFlow = () => {
                                       </span>
                                     </Button>
 
-                                    {/* Selection indicator */}
                                     {selectedChild === patient.id && (
                                       <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-600 flex-shrink-0" />
                                     )}
@@ -1920,10 +1900,11 @@ const BookingFlow = () => {
 
                                 {selectedChild === patient.id && (
                                   <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-emerald-200">
-                                    <div className="flex items-center text-xs sm:text-sm text-emerald-700">
-                                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                                      <span className="font-medium">
-                                        Đã chọn bệnh nhi này
+                                    <div className="flex items-center text-emerald-700">
+                                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+                                      <span className="font-medium text-xs sm:text-sm">
+                                        Thông tin khám đã đầy đủ! Có thể chuyển
+                                        sang bước tiếp theo.
                                       </span>
                                     </div>
                                   </div>
@@ -1983,7 +1964,6 @@ const BookingFlow = () => {
                         </Button>
                       </div>
                     ) : (
-                      // ✅ Hiển thị khi không có bệnh nhi
                       <div className="text-center py-6 sm:py-8 text-gray-500">
                         <Baby className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 text-gray-300" />
                         <p className="font-medium text-sm sm:text-base">
@@ -2002,7 +1982,6 @@ const BookingFlow = () => {
                       </div>
                     )}
 
-                    {/* ✅ Phần thông tin khám - Very compact mobile */}
                     {selectedChild && (
                       <div
                         ref={childInfoRef}
@@ -2052,12 +2031,12 @@ const BookingFlow = () => {
                               htmlFor="symptom"
                               className="text-xs sm:text-sm"
                             >
-                              Triệu chứng *
+                              Dấu hiệu lâm sàng *
                             </Label>
                             <Input
                               id="symptom"
                               type="text"
-                              placeholder="Mô tả triệu chứng của bệnh nhi"
+                              placeholder="Mô tả dấu hiệu lâm sàng của bệnh nhi"
                               value={childSymptom}
                               onChange={(e) => setChildSymptom(e.target.value)}
                               className="mt-0.5 sm:mt-1 h-8 sm:h-10 text-sm"
@@ -2084,7 +2063,6 @@ const BookingFlow = () => {
                           </div>
                         </div>
 
-                        {/* ✅ Compact success feedback */}
                         {isChildInfoComplete && (
                           <div className="mt-2 sm:mt-4 p-2 sm:p-3 bg-emerald-100 border border-emerald-300 rounded-lg">
                             <div className="flex items-center text-emerald-700">
@@ -2101,7 +2079,6 @@ const BookingFlow = () => {
                   </CardContent>
                 </Card>
               )}
-              {/* ✅ Step 5: Select Appointment Slot - Show when child is selected */}
               {isChildInfoComplete && (
                 <Card ref={scheduleRef} className="shadow-sm">
                   <CardHeader className="pb-2 sm:pb-6">
@@ -2128,13 +2105,11 @@ const BookingFlow = () => {
                       </div>
                     ) : groupedSpecialty.length > 0 ? (
                       <div className="space-y-4 sm:space-y-6">
-                        {/* Date & Doctor Filter Section */}
                         <div className="border-b pb-3 sm:pb-4">
-                          {/* Date Filter */}
                           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between mb-4">
                             <div>
                               <h4 className="font-medium text-gray-900 mb-0.5 sm:mb-1 text-sm sm:text-base">
-                                Chọn ngày khám
+                                Chọn ngày khám dự kiến
                               </h4>
                               <p className="text-xs sm:text-sm text-gray-600">
                                 {availableDates.length} ngày có lịch khám
@@ -2165,7 +2140,6 @@ const BookingFlow = () => {
                             )}
                           </div>
 
-                          {/* Date Filter Options Grid */}
                           <div className="mt-3 sm:mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5 sm:gap-2 mb-6">
                             {availableDates.map((date) => {
                               const scheduleCount = groupedSpecialty.filter(
@@ -2232,100 +2206,105 @@ const BookingFlow = () => {
                               );
                             })}
                           </div>
+                          {currentExamType?.isSelectDoctor && (
+                            <>
+                              {" "}
+                              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+                                <div>
+                                  <h4 className="font-medium text-gray-900 mb-0.5 sm:mb-1 text-sm sm:text-base">
+                                    Chọn bác sĩ
+                                  </h4>
+                                  <p className="text-xs sm:text-sm text-gray-600">
+                                    {availableDoctors.length} bác sĩ có lịch
+                                    khám
+                                    {selectedDoctor && (
+                                      <span className="ml-1 sm:ml-2">
+                                        • Đang hiển thị:
+                                        <span className="font-medium text-blue-600">
+                                          {
+                                            availableDoctors.find(
+                                              (d) =>
+                                                d.id?.toString() ===
+                                                selectedDoctor
+                                            )?.name
+                                          }
+                                        </span>
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
 
-                          {/* ✅ Doctor Filter Section */}
-                          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
-                            <div>
-                              <h4 className="font-medium text-gray-900 mb-0.5 sm:mb-1 text-sm sm:text-base">
-                                Chọn bác sĩ
-                              </h4>
-                              <p className="text-xs sm:text-sm text-gray-600">
-                                {availableDoctors.length} bác sĩ có lịch khám
                                 {selectedDoctor && (
-                                  <span className="ml-1 sm:ml-2">
-                                    • Đang hiển thị:
-                                    <span className="font-medium text-blue-600">
-                                      {
-                                        availableDoctors.find(
-                                          (d) =>
-                                            d.id?.toString() === selectedDoctor
-                                        )?.name
-                                      }
-                                    </span>
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-
-                            {selectedDoctor && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedDoctor(null);
-                                  setSelectedSlot(null);
-                                  setSelectedAppointment(null);
-                                }}
-                                className="text-gray-600 hover:text-gray-800 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
-                              >
-                                Hiển thị tất cả bác sĩ
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* ✅ Doctor Filter Options Grid */}
-                          <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-2">
-                            {availableDoctors.map((doctor) => {
-                              const doctorSchedules = groupedSpecialty.filter(
-                                (s) => s.doctorId === doctor.id
-                              );
-                              const totalSlots = doctorSchedules.reduce(
-                                (sum, s) => sum + s.totalAvailableSlot,
-                                0
-                              );
-                              const totalDays = new Set(
-                                doctorSchedules.map((s) => s.date)
-                              ).size;
-
-                              return (
-                                <Button
-                                  key={doctor.id}
-                                  variant={
-                                    selectedDoctor === doctor.id?.toString()
-                                      ? "default"
-                                      : "outline"
-                                  }
-                                  className={`h-auto p-2 sm:p-3 flex flex-col items-start justify-start text-left transition-all ${
-                                    selectedDoctor === doctor.id?.toString()
-                                      ? "bg-blue-600 hover:bg-blue-700 border-blue-600"
-                                      : "hover:bg-blue-50 hover:border-blue-300"
-                                  }`}
-                                  onClick={() => {
-                                    setSelectedDoctor(
-                                      selectedDoctor === doctor.id?.toString()
-                                        ? null
-                                        : doctor.id?.toString()
-                                    );
-                                    setSelectedSlot(null);
-                                    setSelectedAppointment(null);
-                                  }}
-                                >
-                                  <div
-                                    className={`text-xs ${
-                                      selectedDoctor === doctor.id?.toString()
-                                        ? "text-white"
-                                        : "text-gray-900"
-                                    }`}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedDoctor(null);
+                                      setSelectedSlot(null);
+                                      setSelectedAppointment(null);
+                                    }}
+                                    className="text-gray-600 hover:text-gray-800 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
                                   >
-                                    {doctor.name}
-                                  </div>
-                                </Button>
-                              );
-                            })}
-                          </div>
+                                    Hiển thị tất cả bác sĩ
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-2">
+                                {availableDoctors.map((doctor) => {
+                                  const doctorSchedules =
+                                    groupedSpecialty.filter(
+                                      (s) => s.doctorId === doctor.id
+                                    );
+                                  const totalSlots = doctorSchedules.reduce(
+                                    (sum, s) => sum + s.totalAvailableSlot,
+                                    0
+                                  );
+                                  const totalDays = new Set(
+                                    doctorSchedules.map((s) => s.date)
+                                  ).size;
+
+                                  return (
+                                    <Button
+                                      key={doctor.id}
+                                      variant={
+                                        selectedDoctor === doctor.id?.toString()
+                                          ? "default"
+                                          : "outline"
+                                      }
+                                      className={`h-auto p-2 sm:p-3 flex flex-col items-start justify-start text-left transition-all ${
+                                        selectedDoctor === doctor.id?.toString()
+                                          ? "bg-blue-600 hover:bg-blue-700 border-blue-600"
+                                          : "hover:bg-blue-50 hover:border-blue-300"
+                                      }`}
+                                      onClick={() => {
+                                        setSelectedDoctor(
+                                          selectedDoctor ===
+                                            doctor.id?.toString()
+                                            ? null
+                                            : doctor.id?.toString()
+                                        );
+                                        setSelectedSlot(null);
+                                        setSelectedAppointment(null);
+                                      }}
+                                    >
+                                      <div
+                                        className={`text-xs ${
+                                          selectedDoctor ===
+                                          doctor.id?.toString()
+                                            ? "text-white"
+                                            : "text-gray-900"
+                                        }`}
+                                      >
+                                        {doctor.name}
+                                      </div>
+                                    </Button>
+                                  );
+                                })}
+                              </div>{" "}
+                            </>
+                          )}
                         </div>
 
-                        {/* ✅ Active Filters Display */}
                         {(selectedDate || selectedDoctor) && (
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
                             <div className="flex items-center justify-between">
@@ -2372,10 +2351,8 @@ const BookingFlow = () => {
                           </div>
                         )}
 
-                        {/* Display filtered schedules */}
                         {filteredSchedules.length > 0 ? (
                           <div className="space-y-4 sm:space-y-6 max-h-[40vh] sm:max-h-[50vh] overflow-y-auto">
-                            {/* ✅ Header thông tin ngày đã chọn */}
                             {selectedDate && (
                               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 sm:p-3">
                                 <div className="flex items-center">
@@ -2387,7 +2364,6 @@ const BookingFlow = () => {
                               </div>
                             )}
 
-                            {/* ✅ Danh sách lịch khám đầy đủ */}
                             {filteredSchedules.map((schedule, index) => (
                               <div
                                 key={schedule.id || index}
@@ -2397,7 +2373,6 @@ const BookingFlow = () => {
                                     : "border-gray-200 hover:border-emerald-300"
                                 }`}
                               >
-                                {/* ✅ Header thông tin ca khám */}
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
@@ -2416,8 +2391,9 @@ const BookingFlow = () => {
                                       </p>
                                       <p className="text-gray-600 text-xs sm:text-sm flex items-center">
                                         <Clock className="w-3 h-3 mr-1" />
-                                        Ca khám: {schedule.timeStart} -{" "}
-                                        {schedule.timeEnd}
+                                        Ca khám dự kiến: {
+                                          schedule.timeStart
+                                        } - {schedule.timeEnd}
                                       </p>
                                     </div>
                                   </div>
@@ -2439,18 +2415,19 @@ const BookingFlow = () => {
                                   </div>
                                 </div>
 
-                                {/* ✅ Thông tin bác sĩ và phòng khám */}
                                 <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <p className="text-xs sm:text-sm flex items-center">
-                                      <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-600" />
-                                      <span className="text-gray-600">
-                                        Bác sĩ:
-                                      </span>
-                                      <span className="font-medium ml-1 text-blue-800">
-                                        {schedule.doctorName}
-                                      </span>
-                                    </p>
+                                    {currentExamType?.isSelectDoctor && (
+                                      <p className="text-xs sm:text-sm flex items-center">
+                                        <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-600" />
+                                        <span className="text-gray-600">
+                                          Bác sĩ:
+                                        </span>
+                                        <span className="font-medium ml-1 text-blue-800">
+                                          {schedule.doctorName}
+                                        </span>
+                                      </p>
+                                    )}
                                     <p className="text-xs sm:text-sm flex items-center">
                                       <MapPin className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-purple-600" />
                                       <span className="text-gray-600">
@@ -2462,7 +2439,6 @@ const BookingFlow = () => {
                                     </p>
                                   </div>
 
-                                  {/* ✅ Thông tin dịch vụ và giá */}
                                   {schedule.servicePrices &&
                                     schedule.servicePrices.length > 0 && (
                                       <div className="mt-2 pt-2 border-t border-gray-200">
@@ -2489,15 +2465,13 @@ const BookingFlow = () => {
                                     )}
                                 </div>
 
-                                {/* ✅ Khung giờ khám chi tiết */}
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <h5 className="font-medium text-sm sm:text-base text-gray-900">
-                                      ⏰ Chọn khung giờ khám
+                                      ⏰ Chọn khung giờ dự kiến khám
                                     </h5>
                                   </div>
 
-                                  {/* ✅ Grid khung giờ responsive */}
                                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
                                     {schedule.appointmentSlots.map((slot) => (
                                       <Button
@@ -2540,7 +2514,8 @@ const BookingFlow = () => {
                                             zoneId: selectedZone,
                                             examTypeId: selectedExamType,
                                             specialtyId: selectedSpecialty,
-                                            servicePrice: currentServicePrice,
+                                            servicePrice:
+                                              currentServicePrice?.price || 0,
                                           };
 
                                           setSelectedSlot(slot.slotId);
@@ -2584,7 +2559,6 @@ const BookingFlow = () => {
                                             {slot.totalSlot}
                                           </div>
 
-                                          {/* ✅ Hiển thị trạng thái */}
                                           {!slot.isAvailable && (
                                             <div className="text-xs text-red-500 font-medium mt-0.5">
                                               Hết chỗ
@@ -2600,7 +2574,6 @@ const BookingFlow = () => {
                                     ))}
                                   </div>
 
-                                  {/* ✅ Thông tin bổ sung về khung giờ */}
                                   {schedule.appointmentSlots.filter(
                                     (slot) => slot.isAvailable
                                   ).length === 0 && (
@@ -2614,39 +2587,10 @@ const BookingFlow = () => {
                                     </div>
                                   )}
                                 </div>
-
-                                {/* ✅ Thông báo khi đã chọn slot */}
-                                {selectedSlot &&
-                                  selectedAppointment === schedule.id && (
-                                    <div className="mt-3 p-2 sm:p-3 bg-emerald-100 border border-emerald-300 rounded-lg">
-                                      <div className="flex items-center text-emerald-700">
-                                        <CheckCircle className="w-4 h-4 mr-2" />
-                                        <span className="font-medium text-sm">
-                                          ✅ Đã chọn khung giờ{" "}
-                                          {
-                                            schedule.appointmentSlots.find(
-                                              (s) => s.slotId === selectedSlot
-                                            )?.startSlot
-                                          }{" "}
-                                          -{" "}
-                                          {
-                                            schedule.appointmentSlots.find(
-                                              (s) => s.slotId === selectedSlot
-                                            )?.endSlot
-                                          }
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-emerald-600 mt-1">
-                                        Bác sĩ {schedule.doctorName} • Phòng{" "}
-                                        {schedule.roomName}
-                                      </p>
-                                    </div>
-                                  )}
                               </div>
                             ))}
                           </div>
                         ) : (
-                          // ✅ Trạng thái không có lịch khám
                           <div className="text-center py-6 sm:py-8 text-gray-500">
                             <Calendar className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 text-gray-300" />
                             <p className="font-medium text-sm sm:text-base">
@@ -2700,7 +2644,6 @@ const BookingFlow = () => {
               )}
             </div>
 
-            {/* Right Panel - Summary */}
             <div className="lg:col-span-1">
               <Card className="sticky top-24" ref={confirmButtonRef}>
                 <CardHeader>
@@ -2740,7 +2683,7 @@ const BookingFlow = () => {
                         <Stethoscope className="w-4 h-4 text-emerald-600" />
                         Chuyên khoa
                       </p>
-                      <p className="font-bold text-emerald-800 text-lg mb-2">
+                      <p className="font-bold text-emerald-800 mb-2">
                         {currentSpecialty.name}
                       </p>
 
@@ -2758,40 +2701,55 @@ const BookingFlow = () => {
                             ) {
                               return (
                                 <div className="space-y-3">
-                                  {/* ✅ Symptoms Section */}
+                                  {/* ✅ Symptoms Section with Expand/Collapse */}
                                   {formatted.symptoms?.length > 0 && (
                                     <div>
                                       <h6 className="font-semibold text-emerald-700 text-xs mb-2 flex items-center gap-1">
                                         <span className="w-4 h-4 bg-emerald-200 rounded-full flex items-center justify-center text-xs">
                                           📋
                                         </span>
-                                        Triệu chứng phù hợp:
+                                        Dấu hiệu lâm sàng phù hợp:
                                       </h6>
                                       <div className="space-y-1">
-                                        {formatted.symptoms
-                                          .slice(0, 3)
-                                          .map((symptom, index) => (
-                                            <div
-                                              key={index}
-                                              className="flex items-start gap-2"
-                                            >
-                                              <div className="w-1 h-1 bg-emerald-500 rounded-full mt-2 flex-shrink-0" />
-                                              <span className="text-xs text-emerald-600 leading-relaxed">
-                                                {symptom}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        {formatted.symptoms.length > 3 && (
-                                          <div className="text-xs text-emerald-700 font-medium pl-3">
-                                            +{formatted.symptoms.length - 3}{" "}
-                                            triệu chứng khác...
+                                        {(showFullSummaryDescription
+                                          ? formatted.symptoms
+                                          : formatted.symptoms.slice(0, 3)
+                                        ).map((symptom, index) => (
+                                          <div
+                                            key={index}
+                                            className="flex items-start gap-2"
+                                          >
+                                            <div className="w-1 h-1 bg-emerald-500 rounded-full mt-2 flex-shrink-0" />
+                                            <span className="text-xs text-emerald-600 leading-relaxed">
+                                              {symptom}
+                                            </span>
                                           </div>
+                                        ))}
+
+                                        {/* ✅ Show/Hide Toggle for Symptoms */}
+                                        {formatted.symptoms.length > 3 && (
+                                          <button
+                                            onClick={() =>
+                                              setShowFullSummaryDescription(
+                                                !showFullSummaryDescription
+                                              )
+                                            }
+                                            className="text-xs text-emerald-700 font-medium pl-3 hover:text-emerald-900 underline focus:outline-none"
+                                          >
+                                            {showFullSummaryDescription
+                                              ? `Thu gọn (ẩn ${
+                                                  formatted.symptoms.length - 3
+                                                } triệu chứng)`
+                                              : `+${
+                                                  formatted.symptoms.length - 3
+                                                } dấu hiệu lâm sàng khác...`}
+                                          </button>
                                         )}
                                       </div>
                                     </div>
                                   )}
 
-                                  {/* ✅ Notes Section */}
+                                  {/* ✅ Notes Section with Expand/Collapse */}
                                   {formatted.notes?.length > 0 && (
                                     <div className="pt-2 border-t border-emerald-300">
                                       <h6 className="font-semibold text-amber-700 text-xs mb-2 flex items-center gap-1">
@@ -2799,32 +2757,47 @@ const BookingFlow = () => {
                                         Lưu ý quan trọng:
                                       </h6>
                                       <div className="space-y-1">
-                                        {formatted.notes
-                                          .slice(0, 2)
-                                          .map((note, index) => (
-                                            <div
-                                              key={index}
-                                              className="bg-amber-50 border border-amber-200 rounded p-2"
-                                            >
-                                              <p className="text-xs text-amber-700 leading-relaxed">
-                                                {note}
-                                              </p>
-                                            </div>
-                                          ))}
-                                        {formatted.notes.length > 2 && (
-                                          <div className="text-xs text-amber-700 font-medium">
-                                            +{formatted.notes.length - 2} lưu ý
-                                            khác...
+                                        {(showFullSummaryDescription
+                                          ? formatted.notes
+                                          : formatted.notes.slice(0, 2)
+                                        ).map((note, index) => (
+                                          <div
+                                            key={index}
+                                            className="bg-amber-50 border border-amber-200 rounded p-2"
+                                          >
+                                            <p className="text-xs text-amber-700 leading-relaxed">
+                                              {note}
+                                            </p>
                                           </div>
+                                        ))}
+
+                                        {/* ✅ Show/Hide Toggle for Notes */}
+                                        {formatted.notes.length > 2 && (
+                                          <button
+                                            onClick={() =>
+                                              setShowFullSummaryDescription(
+                                                !showFullSummaryDescription
+                                              )
+                                            }
+                                            className="text-xs text-amber-700 font-medium hover:text-amber-900 underline focus:outline-none"
+                                          >
+                                            {showFullSummaryDescription
+                                              ? `Thu gọn (ẩn ${
+                                                  formatted.notes.length - 2
+                                                } lưu ý)`
+                                              : `+${
+                                                  formatted.notes.length - 2
+                                                } lưu ý khác...`}
+                                          </button>
                                         )}
                                       </div>
                                     </div>
                                   )}
 
-                                  {/* ✅ Stats Summary */}
+                                  {/* ✅ Stats Section */}
                                   <div className="flex items-center gap-2 pt-2 border-t border-emerald-300">
                                     {formatted.symptoms?.length > 0 && (
-                                      <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                                      <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full border border-emerald-300">
                                         <span className="text-xs">📋</span>
                                         <span className="text-xs font-medium">
                                           {formatted.symptoms.length} triệu
@@ -2833,7 +2806,7 @@ const BookingFlow = () => {
                                       </div>
                                     )}
                                     {formatted.notes?.length > 0 && (
-                                      <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                      <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full border border-amber-300">
                                         <AlertTriangle className="w-3 h-3" />
                                         <span className="text-xs font-medium">
                                           {formatted.notes.length} lưu ý
@@ -2844,18 +2817,76 @@ const BookingFlow = () => {
                                 </div>
                               );
                             } else {
-                              // ✅ Fallback for plain text description
+                              // ✅ Fallback for unformatted description with expand/collapse
+                              const isLongDescription =
+                                currentSpecialty.description.length > 200;
+
                               return (
                                 <div className="bg-white/70 rounded-lg p-2 border border-emerald-300">
-                                  <p className="text-xs text-emerald-700 leading-relaxed line-clamp-4">
-                                    {currentSpecialty.description}
-                                  </p>
+                                  <div className="relative">
+                                    <p
+                                      className={`text-xs text-emerald-700 leading-relaxed ${
+                                        !showFullSummaryDescription &&
+                                        isLongDescription
+                                          ? "line-clamp-4"
+                                          : ""
+                                      }`}
+                                    >
+                                      {showFullSummaryDescription ||
+                                      !isLongDescription
+                                        ? currentSpecialty.description
+                                        : truncateDescription(
+                                            currentSpecialty.description,
+                                            200
+                                          )}
+                                    </p>
+
+                                    {/* ✅ Expand/Collapse button for long unformatted description */}
+                                    {isLongDescription && (
+                                      <div className="flex justify-center mt-2">
+                                        <button
+                                          onClick={() =>
+                                            setShowFullSummaryDescription(
+                                              !showFullSummaryDescription
+                                            )
+                                          }
+                                          className="text-emerald-600 hover:text-emerald-700 text-xs font-medium underline focus:outline-none"
+                                        >
+                                          {showFullSummaryDescription ? (
+                                            <span className="flex items-center gap-1">
+                                              Thu gọn
+                                              <svg
+                                                className="w-3 h-3"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                              >
+                                                <path d="m18 15-6-6-6 6" />
+                                              </svg>
+                                            </span>
+                                          ) : (
+                                            <span className="flex items-center gap-1">
+                                              Xem thêm
+                                              <svg
+                                                className="w-3 h-3"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                              >
+                                                <path d="m6 9 6 6 6-6" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             }
                           })()}
 
-                          {/* ✅ View Details Button */}
+                          {/* ✅ Link to detailed view */}
                           <div className="mt-3 pt-2 border-t border-emerald-300">
                             <SpecialtyDescriptionPopover
                               specialty={currentSpecialty}
@@ -2869,7 +2900,6 @@ const BookingFlow = () => {
                     </div>
                   )}
 
-                  {/* ✅ Display patient info in summary */}
                   {selectedChild && (
                     <div>
                       <p className="text-sm text-gray-600">Bệnh nhi</p>
@@ -2925,7 +2955,7 @@ const BookingFlow = () => {
                       )}
                       {childSymptom && (
                         <p className="text-xs text-gray-500">
-                          Triệu chứng: {childSymptom}
+                          Dấu hiệu lâm sàng: {childSymptom}
                         </p>
                       )}
                       {childRequiredInformation && (
@@ -2952,7 +2982,9 @@ const BookingFlow = () => {
 
                   {selectedSlot && (
                     <div>
-                      <p className="text-sm text-gray-600">Thời gian đã chọn</p>
+                      <p className="text-sm text-gray-600">
+                        Thời gian đã chọn khám dự kiến
+                      </p>
                       <p className="font-medium">
                         {(() => {
                           const schedule = groupedSpecialty.find((schedule) =>
@@ -2970,10 +3002,12 @@ const BookingFlow = () => {
                                   <div>{formatDate(schedule.date)}</div>
                                   <div>
                                     {slot.startSlot} - {slot.endSlot}
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {schedule.doctorName}
-                                  </div>
+                                  </div>{" "}
+                                  {currentExamType?.isSelectDoctor && (
+                                    <div className="text-sm text-gray-500">
+                                      {schedule.doctorName}
+                                    </div>
+                                  )}
                                   <div className="text-sm text-gray-500">
                                     {schedule.roomName}
                                   </div>
@@ -3028,7 +3062,6 @@ const BookingFlow = () => {
                         });
                         return;
                       }
-                      // ✅ Tạo API payload
                       const apiPayload: AddOnlineRegistrationDto = {
                         appointmentSlotId: selectedSlot,
                         patientId: selectedChild,
@@ -3048,7 +3081,6 @@ const BookingFlow = () => {
                           ? "Mẹ"
                           : "Người giám hộ",
                       };
-                      // ✅ Tạo appointment object trước
                       const newAppointment = {
                         id: Date.now().toString(), // Temporary ID
                         childId: selectedChild,
@@ -3078,7 +3110,6 @@ const BookingFlow = () => {
                       };
 
                       try {
-                        // ✅ Gọi API tạo đăng ký
                         const result = await dispatch(
                           createOnlineRegistrationThunk({
                             payload: apiPayload,
@@ -3086,7 +3117,6 @@ const BookingFlow = () => {
                           })
                         ).unwrap();
 
-                        // ✅ Tạo appointment object
                         const newAppointment = {
                           id: result.id?.toString() || Date.now().toString(),
                           childId: selectedChild,

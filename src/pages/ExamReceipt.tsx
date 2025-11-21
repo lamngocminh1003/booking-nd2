@@ -195,7 +195,7 @@ const ExamReceipt = () => {
                   {latestAppointment.childSymptom && (
                     <div className="mt-3 bg-amber-50 p-3 sm:p-4 rounded-lg border border-amber-200">
                       <p className="text-xs sm:text-sm text-gray-600 mb-1">
-                        Triệu chứng
+                        Dấu hiệu lâm sàng
                       </p>
                       <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
                         {latestAppointment.childSymptom}

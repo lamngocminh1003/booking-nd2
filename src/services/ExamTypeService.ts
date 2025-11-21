@@ -6,6 +6,7 @@ export interface ExamTypeDto {
   code: string;
   description?: string;
   isEnable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
   appointmentFormName?: string;
   appointmentFormKey?: string;
   createdDate?: string;
@@ -17,6 +18,7 @@ export interface CreateUpdateExamTypeSpecialty {
   specialtyId: number;
   departmentId: number;
   isEnable?: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
   appointmentFormName?: string;
   appointmentFormKey?: string;
 }
@@ -28,6 +30,7 @@ export interface CreateUpdateExamTypeServicePrice {
   appointmentFormName?: string;
   appointmentFormKey?: string;
   isEnable?: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
 }
 
 export interface ExamTypeSpecialtyDetail {
@@ -38,6 +41,7 @@ export interface ExamTypeSpecialtyDetail {
   departmentId: number;
   departmentName: string;
   isEnable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
 }
 
 export interface ExamTypeServicePriceDetail {
@@ -49,6 +53,7 @@ export interface ExamTypeServicePriceDetail {
   appointmentFormKey?: string;
   price: number;
   isEnable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
 }
 
 // Basic CRUD operations
@@ -163,7 +168,7 @@ export const getZoneRelatedData = async (zoneId: number | string) => {
   }
 };
 
-// ✅ Utility function để parse và validate data
+// ✅ Utility function để parse và validate data - Thêm isSelectDoctor
 export const parseZoneExamData = (rawData: any[]) => {
   return rawData.map((exam) => ({
     id: exam.id,
@@ -172,6 +177,7 @@ export const parseZoneExamData = (rawData: any[]) => {
     name: exam.name,
     description: exam.description,
     enable: exam.enable,
+    isSelectDoctor: exam.isSelectDoctor || false, // ✅ Thêm isSelectDoctor với default false
     appointmentFormId: exam.appointmentFormId,
     appointmentFormKey: exam.appointmentFormKey,
     appointmentFormName: exam.appointmentFormName,
@@ -194,5 +200,42 @@ export const parseZoneDepartmentData = (rawData: any[]) => {
         (sum: number, et: any) => sum + (et.sepicalties?.length || 0),
         0
       ) || 0,
+    // ✅ Thêm isSelectDoctor aggregation nếu cần
+    hasSelectDoctorExams:
+      dept.examTypes?.some((et: any) => et.isSelectDoctor) || false,
   }));
+};
+
+// ✅ Helper function để validate isSelectDoctor field
+export const validateExamTypeData = (data: ExamTypeDto): boolean => {
+  // Kiểm tra các trường bắt buộc
+  if (!data.name || !data.code) {
+    return false;
+  }
+
+  // Kiểm tra isSelectDoctor nếu có
+  if (
+    data.isSelectDoctor !== undefined &&
+    typeof data.isSelectDoctor !== "boolean"
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+// ✅ Helper function để set default values cho isSelectDoctor
+export const setDefaultExamTypeValues = (
+  data: Partial<ExamTypeDto>
+): ExamTypeDto => {
+  return {
+    name: data.name || "",
+    code: data.code || "",
+    description: data.description || "",
+    isEnable: data.isEnable ?? true,
+    isSelectDoctor: data.isSelectDoctor ?? false, // ✅ Default false cho isSelectDoctor
+    appointmentFormName: data.appointmentFormName || "",
+    appointmentFormKey: data.appointmentFormKey || "",
+    ...data,
+  };
 };

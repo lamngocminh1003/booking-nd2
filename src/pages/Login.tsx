@@ -276,7 +276,7 @@ const Login = () => {
             Đăng nhập với Google
           </Button>
 
-          <Button
+          {/* <Button
             variant="outline"
             className="w-full py-6  text-base border-emerald-200 hover:bg-emerald-50 rounded-xl  hover:text-emerald-600"
           >
@@ -284,11 +284,11 @@ const Login = () => {
               f
             </div>
             Đăng nhập với Facebook
-          </Button>
+          </Button> */}
         </div>
 
         {/* Link đến trang đăng ký */}
-        <div className="text-center pt-4">
+        {/* <div className="text-center pt-4">
           <span className="text-gray-600">Chưa có tài khoản? </span>
           <Link
             to="/register"
@@ -296,7 +296,7 @@ const Login = () => {
           >
             Đăng ký ngay
           </Link>
-        </div>
+        </div> */}
       </div>
     </AuthLayout>
   );

@@ -11,34 +11,23 @@ import { useExamTypeManagement } from "./hooks/useExamTypeManagement";
 
 const ExamTypeManagement = () => {
   const {
-    // Data
     examTypes,
     zones,
     filteredExamTypes,
     paginatedExamTypes,
-
-    // Loading states
     loading,
     zonesLoading,
-
-    // Filters
     searchTerm,
     setSearchTerm,
     statusFilter,
     setStatusFilter,
     zoneFilter,
     setZoneFilter,
-
-    // Pagination
     currentPage,
     totalPages,
     handlePageChange,
-
-    // CRUD operations
     handleCreateClick,
     handleEditClick,
-
-    // Modals
     showCreateDialog,
     setShowCreateDialog,
     showEditDialog,
@@ -47,24 +36,19 @@ const ExamTypeManagement = () => {
     setShowDepartmentsModal,
     showServicePriceModal,
     setShowServicePriceModal,
-
-    // Form
     formData,
     handleFormChange,
     handleSaveCreate,
     handleSaveEdit,
-
-    // Departments
     handleViewDepartments,
     selectedZoneForDepartments,
     selectedZoneExamData,
     zoneDataLoading,
     handleRefreshDepartments,
-
-    // Service Prices
     handleViewServicePrices,
     selectedExamTypeForServicePrice,
-    setSelectedExamTypeForServicePrice,
+    handleToggleStatus,
+    handleToggleSelectDoctor, // ✅ Add handleToggleSelectDoctor
   } = useExamTypeManagement();
 
   return (
@@ -110,9 +94,11 @@ const ExamTypeManagement = () => {
             onEdit={handleEditClick}
             onViewDepartments={handleViewDepartments}
             onViewServicePrices={handleViewServicePrices}
+            onToggleSelectDoctor={handleToggleSelectDoctor} // ✅ Pass handleToggleSelectDoctor
             zoneDataLoading={zoneDataLoading}
             loading={loading || zonesLoading}
             filteredCount={filteredExamTypes.length}
+            onToggleStatus={handleToggleStatus} // ✅ Add this new prop
             zoneFilter={zoneFilter}
             zones={zones}
           />

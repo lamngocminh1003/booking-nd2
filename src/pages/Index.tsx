@@ -156,13 +156,13 @@ const Index = () => {
             {/* ✅ Enhanced Buttons */}
             {!userLocal ? (
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 justify-center lg:justify-start px-2 sm:px-0">
-                <Button
+                {/* <Button
                   size="lg"
                   className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-6 sm:px-10 py-3 sm:py-4 text-sm sm:text-lg font-semibold transition-all duration-300 hover:scale-105 shadow-xl hover:shadow-2xl transform"
                   onClick={() => handleAuthClick("register")}
                 >
                   🎯 Đăng ký ngay
-                </Button>
+                </Button> */}
                 <Button
                   variant="outline"
                   size="lg"

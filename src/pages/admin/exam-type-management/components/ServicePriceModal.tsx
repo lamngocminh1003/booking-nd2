@@ -105,6 +105,9 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
     enable: true,
   });
 
+  // ✅ Add search state
+  const [serviceSearch, setServiceSearch] = useState("");
+
   // ✅ Load data when modal opens or exam type changes
   useEffect(() => {
     if (open && selectedExamType) {
@@ -173,6 +176,29 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
       (servicePrice) => servicePrice.enable === true
     );
   }, [examTypeServicePrices]);
+
+  // ✅ Enhanced filtered service prices with search
+  const filteredAvailableServicePrices = useMemo(() => {
+    if (!serviceSearch.trim()) {
+      return availableServicePrices;
+    }
+
+    const searchLower = serviceSearch.toLowerCase();
+    return availableServicePrices.filter((sp) => {
+      const nameMatch = sp.name.toLowerCase().includes(searchLower);
+      // ✅ Fix: Use regularPrice instead of price
+      const priceMatch = sp.regularPrice.toString().includes(serviceSearch);
+      return nameMatch || priceMatch;
+    });
+  }, [availableServicePrices, serviceSearch]);
+
+  // ✅ Get selected service details - Fix price field
+  const selectedServiceDetails = useMemo(() => {
+    if (!newServiceForm.servicePriceId) return null;
+    return availableServicePrices.find(
+      (sp) => sp.id.toString() === newServiceForm.servicePriceId
+    );
+  }, [availableServicePrices, newServiceForm.servicePriceId]);
 
   // ✅ Handle delete service price
   const handleDeleteServicePrice = (
@@ -443,28 +469,228 @@ export const ServicePriceModal: React.FC<ServicePriceModalProps> = ({
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* ✅ Select Service Price */}
-                        <div className="col-span-2">
-                          <Label htmlFor="servicePriceId">Chọn Dịch vụ *</Label>
-                          <select
-                            id="servicePriceId"
-                            value={newServiceForm.servicePriceId}
-                            onChange={(e) =>
-                              setNewServiceForm((prev) => ({
-                                ...prev,
-                                servicePriceId: e.target.value,
-                              }))
-                            }
-                            className="w-full p-2 border rounded-md"
+                      <div className="grid grid-cols-1 gap-4">
+                        {/* ✅ Enhanced Service Price Selection with Search */}
+                        <div className="col-span-1">
+                          <Label
+                            htmlFor="servicePriceId"
+                            className="text-sm font-medium"
                           >
-                            <option value="">-- Chọn dịch vụ --</option>
-                            {availableServicePrices.map((sp) => (
-                              <option key={sp.id} value={sp.id}>
-                                {sp.name}
-                              </option>
-                            ))}
-                          </select>
+                            Chọn Dịch vụ *
+                          </Label>
+
+                          {/* ✅ Search Input */}
+                          <div className="mt-1 mb-3">
+                            <Input
+                              type="text"
+                              placeholder="🔍 Tìm kiếm theo tên hoặc giá dịch vụ..."
+                              value={serviceSearch}
+                              onChange={(e) => setServiceSearch(e.target.value)}
+                              className="w-full text-sm"
+                            />
+                            {serviceSearch && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Tìm thấy {filteredAvailableServicePrices.length}{" "}
+                                dịch vụ phù hợp
+                              </p>
+                            )}
+                          </div>
+
+                          {/* ✅ Enhanced Service Selection - Fix price display */}
+                          <div className="border rounded-md max-h-64 overflow-y-auto bg-white">
+                            {filteredAvailableServicePrices.length === 0 ? (
+                              <div className="p-4 text-center text-gray-500">
+                                <DollarSign className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                                <p className="text-sm">
+                                  {serviceSearch
+                                    ? "Không tìm thấy dịch vụ phù hợp"
+                                    : "Không có dịch vụ nào để thêm"}
+                                </p>
+                                {serviceSearch && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setServiceSearch("")}
+                                    className="mt-2 text-xs"
+                                  >
+                                    Xóa bộ lọc
+                                  </Button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-gray-100">
+                                {filteredAvailableServicePrices.map((sp) => (
+                                  <div
+                                    key={sp.id}
+                                    className={`p-3 cursor-pointer transition-colors ${
+                                      newServiceForm.servicePriceId ===
+                                      sp.id.toString()
+                                        ? "bg-blue-50 border-l-4 border-blue-500"
+                                        : "hover:bg-gray-50"
+                                    }`}
+                                    onClick={() =>
+                                      setNewServiceForm((prev) => ({
+                                        ...prev,
+                                        servicePriceId: sp.id.toString(),
+                                        regularPrice:
+                                          sp.regularPrice.toString(), // ✅ Auto-fill from regularPrice
+                                      }))
+                                    }
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        {/* ✅ Service Name */}
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="radio"
+                                            name="servicePrice"
+                                            value={sp.id}
+                                            checked={
+                                              newServiceForm.servicePriceId ===
+                                              sp.id.toString()
+                                            }
+                                            onChange={() => {}}
+                                            className="text-blue-600"
+                                          />
+                                          <h4 className="font-medium text-sm text-gray-900 truncate">
+                                            {sp.name}
+                                          </h4>
+                                        </div>
+
+                                        {/* ✅ Service Details */}
+                                        <div className="mt-2 space-y-1">
+                                          {/* ✅ Multiple Price Types Display */}
+                                          <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-gray-500">
+                                                Giá thường:
+                                              </span>
+                                              <span className="font-semibold text-emerald-600">
+                                                {sp.regularPrice.toLocaleString(
+                                                  "vi-VN"
+                                                )}{" "}
+                                                VNĐ
+                                              </span>
+                                            </div>
+                                            {sp.insurancePrice > 0 && (
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-gray-500">
+                                                  Giá BHYT:
+                                                </span>
+                                                <span className="font-semibold text-blue-600">
+                                                  {sp.insurancePrice.toLocaleString(
+                                                    "vi-VN"
+                                                  )}{" "}
+                                                  VNĐ
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* ✅ VIP and other prices in second row */}
+                                          {sp.vipPrice > 0 && (
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                              {sp.vipPrice > 0 && (
+                                                <div className="flex items-center justify-between">
+                                                  <span className="text-gray-500">
+                                                    Giá VIP:
+                                                  </span>
+                                                  <span className="font-semibold text-purple-600">
+                                                    {sp?.vipPrice?.toLocaleString(
+                                                      "vi-VN"
+                                                    )}{" "}
+                                                    VNĐ
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {/* ✅ Service status and type badges */}
+                                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                            <Badge
+                                              variant={
+                                                sp.enable
+                                                  ? "default"
+                                                  : "secondary"
+                                              }
+                                              className="text-xs"
+                                            >
+                                              {sp.enable
+                                                ? "✓ Hoạt động"
+                                                : "✗ Tạm dừng"}
+                                            </Badge>
+
+                                            {/* ✅ Service type indicators based on name */}
+                                            {sp.name.includes("[CLC]") && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs bg-purple-50 text-purple-700 border-purple-300"
+                                              >
+                                                CLC
+                                              </Badge>
+                                            )}
+                                            {sp.name.includes("[VIP]") && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs bg-yellow-50 text-yellow-700 border-yellow-300"
+                                              >
+                                                VIP
+                                              </Badge>
+                                            )}
+                                            {sp.name.includes("[BHYT]") && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs bg-green-50 text-green-700 border-green-300"
+                                              >
+                                                BHYT
+                                              </Badge>
+                                            )}
+                                            {sp.name.includes(
+                                              "[Con CNVC-LĐ]"
+                                            ) && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs bg-blue-50 text-blue-700 border-blue-300"
+                                              >
+                                                Con CNVC
+                                              </Badge>
+                                            )}
+                                            {sp.name.includes("[Nội trú]") && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs bg-gray-50 text-gray-700 border-gray-300"
+                                              >
+                                                Nội trú
+                                              </Badge>
+                                            )}
+
+                                            {/* ✅ Special price indicator */}
+                                            {sp.regularPrice === 0 && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs bg-green-50 text-green-700 border-green-300"
+                                              >
+                                                Miễn phí
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* ✅ Selection indicator */}
+                                      {newServiceForm.servicePriceId ===
+                                        sp.id.toString() && (
+                                        <div className="flex-shrink-0 ml-2">
+                                          <Check className="h-5 w-5 text-blue-600" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 

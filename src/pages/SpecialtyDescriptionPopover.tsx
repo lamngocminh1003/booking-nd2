@@ -76,7 +76,7 @@ const SpecialtyDescriptionPopover = ({
                     <div className="w-6 h-6 bg-emerald-200 rounded-full flex items-center justify-center">
                       <span className="text-emerald-600 text-xs">📋</span>
                     </div>
-                    Triệu chứng phù hợp
+                    Dấu hiệu lâm sàng phù hợp
                   </h5>
                   <div className="space-y-2">
                     {formatted.symptoms.map(

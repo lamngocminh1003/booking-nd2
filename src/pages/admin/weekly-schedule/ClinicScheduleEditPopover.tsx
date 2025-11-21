@@ -1491,7 +1491,7 @@ export const ClinicScheduleEditButton: React.FC<
                         : availableSpecialtiesForSelectedExamType.length === 0
                         ? "Loại khám này không có chuyên khoa"
                         : availableSpecialtiesForSelectedExamType.length === 1
-                        ? "Đã tự động chọn chuyên khoa duy nhất"
+                        ? ""
                         : "Chọn chuyên khoa..."
                     }
                   />

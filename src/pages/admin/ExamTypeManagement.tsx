@@ -73,6 +73,7 @@ interface ExamTypePayload {
   description: string;
   enable: boolean;
   appointmentFormId: number;
+  isSelectDoctor?: boolean;
 }
 
 const ExamTypeManagement = () => {

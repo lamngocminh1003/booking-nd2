@@ -641,7 +641,7 @@ const Payment = () => {
                           {symptom && (
                             <div>
                               <span className="text-gray-600">
-                                Triệu chứng:
+                                Dấu hiệu lâm sàng:
                               </span>
                               <p className="text-gray-800 mt-1 bg-gray-50 p-2 rounded text-xs">
                                 {symptom}

@@ -152,10 +152,10 @@ const History = () => {
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Lịch sử khám bệnh
+              Lịch đặt khám
             </h1>
             <p className="text-gray-600">
-              Theo dõi lịch sử khám bệnh và kết quả chẩn đoán
+              Theo dõi trạng thái phiếu khám và lịch sử khám bệnh của bé yêu
             </p>
           </div>
 
@@ -185,7 +185,7 @@ const History = () => {
                   <div className="relative w-full sm:w-auto flex-1">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <input
-                      placeholder="Tìm kiếm theo triệu chứng, chẩn đoán..."
+                      placeholder="Tìm kiếm theo dấu hiệu lâm sàng, chẩn đoán..."
                       className="pl-10 h-10 w-full rounded-md border border-input px-3 py-2 text-sm"
                     />
                   </div>
@@ -293,7 +293,7 @@ const History = () => {
                                   {record.symptoms.length > 0 && (
                                     <div>
                                       <h3 className="text-lg font-medium text-gray-900">
-                                        Triệu chứng
+                                        Dấu hiệu lâm sàng
                                       </h3>
                                       <div className="flex flex-wrap gap-2 mt-1">
                                         {record.symptoms.map((symptom, idx) => (

@@ -438,7 +438,7 @@ const BookAppointment = () => {
               <CardHeader>
                 <CardTitle>Ghi chú thêm</CardTitle>
                 <CardDescription>
-                  Mô tả triệu chứng hoặc lý do khám (không bắt buộc)
+                  Mô tả dấu hiệu lâm sàng hoặc lý do khám (không bắt buộc)
                 </CardDescription>
               </CardHeader>
               <CardContent>

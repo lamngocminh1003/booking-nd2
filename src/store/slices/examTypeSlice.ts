@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import * as ExamTypeService from "@/services/ExamTypeService";
 
-// ✅ New interfaces based on actual API response
+// ✅ New interfaces based on actual API response - Added isSelectDoctor
 export interface ZoneExamType {
   id: number;
   zoneId: number;
@@ -9,6 +9,7 @@ export interface ZoneExamType {
   name: string;
   description: string;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
   appointmentFormId: number;
   appointmentFormKey: string;
   appointmentFormName: string;
@@ -19,6 +20,7 @@ export interface ZoneDepartment {
   id: number;
   name: string;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
   departmentHospital_Id_Postgresql: number;
   sepicalties?: ZoneSpecialty[];
 }
@@ -29,12 +31,14 @@ export interface ZoneSpecialty {
   description: string | null;
   listType: string | null;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
 }
 
 export interface DepartmentByZone {
   departmentHospitalId: number;
   departmentHospitalName: string;
   examTypes: DepartmentExamType[];
+  hasSelectDoctorExams?: boolean; // ✅ Aggregate field để check if có exam nào cần select doctor
 }
 
 export interface DepartmentExamType {
@@ -42,13 +46,14 @@ export interface DepartmentExamType {
   name: string;
   description: string;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
   zoneId: number;
   zoneName: string;
   appointmentFormId: number;
   sepicalties: ZoneSpecialty[];
 }
 
-// ✅ Existing interfaces
+// ✅ Existing interfaces - Added isSelectDoctor
 export interface ExamType {
   id: number;
   name: string;
@@ -56,6 +61,7 @@ export interface ExamType {
   description?: string;
   zoneId: number;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Thêm trường isSelectDoctor
   createdDate?: string;
   updatedDate?: string;
 }
@@ -148,14 +154,20 @@ export const fetchExamTypeServicePriceDetails = createAsyncThunk(
   }
 );
 
-// ✅ New async thunks for zone-based data
+// ✅ New async thunks for zone-based data - Enhanced with isSelectDoctor
 export const fetchExamsByZone = createAsyncThunk(
   "examType/fetchExamsByZone",
   async (zoneId: number | string, { rejectWithValue }) => {
     try {
       const response = await ExamTypeService.getExamsByZoneId(zoneId);
 
-      const exams = response?.data?.data || response?.data || [];
+      const rawExams = response?.data?.data || response?.data || [];
+
+      // ✅ Parse and ensure isSelectDoctor field
+      const exams = rawExams.map((exam: any) => ({
+        ...exam,
+        isSelectDoctor: exam.isSelectDoctor ?? false, // Default to false if not provided
+      }));
 
       return { zoneId: zoneId.toString(), exams };
     } catch (err: any) {
@@ -177,8 +189,21 @@ export const fetchDepartmentsByZone = createAsyncThunk(
       // ✅ Updated to handle new response structure with departments and examTypes
       const responseData = response?.data?.data || response?.data || {};
 
-      const departments = responseData.departments || [];
-      const examTypes = responseData.examTypes || [];
+      const departments = (responseData.departments || []).map((dept: any) => ({
+        ...dept,
+        // ✅ Add hasSelectDoctorExams aggregate field
+        hasSelectDoctorExams:
+          dept.examTypes?.some((et: any) => et.isSelectDoctor) || false,
+        examTypes: (dept.examTypes || []).map((et: any) => ({
+          ...et,
+          isSelectDoctor: et.isSelectDoctor ?? false, // Default to false
+        })),
+      }));
+
+      const examTypes = (responseData.examTypes || []).map((exam: any) => ({
+        ...exam,
+        isSelectDoctor: exam.isSelectDoctor ?? false, // Default to false
+      }));
 
       return { zoneId: zoneId.toString(), departments, examTypes };
     } catch (err: any) {
@@ -191,17 +216,34 @@ export const fetchDepartmentsByZone = createAsyncThunk(
   }
 );
 
-// ✅ Combined zone data fetch
+// ✅ Combined zone data fetch - Enhanced with isSelectDoctor
 export const fetchZoneRelatedData = createAsyncThunk(
   "examType/fetchZoneRelatedData",
   async (zoneId: number | string, { rejectWithValue }) => {
     try {
       const response = await ExamTypeService.getZoneRelatedData(zoneId);
 
+      // ✅ Parse and ensure isSelectDoctor field for departments
+      const departments = (response.departments || []).map((dept: any) => ({
+        ...dept,
+        hasSelectDoctorExams:
+          dept.examTypes?.some((et: any) => et.isSelectDoctor) || false,
+        examTypes: (dept.examTypes || []).map((et: any) => ({
+          ...et,
+          isSelectDoctor: et.isSelectDoctor ?? false,
+        })),
+      }));
+
+      // ✅ Parse and ensure isSelectDoctor field for exams
+      const exams = (response.exams || []).map((exam: any) => ({
+        ...exam,
+        isSelectDoctor: exam.isSelectDoctor ?? false,
+      }));
+
       return {
         zoneId: zoneId.toString(),
-        departments: response.departments || [],
-        exams: response.exams || [],
+        departments,
+        exams,
       };
     } catch (err: any) {
       console.error(`❌ Error fetching zone ${zoneId} related data:`, err);
@@ -271,7 +313,7 @@ export const deleteExamTypeServicePrice = createAsyncThunk(
   }
 );
 
-// ✅ Slice
+// ✅ New action creators for isSelectDoctor management
 const examTypeSlice = createSlice({
   name: "examType",
   initialState,
@@ -292,33 +334,128 @@ const examTypeSlice = createSlice({
       state.zoneDataLoading = {};
       state.zoneDataErrors = {};
     },
+    // ✅ New reducer to toggle isSelectDoctor for specific exam type
+    toggleExamTypeSelectDoctor: (
+      state,
+      action: PayloadAction<{ examTypeId: number; zoneId: string }>
+    ) => {
+      const { examTypeId, zoneId } = action.payload;
+
+      // Update in examsByZone
+      if (state.examsByZone[zoneId]) {
+        const examIndex = state.examsByZone[zoneId].findIndex(
+          (e) => e.id === examTypeId
+        );
+        if (examIndex !== -1) {
+          state.examsByZone[zoneId][examIndex].isSelectDoctor =
+            !state.examsByZone[zoneId][examIndex].isSelectDoctor;
+        }
+      }
+
+      // Update in departmentsByZone
+      if (state.departmentsByZone[zoneId]) {
+        state.departmentsByZone[zoneId].forEach((dept) => {
+          const examIndex = dept.examTypes.findIndex(
+            (e) => e.id === examTypeId
+          );
+          if (examIndex !== -1) {
+            dept.examTypes[examIndex].isSelectDoctor =
+              !dept.examTypes[examIndex].isSelectDoctor;
+
+            // Update aggregate field
+            dept.hasSelectDoctorExams = dept.examTypes.some(
+              (et) => et.isSelectDoctor
+            );
+          }
+        });
+      }
+
+      // Update in main list if exists
+      const mainListIndex = state.list.findIndex((e) => e.id === examTypeId);
+      if (mainListIndex !== -1) {
+        state.list[mainListIndex].isSelectDoctor =
+          !state.list[mainListIndex].isSelectDoctor;
+      }
+    },
+    // ✅ New reducer to update isSelectDoctor for specific exam type
+    updateExamTypeSelectDoctor: (
+      state,
+      action: PayloadAction<{
+        examTypeId: number;
+        zoneId: string;
+        isSelectDoctor: boolean;
+      }>
+    ) => {
+      const { examTypeId, zoneId, isSelectDoctor } = action.payload;
+
+      // Update in examsByZone
+      if (state.examsByZone[zoneId]) {
+        const examIndex = state.examsByZone[zoneId].findIndex(
+          (e) => e.id === examTypeId
+        );
+        if (examIndex !== -1) {
+          state.examsByZone[zoneId][examIndex].isSelectDoctor = isSelectDoctor;
+        }
+      }
+
+      // Update in departmentsByZone
+      if (state.departmentsByZone[zoneId]) {
+        state.departmentsByZone[zoneId].forEach((dept) => {
+          const examIndex = dept.examTypes.findIndex(
+            (e) => e.id === examTypeId
+          );
+          if (examIndex !== -1) {
+            dept.examTypes[examIndex].isSelectDoctor = isSelectDoctor;
+
+            // Update aggregate field
+            dept.hasSelectDoctorExams = dept.examTypes.some(
+              (et) => et.isSelectDoctor
+            );
+          }
+        });
+      }
+
+      // Update in main list if exists
+      const mainListIndex = state.list.findIndex((e) => e.id === examTypeId);
+      if (mainListIndex !== -1) {
+        state.list[mainListIndex].isSelectDoctor = isSelectDoctor;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
-      // ✅ Existing exam types
+      // ✅ Existing exam types - Enhanced with isSelectDoctor
       .addCase(fetchExamTypes.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchExamTypes.fulfilled, (state, action) => {
         state.loading = false;
-        state.list = action.payload;
+        // ✅ Ensure isSelectDoctor field exists
+        state.list = (action.payload || []).map((exam: any) => ({
+          ...exam,
+          isSelectDoctor: exam.isSelectDoctor ?? false,
+        }));
       })
       .addCase(fetchExamTypes.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || "Failed to fetch exam types";
       })
 
-      // ✅ Create ExamType
+      // ✅ Create ExamType - Enhanced with isSelectDoctor
       .addCase(createExamType.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(createExamType.fulfilled, (state, action) => {
         state.loading = false;
-        const exists = state.list.find((item) => item.id === action.payload.id);
+        const newExamType = {
+          ...action.payload,
+          isSelectDoctor: action.payload.isSelectDoctor ?? false,
+        };
+        const exists = state.list.find((item) => item.id === newExamType.id);
         if (!exists) {
-          state.list.unshift(action.payload);
+          state.list.unshift(newExamType);
         }
       })
       .addCase(createExamType.rejected, (state, action) => {
@@ -326,18 +463,22 @@ const examTypeSlice = createSlice({
         state.error = action.error.message || "Failed to create exam type";
       })
 
-      // ✅ Update ExamType
+      // ✅ Update ExamType - Enhanced with isSelectDoctor
       .addCase(updateExamType.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(updateExamType.fulfilled, (state, action) => {
         state.loading = false;
+        const updatedExamType = {
+          ...action.payload,
+          isSelectDoctor: action.payload.isSelectDoctor ?? false,
+        };
         const index = state.list.findIndex(
-          (item) => item.id === action.payload.id
+          (item) => item.id === updatedExamType.id
         );
         if (index !== -1) {
-          state.list[index] = action.payload;
+          state.list[index] = updatedExamType;
         }
       })
       .addCase(updateExamType.rejected, (state, action) => {
@@ -381,7 +522,7 @@ const examTypeSlice = createSlice({
         }
       )
 
-      // ✅ NEW: Exams by zone
+      // ✅ NEW: Exams by zone - Enhanced with isSelectDoctor
       .addCase(fetchExamsByZone.pending, (state, action) => {
         const zoneId = action.meta.arg.toString();
         state.zoneDataLoading[zoneId] = true;
@@ -400,7 +541,7 @@ const examTypeSlice = createSlice({
         state.examsByZone[zoneId] = [];
       })
 
-      // ✅ NEW: Departments by zone
+      // ✅ NEW: Departments by zone - Enhanced with isSelectDoctor
       .addCase(fetchDepartmentsByZone.pending, (state, action) => {
         const zoneId = action.meta.arg.toString();
         state.zoneDataLoading[zoneId] = true;
@@ -423,7 +564,7 @@ const examTypeSlice = createSlice({
         state.departmentsByZone[zoneId] = [];
       })
 
-      // ✅ NEW: Zone related data (combined)
+      // ✅ NEW: Zone related data (combined) - Enhanced with isSelectDoctor
       .addCase(fetchZoneRelatedData.pending, (state, action) => {
         const zoneId = action.meta.arg.toString();
         state.zoneDataLoading[zoneId] = true;
@@ -536,5 +677,7 @@ export const {
   resetExamTypeState,
   clearZoneError,
   clearAllZoneData,
+  toggleExamTypeSelectDoctor,
+  updateExamTypeSelectDoctor,
 } = examTypeSlice.actions;
 export default examTypeSlice.reducer;

@@ -13,11 +13,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { refreshAccessToken } from "@/services/UsersServices";
+import OnlineRegistrationModal from "@/components/modals/OnlineRegistrationModal";
 import { auth } from "@/lib/firebase";
 import {
   User as UserIcon,
   IdCard,
-  Camera,
   CheckCircle,
   Edit,
   Phone,
@@ -34,7 +34,6 @@ import {
   CalendarCheck,
   Activity,
 } from "lucide-react";
-import { Clipboard } from "@capacitor/clipboard";
 import UserInfoForm, {
   UserInfoFormValues,
 } from "@/components/users/UserInfoForm";
@@ -56,24 +55,34 @@ import {
 } from "@/store/slices/bookingCatalogSlice";
 import ChildProfileModal from "@/components/modals/ChildProfileModal";
 
-// ✅ Updated Child interface - chỉ các trường có trong API response
 interface Child extends PatientInfo {
-  avatar?: string; // UI only field
+  avatar?: string;
 }
 
 const Profile = () => {
   const [userStatus, setUserStatus] = useState<string>("Pending");
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [isLoadingChildren, setIsLoadingChildren] = useState(false);
   const { appointments } = useAppSelector((state) => state.appointments);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState<number>();
+  const [selectedPatientName, setSelectedPatientName] = useState<string>();
 
-  // ✅ Replace mock data with Redux state
   const [children, setChildren] = useState<Child[]>([]);
+  const [activeTab, setActiveTab] = useState(() => {
+    const savedTab = localStorage.getItem("profileActiveTab");
+    return savedTab && ["profile", "children", "settings"].includes(savedTab)
+      ? savedTab
+      : "profile";
+  });
 
-  // ✅ Get Redux state
+  // ✅ Save to localStorage when tab changes
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    localStorage.setItem("profileActiveTab", newTab);
+  };
   const {
     userInfo,
     provinces,
@@ -91,7 +100,6 @@ const Profile = () => {
   const refreshToken = useSelector((state: any) => state.auth.refreshToken);
   const { toast } = useToast();
 
-  // ✅ Fetch children data when component mounts
   useEffect(() => {
     const loadChildrenData = async () => {
       if (userInfo?.id) {
@@ -99,13 +107,11 @@ const Profile = () => {
         try {
           const result = await dispatch(fetchPatientInfoByUserLogin()).unwrap();
 
-          // ✅ Handle array response from API
           if (result && Array.isArray(result) && result.length > 0) {
-            // ✅ Convert API response to Children array
             const childrenData: Child[] = result.map(
               (patient: PatientInfo) => ({
-                ...patient, // Spread all API fields as-is
-                avatar: "", // Only add UI field
+                ...patient,
+                avatar: "",
               })
             );
 
@@ -116,10 +122,8 @@ const Profile = () => {
         } catch (error) {
           console.error("❌ Failed to load children:", error);
 
-          // ✅ Set children to empty array on error
           setChildren([]);
 
-          // ✅ Only show toast for actual errors, not "no data" cases
           if (error?.message && !error.message.includes("404")) {
             toast({
               title: "Lỗi",
@@ -140,7 +144,6 @@ const Profile = () => {
     dispatch(getUserInfo());
   }, [dispatch]);
 
-  // ✅ Hàm chuẩn hóa dữ liệu User thành serializable
   const serializeUser = (user: User) => ({
     uid: user.uid,
     email: user.email,
@@ -149,14 +152,11 @@ const Profile = () => {
     phoneNumber: user.phoneNumber,
   });
 
-  // ✅ Helper functions
   const getGenderText = (genderId?: number, genderName?: string) => {
-    // First try to use genderName if available
     if (genderName) {
       return genderName;
     }
 
-    // Fallback to genderId mapping
     switch (genderId) {
       case 0:
         return "Nam";
@@ -170,12 +170,10 @@ const Profile = () => {
   };
 
   const calculateAge = (dateOfBirth: string, age?: number) => {
-    // Use API age if available
     if (age !== undefined && age > 0) {
       return age;
     }
 
-    // Calculate from dateOfBirth
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
     let calculatedAge = today.getFullYear() - birthDate.getFullYear();
@@ -189,7 +187,7 @@ const Profile = () => {
     }
 
     return calculatedAge;
-  }; // ✅ Enhanced loadChildrenData function
+  };
   useEffect(() => {
     const loadChildrenData = async () => {
       if (userInfo?.id) {
@@ -197,13 +195,11 @@ const Profile = () => {
         try {
           const result = await dispatch(fetchPatientInfoByUserLogin()).unwrap();
 
-          // ✅ Handle array response from API
           if (result && Array.isArray(result) && result.length > 0) {
-            // ✅ Convert API response to Children array
             const childrenData: Child[] = result.map(
               (patient: PatientInfo) => ({
-                ...patient, // Spread all API fields as-is
-                avatar: "", // Only add UI field
+                ...patient,
+                avatar: "",
               })
             );
 
@@ -214,10 +210,8 @@ const Profile = () => {
         } catch (error) {
           console.error("❌ Failed to load children:", error);
 
-          // ✅ Set children to empty array on error
           setChildren([]);
 
-          // ✅ Only show toast for actual errors, not "no data" cases
           if (error?.message && !error.message.includes("404")) {
             toast({
               title: "Lỗi",
@@ -239,17 +233,19 @@ const Profile = () => {
     userInfo?.phoneNumber,
     toast,
   ]);
+  const handleViewRegistrations = (children) => {
+    setSelectedPatientId(children.id);
+    setSelectedPatientName(children.fullName);
+    setShowModal(true);
+  };
 
-  // ✅ Load specific child details
   const handleLoadChildDetails = async (childId: number) => {
     try {
       setSelectedChildId(childId);
 
-      // ✅ Find the specific child from children array
       const targetChild = children.find((child) => child.id === childId);
 
       if (targetChild) {
-        // Set the loaded data as editing child and open modal
         setEditingChild(targetChild);
         setIsChildModalOpen(true);
       } else {
@@ -267,17 +263,13 @@ const Profile = () => {
     }
   };
 
-  // ✅ Add modal states
   const [isChildModalOpen, setIsChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
 
-  // ✅ Handle add new child
   const handleAddNewChild = () => {
-    // Clear all editing states
     setEditingChild(null);
     setSelectedChildId(null);
 
-    // Open modal in create mode
     setIsChildModalOpen(true);
   };
 
@@ -285,7 +277,6 @@ const Profile = () => {
     try {
       setLoading(true);
 
-      // ✅ Create proper API payload
       const patientDto: YouMed_PatientCreateDto = {
         id: editingChild?.id || 0,
         patientId: null,
@@ -318,7 +309,6 @@ const Profile = () => {
         createOrUpdatePatientThunk(patientDto)
       ).unwrap();
 
-      // ✅ Refresh the entire list after create/update
       try {
         const refreshedList = await dispatch(
           fetchPatientInfoByUserLogin()
@@ -348,7 +338,6 @@ const Profile = () => {
         }
       } catch (refreshError) {
         console.error("Failed to refresh patient list:", refreshError);
-        // Still show success message even if refresh fails
         toast({
           title: "Thành công! ✅",
           description: editingChild
@@ -357,7 +346,6 @@ const Profile = () => {
         });
       }
 
-      // Close modal and clear states
       setIsChildModalOpen(false);
       setEditingChild(null);
       setSelectedChildId(null);
@@ -404,7 +392,6 @@ const Profile = () => {
     });
   };
 
-  // Load location data if needed
   useEffect(() => {
     if (provinces?.length === 0) {
       dispatch(getProvinces());
@@ -496,7 +483,6 @@ const Profile = () => {
     return words[0]?.charAt(0) || "";
   };
 
-  // If user status is pending, show the form
   if (userStatus === "Pending") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
@@ -559,7 +545,6 @@ const Profile = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* ✅ Header Card - Avatar và thông tin chính */}
               <Card className="overflow-hidden shadow-sm">
                 <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 p-3 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-6">
@@ -598,7 +583,6 @@ const Profile = () => {
                           <UserIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                           Phụ huynh
                         </Badge>
-                        {/* ✅ Show children count with loading state */}
                         <Badge
                           variant="outline"
                           className="flex items-center gap-0.5 sm:gap-1 bg-emerald-50 text-emerald-700 border-emerald-200 text-xs sm:text-sm px-1.5 sm:px-2 py-0.5 sm:py-1"
@@ -646,8 +630,7 @@ const Profile = () => {
                   </div>
                 </div>
               </Card>
-              {/* ✅ Main Tabs */}
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className="grid w-full grid-cols-3 h-10 sm:h-12">
                   <TabsTrigger
                     value="profile"
@@ -675,7 +658,6 @@ const Profile = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* ✅ Profile Tab */}
                 <TabsContent
                   value="profile"
                   className="space-y-4 sm:space-y-6 mt-4 sm:mt-6"
@@ -695,7 +677,6 @@ const Profile = () => {
                   </div>
 
                   <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
-                    {/* Contact Information */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-2 sm:pb-6">
                         <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg">
@@ -730,7 +711,6 @@ const Profile = () => {
                       </CardContent>
                     </Card>
 
-                    {/* Personal Information */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-2 sm:pb-6">
                         <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg">
@@ -777,7 +757,6 @@ const Profile = () => {
                       </CardContent>
                     </Card>
 
-                    {/* Address & System Info */}
                     <Card className="shadow-sm">
                       <CardHeader className="pb-2 sm:pb-6">
                         <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg">
@@ -814,7 +793,6 @@ const Profile = () => {
                   </div>
                 </TabsContent>
 
-                {/* ✅ Children Tab with Redux integration */}
                 <TabsContent
                   value="children"
                   className="space-y-4 sm:space-y-6 mt-4 sm:mt-6"
@@ -847,7 +825,6 @@ const Profile = () => {
                     </Button>
                   </div>
 
-                  {/* ✅ Show loading state */}
                   {isLoadingChildren ? (
                     <div className="text-center py-8 sm:py-12">
                       <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 animate-spin mx-auto mb-3 sm:mb-4 text-emerald-600" />
@@ -857,7 +834,6 @@ const Profile = () => {
                     </div>
                   ) : (
                     <>
-                      {/* ✅ Stats Cards - accurate and helpful */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                         <Card className="shadow-sm">
                           <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
@@ -872,7 +848,6 @@ const Profile = () => {
                                 <p className="text-xs sm:text-sm text-muted-foreground">
                                   Tổng bệnh nhi
                                 </p>
-                                {/* ✅ Show helpful message when no children */}
                                 {children.length === 0 && (
                                   <p className="text-xs text-orange-600 mt-0.5 sm:mt-1">
                                     Chưa có hồ sơ
@@ -883,7 +858,6 @@ const Profile = () => {
                           </CardContent>
                         </Card>
 
-                        {/* ✅ Accurate gender count with fallback */}
                         <Card className="shadow-sm">
                           <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
                             <div className="flex items-center">
@@ -954,7 +928,6 @@ const Profile = () => {
                         </Card>
                       </div>
 
-                      {/* ✅ Children List - hiển thị tất cả children */}
                       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {children.map((child) => (
                           <Card
@@ -1029,14 +1002,12 @@ const Profile = () => {
                                     CCCD: {child.cccd || "Chưa cập nhật"}
                                   </span>
                                 </div>
-                                {/* ✅ Add patient ID display */}
                                 <div className="flex items-center text-xs sm:text-sm">
                                   <UserIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 mr-1.5 sm:mr-2" />
                                   <span className="text-gray-600">
                                     Mã BN: #{child.id}
                                   </span>
                                 </div>
-                                {/* ✅ Simplified guardian display */}
                                 <div className="flex items-center text-xs sm:text-sm">
                                   <UserIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 mr-1.5 sm:mr-2" />
                                   <span className="text-gray-600">
@@ -1053,7 +1024,6 @@ const Profile = () => {
                                     </span>
                                   </span>
                                 </div>
-                                {/* ✅ Province/Address info */}
                                 {child.address && (
                                   <div className="flex items-center text-xs sm:text-sm">
                                     <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 mr-1.5 sm:mr-2" />
@@ -1069,7 +1039,6 @@ const Profile = () => {
                                 )}
                               </div>
 
-                              {/* ✅ Family Info - chỉ hiển thị khi có data */}
                               {(child.motherName || child.fatherName) && (
                                 <div className="space-y-1.5 sm:space-y-2">
                                   <p className="text-xs sm:text-sm font-medium text-gray-700">
@@ -1104,7 +1073,6 @@ const Profile = () => {
                                 </div>
                               )}
 
-                              {/* ✅ Info badges - chỉ dùng API fields */}
                               <div className="flex flex-wrap gap-1">
                                 {child.jobName && (
                                   <Badge
@@ -1132,7 +1100,6 @@ const Profile = () => {
                                 )}
                               </div>
 
-                              {/* Action Buttons */}
                               <div className="flex justify-between items-center pt-3 sm:pt-4 border-t">
                                 <Link to={`/booking-flow`}>
                                   <Button
@@ -1145,6 +1112,18 @@ const Profile = () => {
                                     <span className="sm:hidden">Đặt lịch</span>
                                   </Button>
                                 </Link>
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-50 hover:bg-emerald-500 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-500"
+                                  onClick={() => handleViewRegistrations(child)}
+                                >
+                                  <span className="hidden sm:inline">
+                                    Xem lịch khám
+                                  </span>
+                                  <span className="sm:hidden">
+                                    Xem lịch khám
+                                  </span>
+                                </Button>
                                 <div className="flex space-x-1 sm:space-x-2">
                                   <Button
                                     variant="outline"
@@ -1171,7 +1150,6 @@ const Profile = () => {
                           </Card>
                         ))}
 
-                        {/* ✅ Empty State for Children */}
                         {children.length === 0 && (
                           <div className="col-span-full">
                             <Card className="text-center py-12 sm:py-16 border-2 border-dashed border-emerald-200 bg-emerald-50/30 shadow-sm">
@@ -1192,7 +1170,6 @@ const Profile = () => {
                                     của bé.
                                   </p>
 
-                                  {/* ✅ Enhanced CTA buttons */}
                                   <div className="space-y-2 sm:space-y-3">
                                     <Button
                                       onClick={handleAddNewChild}
@@ -1230,7 +1207,6 @@ const Profile = () => {
                                     </div>
                                   </div>
 
-                                  {/* ✅ Benefits list */}
                                   <div className="mt-6 sm:mt-8 text-left">
                                     <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
                                       Lợi ích khi tạo hồ sơ bệnh nhi:
@@ -1263,7 +1239,6 @@ const Profile = () => {
                     </>
                   )}
 
-                  {/* ✅ Show error state */}
                   {patientError && (
                     <Card className="border-red-200 bg-red-50 shadow-sm">
                       <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
@@ -1285,7 +1260,6 @@ const Profile = () => {
                   )}
                 </TabsContent>
 
-                {/* ✅ Settings Tab */}
                 <TabsContent
                   value="settings"
                   className="space-y-4 sm:space-y-6 mt-4 sm:mt-6"
@@ -1365,7 +1339,6 @@ const Profile = () => {
                     </Card>
                   </div>
 
-                  {/* Recent Appointments */}
                   {appointments.length > 0 && (
                     <Card className="mb-4 sm:mb-6 shadow-sm">
                       <CardHeader className="pb-2 sm:pb-6">
@@ -1442,8 +1415,6 @@ const Profile = () => {
           )}
         </div>
       </div>
-
-      {/* ✅ Child Profile Modal */}
       <ChildProfileModal
         isOpen={isChildModalOpen}
         onClose={() => {
@@ -1456,6 +1427,12 @@ const Profile = () => {
         isEditing={!!editingChild}
         loading={loading}
         userInfo={userInfo}
+      />{" "}
+      <OnlineRegistrationModal
+        open={showModal}
+        onOpenChange={setShowModal}
+        patientId={selectedPatientId}
+        patientName={selectedPatientName}
       />
     </div>
   );

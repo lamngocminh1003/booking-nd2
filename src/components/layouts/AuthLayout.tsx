@@ -31,7 +31,7 @@ const AuthLayout = ({ children, title, subtitle }: AuthLayoutProps) => {
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-emerald-600">
-          © 2024 Hệ thống quản lý khám bệnh
+          © 2025 Phần mềm quản lý khám bệnh
         </div>
       </div>
     </div>

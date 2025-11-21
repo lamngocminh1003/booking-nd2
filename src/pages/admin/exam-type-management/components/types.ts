@@ -5,6 +5,7 @@ export interface ExamTypeWithZone extends ExamType {
   appointmentFormKey: string;
   appointmentFormName: string;
   zoneName?: string;
+  isSelectDoctor?: boolean; // ✅ Ensure this is included in ExamTypeWithZone
 }
 
 export interface ExamTypePayload {
@@ -15,6 +16,8 @@ export interface ExamTypePayload {
   description: string;
   enable: boolean;
   appointmentFormId: number;
+  isSelectDoctor?: boolean; // ✅ Fix: Remove ExamTypePayload and keep isSelectDoctor
+  code?: string; // ✅ Add code field if needed
 }
 
 // ✅ Updated interface to match actual API response
@@ -26,10 +29,12 @@ export interface ExamZoneDetails {
       description: string | null;
       listType: string | null;
       enable: boolean;
+      isSelectDoctor?: boolean; // ✅ Add isSelectDoctor to sepicalties
     }[];
     id: number;
     name: string;
     enable: boolean;
+    isSelectDoctor?: boolean; // ✅ Add isSelectDoctor to departmentHospitals
     departmentHospital_Id_Postgresql: number;
   }[];
   id?: number;
@@ -38,6 +43,7 @@ export interface ExamZoneDetails {
   name?: string;
   description?: string;
   enable?: boolean;
+  isSelectDoctor?: boolean; // ✅ Add isSelectDoctor to main interface
   appointmentFormId?: number;
   appointmentFormKey?: string;
   appointmentFormName?: string;
@@ -52,10 +58,12 @@ export interface ZoneExamType {
       description: string | null;
       listType: string | null;
       enable: boolean;
+      isSelectDoctor?: boolean; // ✅ Add isSelectDoctor
     }[];
     id: number;
     name: string;
     enable: boolean;
+    isSelectDoctor?: boolean; // ✅ Add isSelectDoctor
     departmentHospital_Id_Postgresql: number;
   }[];
   id: number;
@@ -64,6 +72,7 @@ export interface ZoneExamType {
   name: string;
   description: string;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Add isSelectDoctor
   appointmentFormId: number;
   appointmentFormKey: string;
   appointmentFormName: string;
@@ -74,6 +83,7 @@ export interface ExamTypeSpecialtyPayload {
   specialtyId: number;
   departmentHospitalId: number;
   enable: boolean;
+  isSelectDoctor?: boolean; // ✅ Add isSelectDoctor
 }
 
 // ✅ Nếu chưa có, thêm interface cho selectedExamTypeForServicePrice
@@ -81,4 +91,5 @@ export interface SelectedExamTypeForServicePrice {
   id: number;
   name: string;
   zoneName: string;
+  isSelectDoctor?: boolean; // ✅ Add isSelectDoctor
 }

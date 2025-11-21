@@ -105,7 +105,7 @@ const AppointmentResultModal = ({
           <div>
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
               <AlertCircle className="w-4 h-4 mr-2" />
-              Triệu chứng
+              Dấu hiệu lâm sàng
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {mockResult.symptoms.map((symptom, index) => (

@@ -158,7 +158,7 @@ const PatientModal = ({
                 <DialogDescription className="text-gray-600 mt-1">
                   {mode === "add"
                     ? "Nhập đầy đủ thông tin cho bệnh nhi mới"
-                    : "Cập nhật thông tin bệnh nhi trong hệ thống"}
+                    : "Cập nhật thông tin bệnh nhi "}
                 </DialogDescription>
               </div>
             </div>

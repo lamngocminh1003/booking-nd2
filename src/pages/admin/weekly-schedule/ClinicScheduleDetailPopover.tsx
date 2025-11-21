@@ -12,10 +12,7 @@ import {
   Stethoscope,
   Calendar,
   MapPin,
-  Settings,
   Edit3,
-  Save,
-  X,
   Eye,
 } from "lucide-react";
 import { ClinicScheduleEditButton } from "./ClinicScheduleEditPopover";
@@ -150,7 +147,7 @@ export const ClinicScheduleDetailPopover: React.FC<
     return scheduleDate > today;
   }, []);
 
-  // ✅ Hoặc có thể kiểm tra chi tiết hơn
+  // ✅ Enhanced canEditSchedule function với kiểm tra booking
   const canEditSchedule = useCallback((schedule: any): boolean => {
     // Kiểm tra ngày
     if (!schedule.dateInWeek) return false;
@@ -165,66 +162,36 @@ export const ClinicScheduleDetailPopover: React.FC<
     // Chỉ cho phép edit nếu là ngày tương lai
     const isFuture = scheduleDate > today;
 
-    return isFuture;
-  }, []);
+    // ✅ KIỂM TRA: Không cho phép edit nếu đã có booking
+    const hasBookings = (schedule.totalBookedSlot || 0) > 0;
 
-  // ✅ Thêm function tính tổng lượt từ appointment slots
-  const calculateTotalSlots = useCallback((appointmentSlots: any[]): number => {
-    if (!appointmentSlots || appointmentSlots.length === 0) {
-      return 0;
+    return isFuture && !hasBookings;
+  }, []);
+  // ✅ Helper function để get reason tại sao không thể edit
+  const getCannotEditReason = useCallback((schedule: any): string => {
+    if (!schedule.dateInWeek) {
+      return "Thiếu thông tin ngày khám";
     }
 
-    return appointmentSlots.reduce((total, slot) => {
-      // ✅ Chỉ tính các slot đang hoạt động
-      if (slot.enable && slot.totalSlot) {
-        return total + (parseInt(slot.totalSlot) || 0);
-      }
-      return total;
-    }, 0);
+    const scheduleDate = new Date(schedule.dateInWeek);
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+    scheduleDate.setHours(0, 0, 0, 0);
+
+    const isFuture = scheduleDate > today;
+    const hasBookings = (schedule.totalBookedSlot || 0) > 0;
+
+    if (!isFuture && hasBookings) {
+      return `Không thể chỉnh sửa: Lịch khám trong quá khứ/hiện tại và đã có ${schedule.totalBookedSlot} lượt đặt`;
+    } else if (!isFuture) {
+      return "Không thể chỉnh sửa lịch khám trong quá khứ hoặc hiện tại";
+    } else if (hasBookings) {
+      return `Không thể chỉnh sửa: Đã có ${schedule.totalBookedSlot} lượt đặt khám`;
+    }
+
+    return "Không thể chỉnh sửa";
   }, []);
-
-  // ✅ Thêm function tính tổng tất cả slots (bao gồm cả disabled)
-  const calculateAllSlots = useCallback(
-    (
-      appointmentSlots: any[]
-    ): {
-      totalActive: number;
-      totalInactive: number;
-      totalAll: number;
-    } => {
-      if (!appointmentSlots || appointmentSlots.length === 0) {
-        return {
-          totalActive: 0,
-          totalInactive: 0,
-          totalAll: 0,
-        };
-      }
-
-      let totalActive = 0;
-      let totalInactive = 0;
-
-      appointmentSlots.forEach((slot) => {
-        const slotTotal = parseInt(slot.totalSlot) || 0;
-        if (slot.enable) {
-          totalActive += slotTotal;
-        } else {
-          totalInactive += slotTotal;
-        }
-      });
-
-      return {
-        totalActive,
-        totalInactive,
-        totalAll: totalActive + totalInactive,
-      };
-    },
-    []
-  );
-
-  // ✅ Tính toán các thông số slot
-  const slotStats = calculateAllSlots(schedule.appointmentSlots || []);
-  const calculatedTotal = slotStats.totalActive; // Hoặc slotStats.totalAll nếu muốn tính cả disabled
-
   return (
     <Popover open={isDetailPopoverOpen} onOpenChange={setIsDetailPopoverOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -244,9 +211,7 @@ export const ClinicScheduleDetailPopover: React.FC<
               </div>
             </div>
 
-            {/* ✅ Enhanced Action Buttons */}
             <div className="flex items-center gap-2">
-              {/* ✅ Thêm điều kiện kiểm tra ngày */}
               {allowEdit && !isEditMode && canEditSchedule(schedule) && (
                 <Badge variant="secondary" className="text-xs">
                   <Button
@@ -262,22 +227,32 @@ export const ClinicScheduleDetailPopover: React.FC<
                 </Badge>
               )}
 
-              {/* ✅ Thêm thông báo khi không thể chỉnh sửa */}
+              {/* ✅ READ-ONLY: Hiển thị button disabled khi không thể chỉnh sửa */}
               {allowEdit && !isEditMode && !canEditSchedule(schedule) && (
-                <Badge variant="outline" className="text-xs text-gray-500">
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${
+                    (schedule.totalBookedSlot || 0) > 0
+                      ? "text-orange-600 border-orange-300 bg-orange-50"
+                      : "text-gray-500 border-gray-300 bg-gray-50"
+                  }`}
+                >
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs cursor-not-allowed opacity-60"
                     disabled
-                    title="Không thể chỉnh sửa lịch khám trong quá khứ hoặc hiện tại"
+                    title={getCannotEditReason(schedule)}
                   >
                     <Edit3 className="w-3 h-3 mr-1" />
-                    Chỉ xem
+                    {(schedule.totalBookedSlot || 0) > 0
+                      ? `🔒 ${schedule.totalBookedSlot} Có booking`
+                      : "Chỉ xem"}
                   </Button>
                 </Badge>
               )}
 
+              {/* ✅ EDIT MODE: Button để exit edit mode */}
               {isEditMode && (
                 <Badge variant="secondary" className="text-xs">
                   <Button
@@ -441,16 +416,8 @@ export const ClinicScheduleDetailPopover: React.FC<
                     <div className="ml-2 flex flex-col">
                       {/* ✅ Hiển thị tổng tính từ slots */}
                       <span className="font-medium text-lg">
-                        {calculatedTotal}
+                        {schedule.totalSlot}
                       </span>
-
-                      {/* ✅ Breakdown chi tiết */}
-                      {slotStats.totalInactive > 0 && (
-                        <span className="text-xs text-gray-500 mt-1">
-                          Hoạt động: {slotStats.totalActive} | Tạm dừng:{" "}
-                          {slotStats.totalInactive}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div>
@@ -466,25 +433,16 @@ export const ClinicScheduleDetailPopover: React.FC<
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="text-center">
                       <div className="font-medium text-blue-700">
-                        {schedule.appointmentSlots?.length || 0}
+                        {schedule.totalAvailableSlot}{" "}
                       </div>
-                      <div className="text-blue-500">Khung giờ</div>
+                      <div className="text-blue-500">Còn trống</div>
                     </div>
-                    <div className="text-center">
-                      <div className="font-medium text-green-700">
-                        {schedule.appointmentSlots?.filter(
-                          (slot) => slot.enable
-                        )?.length || 0}
-                      </div>
-                      <div className="text-green-500">Đang hoạt động</div>
-                    </div>
+
                     <div className="text-center">
                       <div className="font-medium text-gray-700">
-                        {schedule.appointmentSlots?.filter(
-                          (slot) => !slot.enable
-                        )?.length || 0}
+                        {schedule.totalBookedSlot}
                       </div>
-                      <div className="text-gray-500">Tạm dừng</div>
+                      <div className="text-gray-500">Đã đặt</div>
                     </div>
                   </div>
                 </div>
@@ -517,7 +475,7 @@ export const ClinicScheduleDetailPopover: React.FC<
 
                       {/* ✅ Hiển thị tổng lượt ở header */}
                       <Badge variant="secondary" className="text-xs">
-                        Tổng: {calculatedTotal} lượt
+                        Tổng: {schedule.totalSlot} lượt
                       </Badge>
                     </div>
 
@@ -552,47 +510,37 @@ export const ClinicScheduleDetailPopover: React.FC<
                               {slot.enable ? "Hoạt động" : "Tạm dừng"}
                             </span>
 
-                            {/* ✅ Hiển thị phần trăm đóng góp */}
-                            {slot.enable && calculatedTotal > 0 && (
+                            {slot.enable && (
                               <span className="text-blue-500 font-medium">
-                                {Math.round(
-                                  (parseInt(slot.totalSlot) / calculatedTotal) *
-                                    100
+                                {/* ✅ Icon status */}
+                                {slot.isAvailable === false ? (
+                                  <span className="text-red-600">❌</span>
+                                ) : (slot.availableSlot || 0) <= 3 ? (
+                                  <span className="text-orange-600">⚠️</span>
+                                ) : (
+                                  <span className="text-emerald-600">✅</span>
                                 )}
-                                %
+
+                                {slot.isAvailable === false
+                                  ? "Hết chỗ"
+                                  : slot.totalSlot &&
+                                    slot.bookedSlot !== undefined
+                                  ? `Còn ${
+                                      slot.totalSlot - slot.bookedSlot ||
+                                      slot.availableSlot ||
+                                      0
+                                    }/${slot.totalSlot}`
+                                  : slot.availableSlot !== undefined &&
+                                    slot.totalSlot
+                                  ? `Còn ${slot.availableSlot}/${slot.totalSlot}`
+                                  : slot.total
+                                  ? `${slot.total} chỗ`
+                                  : "Còn chỗ"}
                               </span>
                             )}
                           </div>
                         </div>
                       ))}
-                    </div>
-
-                    {/* ✅ Footer summary cho slots */}
-                    <div className="bg-blue-25 border border-blue-100 rounded p-2 text-xs">
-                      <div className="flex items-center justify-between text-blue-700">
-                        <span>
-                          📊 Tổng cộng:{" "}
-                          <strong>{slotStats.totalAll} lượt</strong>
-                          {slotStats.totalInactive > 0 && (
-                            <span className="text-amber-600 ml-2">
-                              ({slotStats.totalActive} hoạt động +{" "}
-                              {slotStats.totalInactive} tạm dừng)
-                            </span>
-                          )}
-                        </span>
-
-                        {/* ✅ Hiển thị trung bình lượt/slot */}
-                        {schedule.appointmentSlots.length > 0 && (
-                          <span className="text-gray-600">
-                            TB:{" "}
-                            {Math.round(
-                              slotStats.totalAll /
-                                schedule.appointmentSlots.length
-                            )}
-                            lượt/slot
-                          </span>
-                        )}
-                      </div>
                     </div>
                   </div>
                 )}

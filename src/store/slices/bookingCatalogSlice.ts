@@ -11,10 +11,24 @@ import {
   createOnlineRegistration,
   confirmPayment,
   cancelRegistration,
+  getOnlineRegistrationList, // ✅ NEW
+  getOnlineRegistrationsByPatient, // ✅ NEW
   AddOnlineRegistrationDto,
   OnlineRegistrationResponse,
   PaymentConfirmationRequest,
   PaymentConfirmationResponse,
+  OnlineRegistrationPagedResponse,
+  OnlineRegistrationQueryParams,
+  getAllOnlineRegistrations,
+  createRegistrationQueryParams,
+  getRegistrationsByStatus,
+  getRegistrationsByPatient,
+  getRegistrationsByPaymentStatus,
+  getCancelledRegistrations,
+  getConfirmedRegistrations,
+  searchRegistrations,
+  OnlineRegistrationItem, // ✅ NEW interface
+  OnlineRegistrationListResponse, // ✅ NEW interface
 } from "@/services/BookingCatalogService";
 
 // ✅ Interface cho Zone
@@ -45,6 +59,7 @@ export interface ExamType {
   servicePrice?: ServicePrice; // Single object, not array
   code?: string;
   specialties?: Specialty[];
+  isSelectDoctor: boolean; // ✅ Add isSelectDoctor field
 }
 
 // ✅ Interface cho Specialty
@@ -200,39 +215,55 @@ export interface AppointmentSlotSimple {
   isAvailable: boolean;
 }
 
-// ✅ State interface
+// ✅ Cập nhật State interface để thêm registration list
 interface BookingCatalogState {
   zones: Zone[];
   specialties: Specialty[];
   groupedSpecialty: GroupedSpecialtyResponse[];
-  patientInfo: PatientInfo | null; // Single patient (for backward compatibility)
-  patientList: PatientInfo[]; // ✅ NEW: List of patients from user login
+  patientInfo: PatientInfo | null;
+  patientList: PatientInfo[];
   holdResult: HoldResult | null;
   loading: boolean;
   error: string | null;
 
-  // ✅ Loading states for specific actions
+  // Loading states for specific actions
   loadingZones: boolean;
   loadingSpecialties: boolean;
   loadingSchedules: boolean;
   loadingHold: boolean;
   loadingPatient: boolean;
-  loadingPatientList: boolean; // ✅ NEW: Loading state for patient list
+  loadingPatientList: boolean;
 
-  // ✅ Thêm các trường mới cho online registration và payment confirmation
+  // Online registration và payment confirmation
   onlineRegistration: OnlineRegistrationResponse | null;
   paymentConfirmation: PaymentConfirmationResponse | null;
   loadingRegistration: boolean;
   loadingPayment: boolean;
+
+  // ✅ NEW: Registration list management
+  registrationList: OnlineRegistrationItem[]; // Danh sách tất cả đăng ký
+  patientRegistrations: OnlineRegistrationItem[]; // Đăng ký theo bệnh nhân
+  loadingRegistrationList: boolean;
+  loadingPatientRegistrations: boolean;
+  allRegistrationsPagination: {
+    items: OnlineRegistrationItem[]; // ✅ Changed from 'data' to 'items'
+    totalCount: number;
+    pageNumber: number;
+    pageSize: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  } | null;
+  loadingAllRegistrations: boolean;
 }
 
-// ✅ Initial state
+// ✅ Cập nhật initial state
 const initialState: BookingCatalogState = {
   zones: [],
   specialties: [],
   groupedSpecialty: [],
   patientInfo: null,
-  patientList: [], // ✅ NEW: Initialize empty array
+  patientList: [],
   holdResult: null,
   loading: false,
   error: null,
@@ -242,15 +273,21 @@ const initialState: BookingCatalogState = {
   loadingSchedules: false,
   loadingHold: false,
   loadingPatient: false,
-  loadingPatientList: false, // ✅ NEW: Initialize loading state
+  loadingPatientList: false,
 
-  // ✅ Initialize các trường mới
   onlineRegistration: null,
   paymentConfirmation: null,
   loadingRegistration: false,
   loadingPayment: false,
-};
 
+  // ✅ NEW: Initialize registration list states
+  registrationList: [],
+  patientRegistrations: [],
+  loadingRegistrationList: false,
+  loadingPatientRegistrations: false,
+  allRegistrationsPagination: null,
+  loadingAllRegistrations: false,
+};
 // ✅ 1. Fetch zones
 export const fetchZones = createAsyncThunk(
   "bookingCatalog/fetchZones",
@@ -267,7 +304,156 @@ export const fetchZones = createAsyncThunk(
     }
   }
 );
+export const fetchAllOnlineRegistrations = createAsyncThunk(
+  "bookingCatalog/fetchAllOnlineRegistrations",
+  async (
+    queryParams: OnlineRegistrationQueryParams = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getAllOnlineRegistrations(queryParams);
+      return response as OnlineRegistrationPagedResponse;
+    } catch (error: any) {
+      const errorMessage =
+        error.message || "Lỗi lấy danh sách tất cả đăng ký khám";
+      console.error("❌ fetchAllOnlineRegistrations error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+// ✅ NEW: Fetch registrations by status với pagination
+export const fetchRegistrationsByStatus = createAsyncThunk(
+  "bookingCatalog/fetchRegistrationsByStatus",
+  async (
+    {
+      status,
+      page = 1,
+      pageSize = 20,
+    }: { status: number; page?: number; pageSize?: number },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getRegistrationsByStatus(status, page, pageSize);
+      return response as OnlineRegistrationPagedResponse;
+    } catch (error: any) {
+      const errorMessage =
+        error.message || "Lỗi lấy đăng ký khám theo trạng thái";
+      console.error("❌ fetchRegistrationsByStatus error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
 
+// ✅ NEW: Fetch registrations by patient với pagination (override existing)
+export const fetchRegistrationsByPatient = createAsyncThunk(
+  "bookingCatalog/fetchRegistrationsByPatient",
+  async (
+    {
+      patientId,
+      page = 1,
+      pageSize = 20,
+    }: { patientId: number; page?: number; pageSize?: number },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getRegistrationsByPatient(
+        patientId,
+        page,
+        pageSize
+      );
+      return response as OnlineRegistrationPagedResponse;
+    } catch (error: any) {
+      const errorMessage =
+        error.message || "Lỗi lấy đăng ký khám theo bệnh nhân";
+      console.error("❌ fetchRegistrationsByPatient error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// ✅ NEW: Fetch registrations by payment status
+export const fetchRegistrationsByPaymentStatus = createAsyncThunk(
+  "bookingCatalog/fetchRegistrationsByPaymentStatus",
+  async (
+    {
+      statusPayment,
+      page = 1,
+      pageSize = 20,
+    }: { statusPayment: number; page?: number; pageSize?: number },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getRegistrationsByPaymentStatus(
+        statusPayment,
+        page,
+        pageSize
+      );
+      return response as OnlineRegistrationPagedResponse;
+    } catch (error: any) {
+      const errorMessage =
+        error.message || "Lỗi lấy đăng ký khám theo trạng thái thanh toán";
+      console.error(
+        "❌ fetchRegistrationsByPaymentStatus error:",
+        errorMessage
+      );
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// ✅ NEW: Fetch cancelled registrations
+export const fetchCancelledRegistrations = createAsyncThunk(
+  "bookingCatalog/fetchCancelledRegistrations",
+  async (
+    { page = 1, pageSize = 20 }: { page?: number; pageSize?: number } = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getCancelledRegistrations(page, pageSize);
+      return response as OnlineRegistrationPagedResponse;
+    } catch (error: any) {
+      const errorMessage = error.message || "Lỗi lấy đăng ký khám đã hủy";
+      console.error("❌ fetchCancelledRegistrations error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// ✅ NEW: Advanced search registrations
+export const searchRegistrationsThunk = createAsyncThunk(
+  "bookingCatalog/searchRegistrations",
+  async (
+    searchCriteria: {
+      patientId?: number;
+      status?: number[];
+      paymentStatus?: number[];
+      dateFrom?: string;
+      dateTo?: string;
+      cancel?: boolean;
+      confirm?: boolean;
+      type?: number;
+      orderId?: string;
+      page?: number;
+      pageSize?: number;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await searchRegistrations(searchCriteria);
+      return response as OnlineRegistrationPagedResponse;
+    } catch (error: any) {
+      const errorMessage = error.message || "Lỗi tìm kiếm đăng ký khám";
+      console.error("❌ searchRegistrations error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
 // ✅ 2. Fetch specialties by exam type
 export const fetchSpecialtiesByExamType = createAsyncThunk(
   "bookingCatalog/fetchSpecialtiesByExamType",
@@ -432,7 +618,6 @@ export const cancelRegistrationThunk = createAsyncThunk(
   async (id: number, { rejectWithValue }) => {
     try {
       const response = await cancelRegistration(id);
-
       toast.success("✅ Hủy đăng ký khám thành công!");
       return response;
     } catch (error: any) {
@@ -443,7 +628,41 @@ export const cancelRegistrationThunk = createAsyncThunk(
     }
   }
 );
+// ✅ 10. Fetch all online registrations (cho user hiện tại)
+export const fetchOnlineRegistrationList = createAsyncThunk(
+  "bookingCatalog/fetchOnlineRegistrationList",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await getOnlineRegistrationList();
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.message || "Lỗi lấy danh sách đăng ký khám";
+      console.error("❌ fetchOnlineRegistrationList error:", errorMessage);
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
 
+// ✅ 11. Fetch online registrations by patient
+export const fetchOnlineRegistrationsByPatient = createAsyncThunk(
+  "bookingCatalog/fetchOnlineRegistrationsByPatient",
+  async (patientId: number, { rejectWithValue }) => {
+    try {
+      const response = await getOnlineRegistrationsByPatient(patientId);
+      return response;
+    } catch (error: any) {
+      const errorMessage =
+        error.message || "Lỗi lấy danh sách đăng ký khám theo bệnh nhân";
+      console.error(
+        "❌ fetchOnlineRegistrationsByPatient error:",
+        errorMessage
+      );
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
 // ✅ Update state interface để hỗ trợ multiple patients
 interface BookingCatalogState {
   zones: Zone[];
@@ -513,68 +732,56 @@ const bookingCatalogSlice = createSlice({
     // ✅ Clear payment confirmation
     clearPaymentConfirmation: (state) => {
       state.paymentConfirmation = null;
+    }, // ✅ NEW: Clear registration list
+    clearRegistrationList: (state) => {
+      state.registrationList = [];
     },
 
-    // ✅ Reset all data
-    resetBookingCatalog: (state) => {
-      state.zones = [];
-      state.specialties = [];
-      state.groupedSpecialty = [];
-      state.patientInfo = null;
-      state.patientList = []; // ✅ NEW: Reset patient list
-      state.holdResult = null;
-      state.error = null;
-      state.loading = false;
-      state.loadingZones = false;
-      state.loadingSpecialties = false;
-      state.loadingSchedules = false;
-      state.loadingHold = false;
-      state.loadingPatient = false;
-      state.loadingPatientList = false; // ✅ NEW: Reset loading state
+    // ✅ NEW: Clear patient registrations
+    clearPatientRegistrations: (state) => {
+      state.patientRegistrations = [];
+    },
+    // ✅ NEW: Clear all registrations pagination
+    clearAllRegistrationsPagination: (state) => {
+      state.allRegistrationsPagination = null;
     },
 
-    // ✅ Set patient info manually (for form prefill)
-    setPatientInfo: (state, action: PayloadAction<PatientInfo>) => {
-      state.patientInfo = action.payload;
-    },
+    // ✅ NEW: Update registration in pagination data
+    updateRegistrationInPagination: (
+      state,
+      action: PayloadAction<{ id: number; status: number }>
+    ) => {
+      const { id, status } = action.payload;
 
-    // ✅ NEW: Set selected patient from list
-    setSelectedPatientFromList: (state, action: PayloadAction<number>) => {
-      const selectedPatient = state.patientList.find(
-        (patient) => patient.id === action.payload
-      );
-      if (selectedPatient) {
-        state.patientInfo = selectedPatient;
-      }
-    },
-
-    // ✅ NEW: Update patient in list after edit
-    updatePatientInList: (state, action: PayloadAction<PatientInfo>) => {
-      const index = state.patientList.findIndex(
-        (patient) => patient.id === action.payload.id
-      );
-      if (index !== -1) {
-        state.patientList[index] = action.payload;
-        // Update selected patient if it's the same one
-        if (state.patientInfo?.id === action.payload.id) {
-          state.patientInfo = action.payload;
+      if (state.allRegistrationsPagination?.items) {
+        // ✅ Changed from 'data' to 'items'
+        const index = state.allRegistrationsPagination.items.findIndex(
+          (reg) => reg.id === id
+        );
+        if (index !== -1) {
+          state.allRegistrationsPagination.items[index].status = status;
         }
       }
     },
 
-    // ✅ NEW: Add new patient to list
-    addPatientToList: (state, action: PayloadAction<PatientInfo>) => {
-      // Check if patient already exists
-      const existingIndex = state.patientList.findIndex(
-        (patient) => patient.id === action.payload.id
-      );
+    // ✅ NEW: Remove registration from pagination data
+    removeRegistrationFromPagination: (
+      state,
+      action: PayloadAction<number>
+    ) => {
+      const registrationId = action.payload;
 
-      if (existingIndex === -1) {
-        // Add new patient
-        state.patientList.push(action.payload);
-      } else {
-        // Update existing patient
-        state.patientList[existingIndex] = action.payload;
+      if (state.allRegistrationsPagination?.items) {
+        // ✅ Changed from 'data' to 'items'
+        state.allRegistrationsPagination.items =
+          state.allRegistrationsPagination.items.filter(
+            (reg) => reg.id !== registrationId
+          );
+        // Update totalCount
+        state.allRegistrationsPagination.totalCount = Math.max(
+          0,
+          state.allRegistrationsPagination.totalCount - 1
+        );
       }
     },
   },
@@ -593,6 +800,129 @@ const bookingCatalogSlice = createSlice({
       })
       .addCase(fetchZones.rejected, (state, action) => {
         state.loadingZones = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchAllOnlineRegistrations.pending, (state) => {
+        state.loadingAllRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchAllOnlineRegistrations.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationPagedResponse>) => {
+          state.loadingAllRegistrations = false;
+          state.loading = false;
+          state.allRegistrationsPagination = action.payload;
+        }
+      )
+      .addCase(fetchAllOnlineRegistrations.rejected, (state, action) => {
+        state.loadingAllRegistrations = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ NEW: Fetch registrations by status
+      .addCase(fetchRegistrationsByStatus.pending, (state) => {
+        state.loadingAllRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchRegistrationsByStatus.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationPagedResponse>) => {
+          state.loadingAllRegistrations = false;
+          state.loading = false;
+          state.allRegistrationsPagination = action.payload;
+        }
+      )
+      .addCase(fetchRegistrationsByStatus.rejected, (state, action) => {
+        state.loadingAllRegistrations = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ NEW: Fetch registrations by patient (update for pagination)
+      .addCase(fetchRegistrationsByPatient.pending, (state) => {
+        state.loadingPatientRegistrations = true;
+        state.loadingAllRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchRegistrationsByPatient.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationPagedResponse>) => {
+          state.loadingPatientRegistrations = false;
+          state.loadingAllRegistrations = false;
+          state.loading = false;
+          // ✅ UPDATE: Handle both old format and new pagination format with 'items'
+          state.patientRegistrations = action.payload.items || []; // ✅ Changed from 'data' to 'items'
+          state.allRegistrationsPagination = action.payload;
+        }
+      )
+      .addCase(fetchRegistrationsByPatient.rejected, (state, action) => {
+        state.loadingPatientRegistrations = false;
+        state.loadingAllRegistrations = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ NEW: Fetch registrations by payment status
+      .addCase(fetchRegistrationsByPaymentStatus.pending, (state) => {
+        state.loadingAllRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchRegistrationsByPaymentStatus.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationPagedResponse>) => {
+          state.loadingAllRegistrations = false;
+          state.loading = false;
+          state.allRegistrationsPagination = action.payload;
+        }
+      )
+      .addCase(fetchRegistrationsByPaymentStatus.rejected, (state, action) => {
+        state.loadingAllRegistrations = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ NEW: Fetch cancelled registrations
+      .addCase(fetchCancelledRegistrations.pending, (state) => {
+        state.loadingAllRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchCancelledRegistrations.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationPagedResponse>) => {
+          state.loadingAllRegistrations = false;
+          state.loading = false;
+          state.allRegistrationsPagination = action.payload;
+        }
+      )
+      .addCase(fetchCancelledRegistrations.rejected, (state, action) => {
+        state.loadingAllRegistrations = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ NEW: Search registrations
+      .addCase(searchRegistrationsThunk.pending, (state) => {
+        state.loadingAllRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        searchRegistrationsThunk.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationPagedResponse>) => {
+          state.loadingAllRegistrations = false;
+          state.loading = false;
+          state.allRegistrationsPagination = action.payload;
+        }
+      )
+      .addCase(searchRegistrationsThunk.rejected, (state, action) => {
+        state.loadingAllRegistrations = false;
         state.loading = false;
         state.error = action.payload as string;
       })
@@ -774,15 +1104,76 @@ const bookingCatalogSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // ✅ Cancel registration
+      // ✅ NEW: Fetch online registration list
+      .addCase(fetchOnlineRegistrationList.pending, (state) => {
+        state.loadingRegistrationList = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchOnlineRegistrationList.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationItem[]>) => {
+          state.loadingRegistrationList = false;
+          state.loading = false;
+          state.registrationList = action.payload || [];
+        }
+      )
+      .addCase(fetchOnlineRegistrationList.rejected, (state, action) => {
+        state.loadingRegistrationList = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ NEW: Fetch online registrations by patient
+      .addCase(fetchOnlineRegistrationsByPatient.pending, (state) => {
+        state.loadingPatientRegistrations = true;
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        fetchOnlineRegistrationsByPatient.fulfilled,
+        (state, action: PayloadAction<OnlineRegistrationItem[]>) => {
+          state.loadingPatientRegistrations = false;
+          state.loading = false;
+          state.patientRegistrations = action.payload || [];
+        }
+      )
+      .addCase(fetchOnlineRegistrationsByPatient.rejected, (state, action) => {
+        state.loadingPatientRegistrations = false;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ✅ Cancel registration - CONSOLIDATED (remove duplicates)
       .addCase(cancelRegistrationThunk.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(cancelRegistrationThunk.fulfilled, (state) => {
+      .addCase(cancelRegistrationThunk.fulfilled, (state, action) => {
         state.loading = false;
+
         // Clear related data after successful cancellation
         state.onlineRegistration = null;
+
+        // ✅ Update registration status in lists (if we have the registration ID)
+        if (action.meta.arg) {
+          const cancelledId = action.meta.arg;
+
+          // Update status to 'cancelled' in both lists
+          const mainIndex = state.registrationList.findIndex(
+            (reg) => reg.id === cancelledId
+          );
+          if (mainIndex !== -1) {
+            state.registrationList[mainIndex].status = 0;
+          }
+
+          const patientIndex = state.patientRegistrations.findIndex(
+            (reg) => reg.id === cancelledId
+          );
+          if (patientIndex !== -1) {
+            state.patientRegistrations[patientIndex].status = 0;
+          }
+        }
       })
       .addCase(cancelRegistrationThunk.rejected, (state, action) => {
         state.loading = false;
@@ -801,11 +1192,11 @@ export const {
   clearGroupedSpecialty,
   clearOnlineRegistration,
   clearPaymentConfirmation,
-  resetBookingCatalog,
-  setPatientInfo,
-  setSelectedPatientFromList, // ✅ NEW
-  updatePatientInList, // ✅ NEW
-  addPatientToList, // ✅ NEW
+  clearRegistrationList, // ✅ NEW
+  clearPatientRegistrations, // ✅ NEW
+  clearAllRegistrationsPagination,
+  updateRegistrationInPagination,
+  removeRegistrationFromPagination,
 } = bookingCatalogSlice.actions;
 
 // ✅ Export reducer
