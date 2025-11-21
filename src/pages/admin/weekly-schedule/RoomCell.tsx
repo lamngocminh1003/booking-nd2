@@ -16,12 +16,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RoomConfigPopover } from "./RoomConfigPopover";
-
 import { ClinicScheduleDetailPopover } from "./ClinicScheduleDetailPopover";
 import { ClinicScheduleCloneDialog } from "./ClinicScheduleCloneDialog";
 import { RoomCloneDialog } from "./RoomCloneDialog";
 
-// ✅ Import RoomSlot type từ WeeklySchedule
 interface RoomSlot {
   id: string;
   name: string;

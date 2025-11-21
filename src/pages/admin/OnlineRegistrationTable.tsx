@@ -500,7 +500,13 @@ const OnlineRegistrationTable = (props) => {
                             </DialogTitle>
                           </DialogHeader>
                           <OnlineRegistrationDetail
+                            getStatusColor={getStatusColor}
+                            getOnlineStatusDisplay={getOnlineStatusDisplay}
+                            calculateAge={calculateAge}
+                            formatDate={formatDate}
+                            getPaymentStatusDisplay={getPaymentStatusDisplay}
                             registration={registration}
+                            getPaymentStatusColor={getPaymentStatusColor}
                           />
                         </DialogContent>
                       </Dialog>

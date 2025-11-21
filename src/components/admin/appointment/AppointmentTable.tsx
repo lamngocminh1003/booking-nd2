@@ -19,7 +19,6 @@ interface AppointmentTableProps {
   onReject: (appointmentId: string) => void;
   onUpdate: (appointment: Appointment) => void;
 }
-
 const AppointmentTable = ({
   appointments,
   onApprove,
